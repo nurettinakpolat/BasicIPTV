@@ -1,4 +1,4 @@
-# 📺 Advanced IPTV Player
+# 📺 Basic IPTV Player
 
 A basic IPTV media player built on VLCKit for macOS, designed to provide a television viewing experience with media management capabilities.
 
@@ -37,7 +37,6 @@ L: ListView
 - **EPG Time Offset**: Adjust EPG display times for different time zones
 - **Cache Management**: Configure caching behavior for logos and posters
 - **Playback Settings**: Configure buffering, quality preferences, and audio/subtitle defaults
-
 
 
 ## 📄 License
