@@ -49,10 +49,6 @@ use it, don't sell it, must be always free.
 - Inspired by modern media center applications
 - Thanks to the VideoLAN team for their excellent multimedia framework
 
-## 📞 Support
-
-For support, please open an issue on GitHub or contact the development team.
-
 ---
 
 <div align="center">

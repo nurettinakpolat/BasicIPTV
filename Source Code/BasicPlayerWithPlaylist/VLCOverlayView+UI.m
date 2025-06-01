@@ -73,57 +73,88 @@ NSInteger lastValidHoveredGroupIndex = -1;
 #pragma mark - Drawing Methods
 
 - (void)drawCategories:(NSRect)rect {
-    CGFloat rowHeight = 40;
     CGFloat catWidth = 200;
     
-    // Draw background with consistent semi-transparent black
+    // Draw background with modern gradient
     NSRect menuRect = NSMakeRect(0, 0, catWidth, self.bounds.size.height);
-    [[NSColor colorWithCalibratedRed:0 green:0 blue:0 alpha:0.7] set];
-    NSRectFill(menuRect);
+    NSGradient *backgroundGradient = [[NSGradient alloc] initWithStartingColor:[NSColor colorWithCalibratedRed:0.08 green:0.10 blue:0.14 alpha:0.75]
+                                                                   endingColor:[NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.75]];
+    [backgroundGradient drawInRect:menuRect angle:90];
+    [backgroundGradient release];
     
     // Calculate total height for scroll bar
+    CGFloat rowHeight = 40;
     CGFloat totalCategoriesHeight = [self.categories count] * rowHeight;
     
-    // Draw each category
+    // Draw each category with modern styling
     for (NSInteger i = 0; i < [self.categories count]; i++) {
         NSRect itemRect = NSMakeRect(0, 
-                                     self.bounds.size.height - ((i+1) * rowHeight) + categoryScrollPosition, 
-                                     catWidth, 
-                                     rowHeight);
+                                   self.bounds.size.height - ((i+1) * rowHeight) + categoryScrollPosition, 
+                                   catWidth, 
+                                   rowHeight);
         
         // Skip drawing if not visible
         if (!NSIntersectsRect(itemRect, rect)) {
             continue;
         }
         
-        // Highlight selected category
+        // Draw selection/hover background with rounded corners
         if (i == self.selectedCategoryIndex) {
-            [self.hoverColor set];
-            NSRectFill(itemRect);
+            NSBezierPath *selectionPath = [NSBezierPath bezierPathWithRoundedRect:
+                                         NSInsetRect(itemRect, 4, 2)
+                                                                         xRadius:6
+                                                                         yRadius:6];
+            [[NSColor colorWithCalibratedRed:0.2 green:0.4 blue:0.9 alpha:0.3] set];
+            [selectionPath fill];
+            
+            // Add subtle highlight
+            [[NSColor colorWithCalibratedRed:0.3 green:0.5 blue:1.0 alpha:0.2] set];
+            [selectionPath stroke];
+        } else if (i == self.hoveredCategoryIndex) {
+            // Hover state - lighter version of selection
+            NSBezierPath *hoverPath = [NSBezierPath bezierPathWithRoundedRect:
+                                     NSInsetRect(itemRect, 4, 2)
+                                                                     xRadius:6
+                                                                     yRadius:6];
+            [[NSColor colorWithCalibratedRed:0.2 green:0.4 blue:0.9 alpha:0.15] set];
+            [hoverPath fill];
+            
+            // Add subtle highlight
+            [[NSColor colorWithCalibratedRed:0.3 green:0.5 blue:1.0 alpha:0.1] set];
+            [hoverPath stroke];
         }
         
-        // Draw the category name
+        // Draw the category name with shadow
         NSString *category = [self.categories objectAtIndex:i];
-        
-        // Draw with white text
-        [self.textColor set];
         NSMutableParagraphStyle *style = [[NSMutableParagraphStyle alloc] init];
         [style setAlignment:NSTextAlignmentLeft];
         
-        NSDictionary *attrs = @{
-            NSFontAttributeName: [NSFont boldSystemFontOfSize:16],
-            NSForegroundColorAttributeName: self.textColor,
-            NSParagraphStyleAttributeName: style
+        NSDictionary *shadowDict = @{
+            NSShadowAttributeName: ({
+                NSShadow *shadow = [[NSShadow alloc] init];
+                shadow.shadowColor = [NSColor colorWithCalibratedWhite:0.0 alpha:0.3];
+                shadow.shadowOffset = NSMakeSize(0, -1);
+                shadow.shadowBlurRadius = 2;
+                shadow;
+            })
         };
         
-        NSString *displayName = category;
-        NSRect textRect = NSMakeRect(itemRect.origin.x + 10, 
-                                     itemRect.origin.y + (itemRect.size.height - 20) / 2, 
-                                     itemRect.size.width - 20, 
-                                     20);
+        NSDictionary *attrs = @{
+            NSFontAttributeName: [NSFont systemFontOfSize:13 weight:NSFontWeightMedium],
+            NSForegroundColorAttributeName: [NSColor colorWithCalibratedWhite:0.95 alpha:1.0],
+            NSParagraphStyleAttributeName: style,
+            NSShadowAttributeName: shadowDict[NSShadowAttributeName]
+        };
         
-        [displayName drawInRect:textRect withAttributes:attrs];
+        NSRect textRect = NSMakeRect(itemRect.origin.x + 16,
+                                   itemRect.origin.y + (itemRect.size.height - 16) / 2,
+                                   itemRect.size.width - 32,
+                                   16);
+        
+        [category drawInRect:textRect withAttributes:attrs];
+        
         [style release];
+        [shadowDict[NSShadowAttributeName] release];
     }
     
     // Draw scroll bar if needed
@@ -131,137 +162,99 @@ NSInteger lastValidHoveredGroupIndex = -1;
 }
 
 - (void)drawGroups:(NSRect)rect {
-    if (self.selectedCategoryIndex < 0 || self.selectedCategoryIndex >= [self.categories count]) {
-        return;
-    }
-    
-    CGFloat rowHeight = 40;
     CGFloat catWidth = 200;
     CGFloat groupWidth = 250;
+    CGFloat rowHeight = 40;
     
-    // Draw background with consistent semi-transparent black
+    // Draw background with modern gradient
     NSRect menuRect = NSMakeRect(catWidth, 0, groupWidth, self.bounds.size.height);
-    [[NSColor colorWithCalibratedRed:0 green:0 blue:0 alpha:0.7] set];
-    NSRectFill(menuRect);
+    NSGradient *backgroundGradient = [[NSGradient alloc] initWithStartingColor:[NSColor colorWithCalibratedRed:0.08 green:0.10 blue:0.14 alpha:0.75]
+                                                                   endingColor:[NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.75]];
+    [backgroundGradient drawInRect:menuRect angle:90];
+    [backgroundGradient release];
     
-    // Get the appropriate groups based on category
-    NSArray *groups;
-    NSString *categoryName = [self.categories objectAtIndex:self.selectedCategoryIndex];
-    
-    if ([categoryName isEqualToString:@"FAVORITES"]) {
+    // Get appropriate groups based on selected category
+    NSArray *groups = nil;
+    if (self.selectedCategoryIndex == CATEGORY_FAVORITES) {
         groups = [self safeGroupsForCategory:@"FAVORITES"];
-    } else if ([categoryName isEqualToString:@"TV"]) {
+    } else if (self.selectedCategoryIndex == CATEGORY_TV) {
         groups = [self safeTVGroups];
-    } else if ([categoryName isEqualToString:@"MOVIES"]) {
+    } else if (self.selectedCategoryIndex == CATEGORY_MOVIES) {
         groups = [self safeValueForKey:@"MOVIES" fromDictionary:self.groupsByCategory];
-    } else if ([categoryName isEqualToString:@"SERIES"]) {
+    } else if (self.selectedCategoryIndex == CATEGORY_SERIES) {
         groups = [self safeValueForKey:@"SERIES" fromDictionary:self.groupsByCategory];
-    } else if ([categoryName isEqualToString:@"SETTINGS"]) {
-        groups = [self safeValueForKey:@"SETTINGS" fromDictionary:self.groupsByCategory];
-    } else {
-        return;
     }
     
-    // Draw each group
+    if (!groups) return;
+    
+    // Draw each group with modern styling
     for (NSInteger i = 0; i < [groups count]; i++) {
-        // Calculate visible position based on scroll
-        NSInteger visibleIndex = i - (NSInteger)floor(groupScrollPosition / rowHeight);
+        NSRect itemRect = NSMakeRect(catWidth,
+                                   self.bounds.size.height - ((i+1) * rowHeight) + groupScrollPosition,
+                                   groupWidth,
+                                   rowHeight);
         
-        NSRect itemRect = NSMakeRect(catWidth, 
-                                     self.bounds.size.height - ((visibleIndex+1) * rowHeight), 
-                                     groupWidth, 
-                                     rowHeight);
+        if (!NSIntersectsRect(itemRect, rect)) continue;
         
-        // Skip drawing if not visible
-        if (!NSIntersectsRect(itemRect, rect)) {
-            continue;
-        }
-        
-        // Highlight selected or hovered group
-        if (i == self.selectedGroupIndex) {
-            [self.hoverColor set];
-            NSRectFill(itemRect);
-        } else if (i == self.hoveredGroupIndex) {
-            // Use a lighter hover color for just hovering
-            [[self.hoverColor colorWithAlphaComponent:0.5] set];
-            NSRectFill(itemRect);
-        }
-        
-        // Draw the group name
         NSString *group = [groups objectAtIndex:i];
         
-        // Check if this group has catch-up channels
-        BOOL hasCatchup = [self groupHasCatchupChannels:group];
+        // Draw selection/hover background
+        if (i == self.selectedGroupIndex) {
+            NSBezierPath *selectionPath = [NSBezierPath bezierPathWithRoundedRect:
+                                         NSInsetRect(itemRect, 4, 2)
+                                                                         xRadius:6
+                                                                         yRadius:6];
+            [[NSColor colorWithCalibratedRed:0.2 green:0.4 blue:0.9 alpha:0.3] set];
+            [selectionPath fill];
+            
+            // Add subtle highlight
+            [[NSColor colorWithCalibratedRed:0.3 green:0.5 blue:1.0 alpha:0.2] set];
+            [selectionPath stroke];
+        } else if (i == self.hoveredGroupIndex) {
+            // Hover state - lighter version of selection
+            NSBezierPath *hoverPath = [NSBezierPath bezierPathWithRoundedRect:
+                                     NSInsetRect(itemRect, 4, 2)
+                                                                     xRadius:6
+                                                                     yRadius:6];
+            [[NSColor colorWithCalibratedRed:0.2 green:0.4 blue:0.9 alpha:0.15] set];
+            [hoverPath fill];
+            
+            // Add subtle highlight
+            [[NSColor colorWithCalibratedRed:0.3 green:0.5 blue:1.0 alpha:0.1] set];
+            [hoverPath stroke];
+        }
         
-        // Draw with white text
-        [self.textColor set];
+        // Draw group name with shadow
         NSMutableParagraphStyle *style = [[NSMutableParagraphStyle alloc] init];
         [style setAlignment:NSTextAlignmentLeft];
         
+        NSShadow *shadow = [[NSShadow alloc] init];
+        shadow.shadowColor = [NSColor colorWithCalibratedWhite:0.0 alpha:0.3];
+        shadow.shadowOffset = NSMakeSize(0, -1);
+        shadow.shadowBlurRadius = 2;
+        
+        // Get channel count for this group
+        NSArray *channelsInGroup = [self.channelsByGroup objectForKey:group];
+        NSString *displayText = [NSString stringWithFormat:@"%@ (%ld)", 
+                               group, 
+                               (long)[channelsInGroup count]];
+        
         NSDictionary *attrs = @{
-            NSFontAttributeName: [NSFont systemFontOfSize:14],
-            NSForegroundColorAttributeName: self.textColor,
-            NSParagraphStyleAttributeName: style
+            NSFontAttributeName: [NSFont systemFontOfSize:13 weight:NSFontWeightRegular],
+            NSForegroundColorAttributeName: [NSColor colorWithCalibratedWhite:0.95 alpha:1.0],
+            NSParagraphStyleAttributeName: style,
+            NSShadowAttributeName: shadow
         };
         
-        // Adjust text rect to make room for catch-up icon if needed
-        CGFloat iconSpace = hasCatchup ? 20 : 0;
-        NSRect textRect = NSMakeRect(itemRect.origin.x + 10, 
-                                     itemRect.origin.y + (itemRect.size.height - 20) / 2, 
-                                     itemRect.size.width - 20 - iconSpace, 
-                                     20);
+        NSRect textRect = NSMakeRect(itemRect.origin.x + 16,
+                                   itemRect.origin.y + (itemRect.size.height - 16) / 2,
+                                   itemRect.size.width - 32,
+                                   16);
         
-        [group drawInRect:textRect withAttributes:attrs];
-        
-        // Draw catch-up icon if this group has catch-up channels
-        if (hasCatchup) {
-            NSRect iconRect = NSMakeRect(itemRect.origin.x + itemRect.size.width - 25, 
-                                        itemRect.origin.y + (itemRect.size.height - 16) / 2, 
-                                        16, 
-                                        16);
-            
-            // Draw a clock/rewind icon to indicate catch-up availability
-            [[NSColor colorWithCalibratedRed:0.3 green:0.7 blue:1.0 alpha:1.0] set];
-            
-            // Draw clock circle
-            NSBezierPath *clockCircle = [NSBezierPath bezierPathWithOvalInRect:iconRect];
-            [clockCircle setLineWidth:1.5];
-            [clockCircle stroke];
-            
-            // Draw clock hands
-            NSPoint center = NSMakePoint(iconRect.origin.x + iconRect.size.width/2, 
-                                        iconRect.origin.y + iconRect.size.height/2);
-            
-            // Hour hand (pointing to 10)
-            NSBezierPath *hourHand = [NSBezierPath bezierPath];
-            [hourHand moveToPoint:center];
-            [hourHand lineToPoint:NSMakePoint(center.x - 3, center.y + 2)];
-            [hourHand setLineWidth:1.5];
-            [hourHand stroke];
-            
-            // Minute hand (pointing to 2)
-            NSBezierPath *minuteHand = [NSBezierPath bezierPath];
-            [minuteHand moveToPoint:center];
-            [minuteHand lineToPoint:NSMakePoint(center.x + 4, center.y + 1)];
-            [minuteHand setLineWidth:1.0];
-            [minuteHand stroke];
-            
-            // Center dot
-            NSRect centerDot = NSMakeRect(center.x - 1, center.y - 1, 2, 2);
-            NSBezierPath *dot = [NSBezierPath bezierPathWithOvalInRect:centerDot];
-            [dot fill];
-        }
+        [displayText drawInRect:textRect withAttributes:attrs];
         
         [style release];
-    }
-    
-    // Only draw scroll bar if we have groups and they need scrolling
-    if (groups && [groups count] > 0) {
-        // Calculate total height for groups
-        CGFloat totalGroupsHeight = [groups count] * rowHeight;
-        
-        // Draw scroll bar if needed
-        [self drawScrollBar:menuRect contentHeight:totalGroupsHeight scrollPosition:groupScrollPosition];
+        [shadow release];
     }
 }
 
@@ -279,6 +272,12 @@ NSInteger lastValidHoveredGroupIndex = -1;
     NSRect menuRect = NSMakeRect(channelListX, 0, channelListWidth, self.bounds.size.height);
     [[NSColor colorWithCalibratedRed:0 green:0 blue:0 alpha:0.7] set];
     NSRectFill(menuRect);
+    
+    // Draw consistent background for program guide area on the right
+    CGFloat programGuideX = channelListX + channelListWidth;
+    NSRect programGuideRect = NSMakeRect(programGuideX, 0, programGuideWidth, self.bounds.size.height);
+    [[NSColor colorWithCalibratedRed:0 green:0 blue:0 alpha:0.7] set];
+    NSRectFill(programGuideRect);
     
     // Define the content rect for the channel list
     NSRect contentRect = NSMakeRect(channelListX, 0, channelListWidth, self.bounds.size.height);
@@ -299,10 +298,10 @@ NSInteger lastValidHoveredGroupIndex = -1;
         NSInteger visibleIndex = i - (NSInteger)floor(scrollPosition / rowHeight);
         
         // Adjusted positioning to start from top with no header offset
-        NSRect itemRect = NSMakeRect(channelListX, 
+        NSRect itemRect = NSMakeRect(channelListX,
                                      self.bounds.size.height - ((visibleIndex+1) * rowHeight), 
-                                     channelListWidth, 
-                                     rowHeight);
+                                   channelListWidth,
+                                   rowHeight);
         
         // Skip drawing if not visible
         if (!NSIntersectsRect(itemRect, rect)) {
@@ -1994,8 +1993,26 @@ NSInteger lastValidHoveredGroupIndex = -1;
     isPersistingHoverState = NO;
     
     // Store previous hover states
+    NSInteger prevHoveredCategoryIndex = self.hoveredCategoryIndex;
     NSInteger prevHoveredGroupIndex = self.hoveredGroupIndex;
     NSInteger prevHoveredChannelIndex = self.hoveredChannelIndex;
+    
+    // Reset hover states
+    self.hoveredCategoryIndex = -1;
+    self.hoveredGroupIndex = -1;
+    
+    // Check if mouse is in categories area (left panel)
+    if (point.x >= 0 && point.x < catWidth) {
+        // Calculate category index
+        CGFloat effectiveY = self.bounds.size.height - point.y;
+        NSInteger itemsScrolled = (NSInteger)floor(categoryScrollPosition / 40);
+        NSInteger visibleIndex = (NSInteger)floor(effectiveY / 40);
+        NSInteger categoryIndex = visibleIndex + itemsScrolled;
+        
+        if (categoryIndex >= 0 && categoryIndex < [self.categories count]) {
+            self.hoveredCategoryIndex = categoryIndex;
+        }
+    }
     
     // Only reset hover indices if we're in the channel list or another actionable area
     // This prevents clearing when moving to EPG panel
@@ -2115,7 +2132,8 @@ NSInteger lastValidHoveredGroupIndex = -1;
     }
     
     // Only redraw if the hover state changed
-    if (prevHoveredGroupIndex != self.hoveredGroupIndex || 
+    if (prevHoveredCategoryIndex != self.hoveredCategoryIndex || 
+        prevHoveredGroupIndex != self.hoveredGroupIndex || 
         prevHoveredChannelIndex != self.hoveredChannelIndex) {
         [self setNeedsDisplay:YES];
     }
@@ -2385,7 +2403,7 @@ NSInteger lastValidHoveredGroupIndex = -1;
                 if (moveSuccess) {
                     //NSLog(@"Successfully saved image to disk cache: %@", cachePath);
                 } else {
-                    //NSLog(@"Failed to move temp file to cache path: %@, error: %@", cachePath, moveError);
+                    //NSLog(@"Failed to move temp file to cache path: %@, error: %@", cacheFilePath, moveError);
                 }
             } else {
                 //NSLog(@"Failed to write image to temp path: %@", tempPath);
@@ -2921,8 +2939,8 @@ NSInteger lastValidHoveredGroupIndex = -1;
     
     // Play option
     NSMenuItem *playItem = [[NSMenuItem alloc] initWithTitle:@"Play Channel" 
-                                                      action:@selector(playChannelFromMenu:) 
-                                               keyEquivalent:@""];
+                                                    action:@selector(playChannelFromMenu:) 
+                                             keyEquivalent:@""];
     [playItem setTarget:self];
     [playItem setRepresentedObject:channel];
     [menu addItem:playItem];
@@ -2936,8 +2954,8 @@ NSInteger lastValidHoveredGroupIndex = -1;
         // Add timeshift menu item
         NSString *timeshiftTitle = [NSString stringWithFormat:@"Timeshift (%ld days available)", (long)channel.catchupDays];
         NSMenuItem *timeshiftItem = [[NSMenuItem alloc] initWithTitle:timeshiftTitle 
-                                                              action:@selector(showTimeshiftOptionsForChannel:) 
-                                                       keyEquivalent:@""];
+                                                            action:@selector(showTimeshiftOptionsForChannel:) 
+                                                     keyEquivalent:@""];
         [timeshiftItem setTarget:self];
         [timeshiftItem setRepresentedObject:channel];
         [menu addItem:timeshiftItem];
@@ -4018,11 +4036,6 @@ NSInteger lastValidHoveredGroupIndex = -1;
     NSRect guidePanelRect = NSMakeRect(guidePanelX, 0, guidePanelWidth, guidePanelHeight);
     [[NSColor colorWithCalibratedRed:0 green:0 blue:0 alpha:0.7] set];
     NSRectFill(guidePanelRect);
-    
-    // Add a subtle left border to separate from channel list
-    [[NSColor colorWithCalibratedRed:0.3 green:0.3 blue:0.3 alpha:1.0] set];
-    NSRect borderRect = NSMakeRect(guidePanelX, 0, 1, guidePanelHeight);
-    NSRectFill(borderRect);
     
     // No header with channel name
     NSMutableParagraphStyle *headerStyle = [[NSMutableParagraphStyle alloc] init];

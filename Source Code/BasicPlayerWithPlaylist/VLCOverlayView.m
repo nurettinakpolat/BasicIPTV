@@ -52,6 +52,8 @@ NSLock *gProgressMessageLock = nil;
         
         // Initialize UI state - start with menu hidden
         self.isChannelListVisible = NO; // Start hidden
+        self.hoveredCategoryIndex = -1;
+        self.hoveredGroupIndex = -1;
         self.hoveredChannelIndex = -1;
         self.selectedChannelIndex = -1;
         self.isLoading = NO;

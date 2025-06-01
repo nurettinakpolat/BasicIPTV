@@ -162,6 +162,7 @@ extern int totalProgramCount;
 - (void)refreshCurrentEPGInfo;
 
 // Hover state
+@property (nonatomic, assign) NSInteger hoveredCategoryIndex;
 @property (nonatomic, assign) NSInteger hoveredGroupIndex;
 @property (nonatomic, assign) BOOL isPendingMovieInfoFetch;
 @property (nonatomic, assign) BOOL isHoveringMovieInfoPanel;
