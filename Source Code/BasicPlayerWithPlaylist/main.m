@@ -19,21 +19,21 @@ void createMinimalChannels(VLCOverlayView *overlayView);
 
 @implementation AppDelegate
 - (BOOL)windowShouldClose:(NSWindow *)sender {
-    NSLog(@"=== WINDOW CLOSE: windowShouldClose called ===");
+    //NSLog(@"=== WINDOW CLOSE: windowShouldClose called ===");
     
     // Save current playback position before closing
     if (self.overlayView && [self.overlayView respondsToSelector:@selector(saveCurrentPlaybackPosition)]) {
-        NSLog(@"=== WINDOW CLOSE: Calling saveCurrentPlaybackPosition ===");
+        //NSLog(@"=== WINDOW CLOSE: Calling saveCurrentPlaybackPosition ===");
         [self.overlayView saveCurrentPlaybackPosition];
-        NSLog(@"=== WINDOW CLOSE: saveCurrentPlaybackPosition completed ===");
+        //NSLog(@"=== WINDOW CLOSE: saveCurrentPlaybackPosition completed ===");
     } else {
-        NSLog(@"=== WINDOW CLOSE: overlayView not available or doesn't respond to saveCurrentPlaybackPosition ===");
+        //NSLog(@"=== WINDOW CLOSE: overlayView not available or doesn't respond to saveCurrentPlaybackPosition ===");
     }
     return YES;
 }
 
 - (void)windowWillClose:(NSNotification *)notification {
-    NSLog(@"=== WINDOW CLOSE: windowWillClose called ===");
+    //NSLog(@"=== WINDOW CLOSE: windowWillClose called ===");
     [NSApp terminate:nil];
 }
 @end
@@ -65,7 +65,7 @@ int main(int argc, const char * argv[]) {
             // Try to completely disable VLC logging by setting an empty loggers array
             vlcLibrary.loggers = @[];
             
-            NSLog(@"VLC logging disabled by setting empty loggers array");
+            //NSLog(@"VLC logging disabled by setting empty loggers array");
             
             // Create the video view for VLC
             VLCGLVideoView *videoView = [[VLCGLVideoView alloc] initWithFrame:bounds];
@@ -93,7 +93,7 @@ int main(int argc, const char * argv[]) {
                 
                 // Initialize player controls if available
                 if ([overlayView respondsToSelector:@selector(manuallyShowControls)]) {
-                    NSLog(@"Setting up player controls");
+                    //NSLog(@"Setting up player controls");
                     [overlayView performSelector:@selector(manuallyShowControls)];
                     
                     // Add a gesture recognizer to detect mouse movement and show controls
@@ -105,16 +105,16 @@ int main(int argc, const char * argv[]) {
                         return event;
                     }];
                 } else {
-                    NSLog(@"Player controls not available");
+                    //NSLog(@"Player controls not available");
                 }
                 
                 // Set visibility
                 overlayView.isChannelListVisible = NO; // Don't show channel list
                 [overlayView setNeedsDisplay:YES];
-                NSLog(@"Added simple overlay view");
+                //NSLog(@"Added simple overlay view");
                 
                 // Load channels and settings (including EPG) FIRST - before early playback
-                NSLog(@"Starting loading of channels and EPG...");
+                //NSLog(@"Starting loading of channels and EPG...");
                 [overlayView loadChannelsFile];
                 [overlayView startEarlyPlaybackIfAvailable];
                 // START EARLY PLAYBACK AFTER CHANNELS ARE LOADED
@@ -133,14 +133,14 @@ int main(int argc, const char * argv[]) {
                     // Try to sync the selection with what's currently playing
                     NSString *lastChannelUrl = [overlayView getLastPlayedChannelUrl];
                     if (lastChannelUrl && [lastChannelUrl length] > 0) {
-                        NSLog(@"Syncing selection with currently playing content: %@", lastChannelUrl);
+                        //NSLog(@"Syncing selection with currently playing content: %@", lastChannelUrl);
                         
                         // Try to find and select the currently playing channel in the UI
                         if (overlayView.simpleChannelUrls) {
                             NSInteger urlIndex = [overlayView.simpleChannelUrls indexOfObject:lastChannelUrl];
                             if (urlIndex != NSNotFound) {
                                 overlayView.selectedChannelIndex = urlIndex;
-                                NSLog(@"Synced selection to channel index: %ld", (long)urlIndex);
+                                //NSLog(@"Synced selection to channel index: %ld", (long)urlIndex);
                                 [overlayView setNeedsDisplay:YES];
                                 
                                 // Clear the temporary cached channel since we now have real data
@@ -148,14 +148,14 @@ int main(int argc, const char * argv[]) {
                             }
                         }
                     } else {
-                        NSLog(@"No previously played channel found for syncing");
+                        //NSLog(@"No previously played channel found for syncing");
                     }
                 });
             });
 
             [NSApp run];
         } @catch (NSException *exception) {
-            NSLog(@"Fatal exception in main: %@", exception);
+            //NSLog(@"Fatal exception in main: %@", exception);
         }
     }
     return 0;

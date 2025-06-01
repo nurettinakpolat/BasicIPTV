@@ -1335,7 +1335,7 @@ NSInteger lastValidHoveredGroupIndex = -1;
             }
             
             // Don't hide controls on any click - let them stay visible
-            NSLog(@"Click outside controls - keeping controls visible");
+            //NSLog(@"Click outside controls - keeping controls visible");
         }
         // If no player or click not on controls, do nothing - menu is hidden
         return;
@@ -1452,9 +1452,9 @@ NSInteger lastValidHoveredGroupIndex = -1;
         }
         
         // Log that a group was selected for debugging
-        NSLog(@"Group selected: %@, with %lu channels", 
-              [groups objectAtIndex:index],
-              (unsigned long)[[self.channelsByGroup objectForKey:[groups objectAtIndex:index]] count]);
+        //NSLog(@"Group selected: %@, with %lu channels", 
+              //[groups objectAtIndex:index],
+              //(unsigned long)[[self.channelsByGroup objectForKey:[groups objectAtIndex:index]] count]);
         
         [self setNeedsDisplay:YES];
     }
@@ -1474,8 +1474,8 @@ NSInteger lastValidHoveredGroupIndex = -1;
     CGFloat channelListEndX = channelListStartX + channelListWidth;
     
     // Log click coordinates for debugging
-    NSLog(@"Click at point: (%.1f, %.1f) - Channel list bounds: X from %.1f to %.1f", 
-          point.x, point.y, channelListStartX, channelListEndX);
+    //NSLog(@"Click at point: (%.1f, %.1f) - Channel list bounds: X from %.1f to %.1f", 
+          //point.x, point.y, channelListStartX, channelListEndX);
     
     // Check if we're in the settings panel FIRST (before movie info panel check)
     // because settings uses the same area as movie info panel
@@ -1500,10 +1500,10 @@ NSInteger lastValidHoveredGroupIndex = -1;
     
     // Use simpleChannelIndexAtPoint which now has improved boundary checking
     NSInteger channelIndex = [self simpleChannelIndexAtPoint:point];
-    NSLog(@"Channel index at click point: %ld", (long)channelIndex);
+    //NSLog(@"Channel index at click point: %ld", (long)channelIndex);
     
     if (channelIndex >= 0) {
-        NSLog(@"Valid channel clicked - playing channel %ld", (long)channelIndex);
+        //NSLog(@"Valid channel clicked - playing channel %ld", (long)channelIndex);
         self.selectedChannelIndex = channelIndex;
         [self playChannelAtIndex:channelIndex];
         [self setNeedsDisplay:YES];
@@ -1530,11 +1530,11 @@ NSInteger lastValidHoveredGroupIndex = -1;
         
         // Prevent multiple clicks while already refreshing
         if (self.isRefreshingMovieInfo) {
-            NSLog(@"Movie Info refresh already in progress - ignoring click");
+            //NSLog(@"Movie Info refresh already in progress - ignoring click");
             return YES;
         }
         
-        NSLog(@"Movie Info refresh button clicked");
+        //NSLog(@"Movie Info refresh button clicked");
         [self startMovieInfoRefresh];
         return YES;
     }
@@ -1618,11 +1618,11 @@ NSInteger lastValidHoveredGroupIndex = -1;
     
     // Check for clicks on the EPG Time Offset dropdown
     if (NSPointInRect(point, self.epgTimeOffsetDropdownRect)) {
-        NSLog(@"Click detected on EPG Time Offset dropdown at point: (%.1f, %.1f)", point.x, point.y);
+        //NSLog(@"Click detected on EPG Time Offset dropdown at point: (%.1f, %.1f)", point.x, point.y);
         
         // Only handle dropdown clicks in the Playlist settings group
         if (selectedGroup && [selectedGroup isEqualToString:@"Playlist"]) {
-            NSLog(@"In Playlist settings group, proceeding with dropdown handling");
+            //NSLog(@"In Playlist settings group, proceeding with dropdown handling");
             self.m3uFieldActive = NO;
             self.epgFieldActive = NO;
             
@@ -1823,7 +1823,7 @@ NSInteger lastValidHoveredGroupIndex = -1;
                 epgUrlToLoad = generatedEpgUrl;
                 self.epgUrl = generatedEpgUrl;
                 self.tempEpgUrl = generatedEpgUrl;
-                NSLog(@"Auto-generated EPG URL: %@", self.epgUrl);
+                //NSLog(@"Auto-generated EPG URL: %@", self.epgUrl);
             }
         }
         
@@ -1844,7 +1844,7 @@ NSInteger lastValidHoveredGroupIndex = -1;
         
         // Use the force reload method to always download fresh data
         if ([self respondsToSelector:@selector(forceReloadChannelsAndEpg)]) {
-            NSLog(@"Force reloading channels and EPG data from settings menu");
+            //NSLog(@"Force reloading channels and EPG data from settings menu");
             [self forceReloadChannelsAndEpg];
         } else {
             // Fallback to regular load if the force method isn't available
@@ -2171,10 +2171,10 @@ NSInteger lastValidHoveredGroupIndex = -1;
                                  attributes:nil 
                                       error:&dirError];
         if (dirError) {
-            NSLog(@"Error creating movie info cache directory: %@", dirError);
+            //NSLog(@"Error creating movie info cache directory: %@", dirError);
             return;
         } else {
-            NSLog(@"Created movie info cache directory: %@", movieInfoCacheDir);
+            //NSLog(@"Created movie info cache directory: %@", movieInfoCacheDir);
         }
     }
     
@@ -2212,12 +2212,12 @@ NSInteger lastValidHoveredGroupIndex = -1;
             BOOL moveSuccess = [fileManager moveItemAtPath:tempPath toPath:cacheFilePath error:&moveError];
             
             if (moveSuccess) {
-                NSLog(@"Saved movie info for '%@' to cache file: %@", channel.name, cacheFilePath);
+                //NSLog(@"Saved movie info for '%@' to cache file: %@", channel.name, cacheFilePath);
             } else {
-                NSLog(@"Failed to move temp file to cache path: %@, error: %@", cacheFilePath, moveError);
+                //NSLog(@"Failed to move temp file to cache path: %@, error: %@", cacheFilePath, moveError);
             }
         } else {
-            NSLog(@"Failed to write movie info to temp file: %@", tempPath);
+            //NSLog(@"Failed to write movie info to temp file: %@", tempPath);
         }
     }
 }
@@ -2265,7 +2265,7 @@ NSInteger lastValidHoveredGroupIndex = -1;
                 // Also try to load cached poster image from disk
                 [self loadCachedPosterImageForChannel:channel];
                 
-                NSLog(@"Loaded movie info for '%@' from cache: %@", channel.name, cacheFilePath);
+                //NSLog(@"Loaded movie info for '%@' from cache: %@", channel.name, cacheFilePath);
                 return YES;
             }
         }
@@ -2286,9 +2286,9 @@ NSInteger lastValidHoveredGroupIndex = -1;
         NSError *error = nil;
         [fileManager createDirectoryAtPath:cacheDir withIntermediateDirectories:YES attributes:nil error:&error];
         if (error) {
-            NSLog(@"Error creating cache directory: %@", [error localizedDescription]);
+            //NSLog(@"Error creating cache directory: %@", [error localizedDescription]);
         } else {
-            NSLog(@"Created cache directory: %@", cacheDir);
+            //NSLog(@"Created cache directory: %@", cacheDir);
         }
     }
     
@@ -2305,9 +2305,9 @@ NSInteger lastValidHoveredGroupIndex = -1;
         NSError *error = nil;
         [fileManager createDirectoryAtPath:postersDir withIntermediateDirectories:YES attributes:nil error:&error];
         if (error) {
-            NSLog(@"Error creating posters cache directory: %@", [error localizedDescription]);
+            //NSLog(@"Error creating posters cache directory: %@", [error localizedDescription]);
         } else {
-            NSLog(@"Created posters cache directory: %@", postersDir);
+            //NSLog(@"Created posters cache directory: %@", postersDir);
         }
     }
     
@@ -2347,7 +2347,7 @@ NSInteger lastValidHoveredGroupIndex = -1;
                                      attributes:nil 
                                           error:&dirError];
             if (dirError) {
-                NSLog(@"Error creating movie poster cache directory: %@", dirError);
+                //NSLog(@"Error creating movie poster cache directory: %@", dirError);
                 return;
             }
         }
@@ -2355,13 +2355,13 @@ NSInteger lastValidHoveredGroupIndex = -1;
         // Convert NSImage to data using TIFF representation
         NSData *imageData = [image TIFFRepresentation];
         if (!imageData) {
-            NSLog(@"Failed to get TIFF representation for image");
+            //NSLog(@"Failed to get TIFF representation for image");
             return;
         }
         
         NSBitmapImageRep *imageRep = [NSBitmapImageRep imageRepWithData:imageData];
         if (!imageRep) {
-            NSLog(@"Failed to create bitmap rep from image data");
+            //NSLog(@"Failed to create bitmap rep from image data");
             return;
         }
         
@@ -2383,18 +2383,18 @@ NSInteger lastValidHoveredGroupIndex = -1;
                 BOOL moveSuccess = [fileManager moveItemAtPath:tempPath toPath:cachePath error:&moveError];
                 
                 if (moveSuccess) {
-                    NSLog(@"Successfully saved image to disk cache: %@", cachePath);
+                    //NSLog(@"Successfully saved image to disk cache: %@", cachePath);
                 } else {
-                    NSLog(@"Failed to move temp file to cache path: %@, error: %@", cachePath, moveError);
+                    //NSLog(@"Failed to move temp file to cache path: %@, error: %@", cachePath, moveError);
                 }
             } else {
-                NSLog(@"Failed to write image to temp path: %@", tempPath);
+                //NSLog(@"Failed to write image to temp path: %@", tempPath);
             }
         } else {
-            NSLog(@"Failed to create PNG data from image representation");
+            //NSLog(@"Failed to create PNG data from image representation");
         }
     } else {
-        NSLog(@"Invalid cache path for URL: %@", url);
+        //NSLog(@"Invalid cache path for URL: %@", url);
     }
 }
 
@@ -2430,7 +2430,7 @@ NSInteger lastValidHoveredGroupIndex = -1;
         [self saveMovieInfoToCache:channel];
         
         // Log that we're fetching
-        NSLog(@"Asynchronously fetched movie info for: %@", channel.name);
+        //NSLog(@"Asynchronously fetched movie info for: %@", channel.name);
     }
 }
 
@@ -2575,7 +2575,7 @@ NSInteger lastValidHoveredGroupIndex = -1;
     if (point.x >= movieInfoX) {
         // We're in the movie info panel area - only scroll this panel if it's active
         if (self.selectedChannelIndex >= 0) {
-            NSLog(@"Scrolling movie info panel");
+            //NSLog(@"Scrolling movie info panel");
             // Calculate scroll amount (inverted for natural scroll direction)
             CGFloat scrollAmount = -[event deltaY] * 20; // Doubled scroll speed for better responsiveness
             
@@ -2597,8 +2597,8 @@ NSInteger lastValidHoveredGroupIndex = -1;
                 // Using a much higher scaling factor - this is key to making scrolling work
                 contentHeight = MAX(contentHeight, 1000 + (descriptionLength * 5.0)); // Very aggressive approximation
                 
-                NSLog(@"SCROLL EVENT: Movie description length: %ld, calculated content height: %.1f, current scroll pos: %.1f", 
-                      (long)descriptionLength, contentHeight, self.movieInfoScrollPosition);
+                //NSLog(@"SCROLL EVENT: Movie description length: %ld, calculated content height: %.1f, current scroll pos: %.1f", 
+                      //(long)descriptionLength, contentHeight, self.movieInfoScrollPosition);
             }
             
             // Calculate max scroll with extra buffer
@@ -2606,9 +2606,9 @@ NSInteger lastValidHoveredGroupIndex = -1;
             CGFloat oldScrollPos = self.movieInfoScrollPosition;
             self.movieInfoScrollPosition = MIN(maxScroll, self.movieInfoScrollPosition);
             
-            NSLog(@"Movie info scrolling: oldPos=%.1f, newPos=%.1f, delta=%.1f, maxScroll=%.1f", 
-                  oldScrollPos, self.movieInfoScrollPosition, 
-                  self.movieInfoScrollPosition - oldScrollPos, maxScroll);
+            //NSLog(@"Movie info scrolling: oldPos=%.1f, newPos=%.1f, delta=%.1f, maxScroll=%.1f", 
+                  //oldScrollPos, self.movieInfoScrollPosition, 
+                  //self.movieInfoScrollPosition - oldScrollPos, maxScroll);
                 
                 // Redraw the movie info panel
                 [self setNeedsDisplay:YES];

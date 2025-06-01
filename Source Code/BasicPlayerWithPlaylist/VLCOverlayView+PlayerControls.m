@@ -336,7 +336,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
     
     // Don't draw controls if we don't have a player
     if (!self.player) {
-        NSLog(@"Skipping drawPlayerControls - no player");
+        //NSLog(@"Skipping drawPlayerControls - no player");
         return;
     }
     
@@ -1960,7 +1960,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
             
             // Log to verify we're using startup cached data
             if (isInStartupMode) {
-                NSLog(@"🎯 STARTUP: Using cached program from startup policy: %@", currentProgram.title);
+                //NSLog(@"🎯 STARTUP: Using cached program from startup policy: %@", currentProgram.title);
             }
         } else {
             //NSLog(@"EPG Info: Using real-time calculation (cached: %@, timeshift: %@, startup: %@)", 

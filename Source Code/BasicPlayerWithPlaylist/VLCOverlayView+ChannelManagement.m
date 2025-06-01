@@ -2115,25 +2115,25 @@ static char tempEarlyPlaybackChannelKey;
 #pragma mark - Early Startup Functionality
 
 - (void)startEarlyPlaybackIfAvailable {
-    NSLog(@"=== EARLY PLAYBACK: Starting early playback check... ===");
+    //NSLog(@"=== EARLY PLAYBACK: Starting early playback check... ===");
     
     // Get cached content info
     NSDictionary *cachedInfo = [self getLastPlayedContentInfo];
     if (!cachedInfo) {
-        NSLog(@"=== EARLY PLAYBACK: No cached content info available for early playback ===");
+        //NSLog(@"=== EARLY PLAYBACK: No cached content info available for early playback ===");
         return;
     }
     
     NSString *lastUrl = [cachedInfo objectForKey:@"url"];
     if (!lastUrl || [lastUrl length] == 0) {
-        NSLog(@"No URL in cached content info");
+        //NSLog(@"No URL in cached content info");
         return;
     }
     
     NSString *channelName = [cachedInfo objectForKey:@"channelName"];
-    NSLog(@"=== EARLY PLAYBACK: Found cached content: %@ ===", channelName);
-    NSLog(@"=== EARLY PLAYBACK: Cached URL: %@ ===", lastUrl);
-    NSLog(@"=== EARLY PLAYBACK: Available channels count: %ld ===", (long)(self.channels ? self.channels.count : 0));
+    //NSLog(@"=== EARLY PLAYBACK: Found cached content: %@ ===", channelName);
+    //NSLog(@"=== EARLY PLAYBACK: Cached URL: %@ ===", lastUrl);
+    //NSLog(@"=== EARLY PLAYBACK: Available channels count: %ld ===", (long)(self.channels ? self.channels.count : 0));
     
     // SIMPLIFIED STARTUP POLICY: Always switch to latest/current program, never play timeshift or catch-up
     NSString *playbackUrl = lastUrl;
@@ -2141,28 +2141,28 @@ static char tempEarlyPlaybackChannelKey;
     BOOL isTimeshiftUrl = ([lastUrl rangeOfString:@"timeshift.php"].location != NSNotFound ||
                           [lastUrl rangeOfString:@"timeshift"].location != NSNotFound);
     
-    NSLog(@"=== EARLY PLAYBACK: Is timeshift URL: %@ ===", isTimeshiftUrl ? @"YES" : @"NO");
+    //NSLog(@"=== EARLY PLAYBACK: Is timeshift URL: %@ ===", isTimeshiftUrl ? @"YES" : @"NO");
     
     if (isTimeshiftUrl) {
-        NSLog(@"=== STARTUP POLICY: Detected timeshift URL, finding live channel ===");
+        //NSLog(@"=== STARTUP POLICY: Detected timeshift URL, finding live channel ===");
         
         // Extract the original channel name from timeshift channel name
         if (channelName && [channelName containsString:@" (Timeshift:"]) {
             NSRange timeshiftRange = [channelName rangeOfString:@" (Timeshift:"];
             if (timeshiftRange.location != NSNotFound) {
                 originalChannelName = [channelName substringToIndex:timeshiftRange.location];
-                NSLog(@"=== STARTUP POLICY: Extracted original channel name: %@ ===", originalChannelName);
+                //NSLog(@"=== STARTUP POLICY: Extracted original channel name: %@ ===", originalChannelName);
             }
         }
         
         // Search through loaded channels to find the original live channel
         VLCChannel *originalChannel = nil;
         if (self.channels && self.channels.count > 0) {
-            NSLog(@"=== STARTUP POLICY: Searching through %ld channels for: %@ ===", (long)self.channels.count, originalChannelName);
+            //NSLog(@"=== STARTUP POLICY: Searching through %ld channels for: %@ ===", (long)self.channels.count, originalChannelName);
             for (VLCChannel *channel in self.channels) {
                 if ([channel.name isEqualToString:originalChannelName]) {
                     originalChannel = channel;
-                    NSLog(@"=== STARTUP POLICY: Found original live channel: %@ with URL: %@ ===", channel.name, channel.url);
+                    //NSLog(@"=== STARTUP POLICY: Found original live channel: %@ with URL: %@ ===", channel.name, channel.url);
                     break;
                 }
             }
@@ -2171,27 +2171,27 @@ static char tempEarlyPlaybackChannelKey;
         if (originalChannel && originalChannel.url) {
             // Use the original channel's live URL
             playbackUrl = originalChannel.url;
-            NSLog(@"=== STARTUP POLICY: Using original channel live URL: %@ ===", playbackUrl);
+            //NSLog(@"=== STARTUP POLICY: Using original channel live URL: %@ ===", playbackUrl);
         } else {
             // Fallback: Try to extract live URL from timeshift URL
-            NSLog(@"=== STARTUP POLICY: Original channel not found, trying URL parsing fallback ===");
+            //NSLog(@"=== STARTUP POLICY: Original channel not found, trying URL parsing fallback ===");
             NSString *originalChannelUrl = [self findOriginalChannelUrlFromTimeshiftUrl:lastUrl];
             if (originalChannelUrl) {
                 playbackUrl = originalChannelUrl;
-                NSLog(@"=== STARTUP POLICY: Converted to live channel URL via URL parsing: %@ ===", playbackUrl);
+                //NSLog(@"=== STARTUP POLICY: Converted to live channel URL via URL parsing: %@ ===", playbackUrl);
             } else {
-                NSLog(@"=== STARTUP POLICY: Could not find original channel or extract live URL, skipping startup playback ===");
+                //NSLog(@"=== STARTUP POLICY: Could not find original channel or extract live URL, skipping startup playback ===");
                 return; // Don't play timeshift content on startup
             }
         }
     } else {
-        NSLog(@"=== STARTUP POLICY: Using live channel URL: %@ ===", playbackUrl);
+        //NSLog(@"=== STARTUP POLICY: Using live channel URL: %@ ===", playbackUrl);
     }
     
     // SIMPLIFIED APPROACH: Find and select the channel properly like a normal click
     // This handles everything correctly - EPG refresh, player controls, etc.
-    NSLog(@"=== STARTUP POLICY: Forcing EPG refresh for live content ===");
-    NSLog(@"=== STARTUP POLICY: Finding and selecting channel for: %@ ===", playbackUrl);
+    //NSLog(@"=== STARTUP POLICY: Forcing EPG refresh for live content ===");
+    //NSLog(@"=== STARTUP POLICY: Finding and selecting channel for: %@ ===", playbackUrl);
     
     // Clear any cached timeshift data since we're switching to live
     if (isTimeshiftUrl) {
@@ -2214,7 +2214,7 @@ static char tempEarlyPlaybackChannelKey;
                 channelFound = YES;
                 objc_setAssociatedObject(self, &tempEarlyPlaybackChannelKey, targetChannel, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
                   
-                NSLog(@"=== STARTUP POLICY: Found target channel: %@ ===", channel.name);
+                //NSLog(@"=== STARTUP POLICY: Found target channel: %@ ===", channel.name);
                 break;
             }
         }
@@ -2253,8 +2253,8 @@ static char tempEarlyPlaybackChannelKey;
                                 self.selectedGroupIndex = groupIndex;
                                 self.selectedChannelIndex = channelIndex;
                                 
-                                NSLog(@"=== STARTUP POLICY: Set selection indices - Category: %ld, Group: %ld, Channel: %ld ===", 
-                                      (long)catIndex, (long)groupIndex, (long)channelIndex);
+                                //NSLog(@"=== STARTUP POLICY: Set selection indices - Category: %ld, Group: %ld, Channel: %ld ===", 
+                                      //(long)catIndex, (long)groupIndex, (long)channelIndex);
                                 
                                 selectionSet = YES;
                                 break;
@@ -2273,8 +2273,8 @@ static char tempEarlyPlaybackChannelKey;
             // DIRECT APPROACH: Get current program immediately since we know the time and have EPG data
             VLCProgram *currentProgram = [targetChannel currentProgramWithTimeOffset:self.epgTimeOffsetHours];
             if (currentProgram) {
-                NSLog(@"=== STARTUP POLICY: Found current program: %@ (%@ - %@) ===", 
-                      currentProgram.title, currentProgram.startTime, currentProgram.endTime);
+                //NSLog(@"=== STARTUP POLICY: Found current program: %@ (%@ - %@) ===", 
+                      //currentProgram.title, currentProgram.startTime, currentProgram.endTime);
                 
                 // Create a temporary channel copy with just the current program
                 // This ensures saveLastPlayedContentInfo saves the correct current program
@@ -2300,12 +2300,12 @@ static char tempEarlyPlaybackChannelKey;
                 [self saveLastPlayedContentInfo:tempChannel];
                 //[self updateCachedInfoToLiveChannel:targetChannel.name liveUrl:playbackUrl];
                 [tempChannel release];
-                NSLog(@"=== STARTUP POLICY: Updated cached info with current live program ===");
+                //NSLog(@"=== STARTUP POLICY: Updated cached info with current live program ===");
                 
                 // NOTE: Don't refresh immediately - wait for media to load
                 // The delayed refresh below will handle the UI update
     } else {
-                NSLog(@"=== STARTUP POLICY: No current program found for channel ===");
+                //NSLog(@"=== STARTUP POLICY: No current program found for channel ===");
                 // Save without current program info
                 [self saveLastPlayedContentInfo:targetChannel];
                 //[self updateCachedInfoToLiveChannel:targetChannel.name liveUrl:playbackUrl];
@@ -2320,13 +2320,13 @@ static char tempEarlyPlaybackChannelKey;
             // CRITICAL: Force player controls refresh after startup to show correct program immediately
             // This ensures the cached program info is displayed right away instead of waiting for timer refresh
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                NSLog(@"=== STARTUP POLICY: Forcing player controls refresh ===");
+                //NSLog(@"=== STARTUP POLICY: Forcing player controls refresh ===");
                 
                 // CRITICAL: Force player controls to become visible at startup
                 // Without this, controls remain hidden and user won't see the correct program info
                 extern BOOL playerControlsVisible;
                 playerControlsVisible = YES;
-                NSLog(@"✅ STARTUP: Forced player controls visible");
+                //NSLog(@"✅ STARTUP: Forced player controls visible");
                 
                 // Force refresh of EPG information to use cached program
                 if ([self respondsToSelector:@selector(refreshCurrentEPGInfo)]) {
@@ -2345,22 +2345,22 @@ static char tempEarlyPlaybackChannelKey;
                 // CRITICAL: Clear flags AFTER refresh so refreshCurrentEPGInfo can detect startup mode
                 objc_setAssociatedObject(self, "preventCacheOverwrite", @NO, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
                 objc_setAssociatedObject(self, &tempEarlyPlaybackChannelKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-                NSLog(@"✅ STARTUP COMPLETE: Cleared startup mode flags after refresh");
+                //NSLog(@"✅ STARTUP COMPLETE: Cleared startup mode flags after refresh");
                 
-                NSLog(@"=== STARTUP POLICY: Player controls refresh completed ===");
+                //NSLog(@"=== STARTUP POLICY: Player controls refresh completed ===");
             });
         } else {
-            NSLog(@"=== STARTUP POLICY: Could not find channel in organized structure, using direct URL method ===");
+            //NSLog(@"=== STARTUP POLICY: Could not find channel in organized structure, using direct URL method ===");
             // Fallback to direct URL method
             [self playChannelWithUrl:playbackUrl];
         }
     } else {
-        NSLog(@"=== STARTUP POLICY: Channel not found in loaded channels, using direct URL method ===");
+        //NSLog(@"=== STARTUP POLICY: Channel not found in loaded channels, using direct URL method ===");
         // Fallback to direct URL method
         [self playChannelWithUrl:playbackUrl];
     }
     
-    NSLog(@"=== STARTUP POLICY: Channel selection and play method completed ===");
+    //NSLog(@"=== STARTUP POLICY: Channel selection and play method completed ===");
 }
 
 - (void)saveLastPlayedContentInfo:(VLCChannel *)channel {
@@ -2372,7 +2372,7 @@ static char tempEarlyPlaybackChannelKey;
     // Check if we should prevent cache overwrite (during startup policy)
     NSNumber *preventOverwrite = objc_getAssociatedObject(self, "preventCacheOverwrite");
     if (preventOverwrite && [preventOverwrite boolValue]) {
-        NSLog(@"=== SAVE BLOCKED: Preventing cache overwrite during startup policy ===");
+        //NSLog(@"=== SAVE BLOCKED: Preventing cache overwrite during startup policy ===");
         return;
     }
     
@@ -2393,11 +2393,11 @@ static char tempEarlyPlaybackChannelKey;
     // This respects the startup policy's calculated program with EPG offset
     if (channel.programs && channel.programs.count > 0) {
         currentProgram = [channel.programs objectAtIndex:0];
-        NSLog(@"Using first program from channel array: %@", currentProgram.title);
+        //NSLog(@"Using first program from channel array: %@", currentProgram.title);
     } else {
         // Fallback to currentProgram method (no EPG offset)
         currentProgram = [channel currentProgram];
-        NSLog(@"Using currentProgram method as fallback: %@", currentProgram ? currentProgram.title : @"nil");
+        //NSLog(@"Using currentProgram method as fallback: %@", currentProgram ? currentProgram.title : @"nil");
     }
     
     if (currentProgram) {
@@ -2409,7 +2409,7 @@ static char tempEarlyPlaybackChannelKey;
         if (currentProgram.endTime) [programInfo setObject:currentProgram.endTime forKey:@"endTime"];
         
         [contentInfo setObject:programInfo forKey:@"currentProgram"];
-        NSLog(@"Saved program info: %@ (%@ - %@)", currentProgram.title, currentProgram.startTime, currentProgram.endTime);
+        //NSLog(@"Saved program info: %@ (%@ - %@)", currentProgram.title, currentProgram.startTime, currentProgram.endTime);
     }
     
     // Movie info if available
@@ -2784,7 +2784,7 @@ static char tempEarlyPlaybackChannelKey;
     NSString *apiUrl = [NSString stringWithFormat:@"%@://%@%@/player_api.php?username=%@&password=%@&action=get_live_streams",
                         scheme, host, portString, username, password];
     
-    NSLog(@"Constructed live streams API URL: %@", apiUrl);
+    //NSLog(@"Constructed live streams API URL: %@", apiUrl);
     return apiUrl;
 }
 
@@ -2792,11 +2792,11 @@ static char tempEarlyPlaybackChannelKey;
 - (void)fetchCatchupInfoFromAPI {
     NSString *apiUrl = [self constructLiveStreamsApiUrl];
     if (!apiUrl) {
-        NSLog(@"Failed to construct live streams API URL");
+        //NSLog(@"Failed to construct live streams API URL");
         return;
     }
     
-    NSLog(@"Fetching catch-up info from API: %@", apiUrl);
+    //NSLog(@"Fetching catch-up info from API: %@", apiUrl);
     
     // Create the URL request
     NSURL *url = [NSURL URLWithString:apiUrl];
@@ -2809,11 +2809,11 @@ static char tempEarlyPlaybackChannelKey;
     NSURLSessionDataTask *dataTask = [session dataTaskWithRequest:request 
                                                completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         if (error || !data) {
-            NSLog(@"Error fetching catch-up info from API: %@", error);
+            //NSLog(@"Error fetching catch-up info from API: %@", error);
             return;
         }
         
-        NSLog(@"Received catch-up data (%lu bytes)", (unsigned long)[data length]);
+        //NSLog(@"Received catch-up data (%lu bytes)", (unsigned long)[data length]);
         
         // Parse the JSON response
         NSError *jsonError = nil;
@@ -2822,11 +2822,11 @@ static char tempEarlyPlaybackChannelKey;
                                                                     error:&jsonError];
         
         if (jsonError || !channelsArray || ![channelsArray isKindOfClass:[NSArray class]]) {
-            NSLog(@"Error parsing catch-up info JSON: %@", jsonError);
+            //NSLog(@"Error parsing catch-up info JSON: %@", jsonError);
             return;
         }
         
-        NSLog(@"Successfully parsed %lu channels from API", (unsigned long)[channelsArray count]);
+        //NSLog(@"Successfully parsed %lu channels from API", (unsigned long)[channelsArray count]);
         
         // Process the catch-up information on the main thread
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -2840,7 +2840,7 @@ static char tempEarlyPlaybackChannelKey;
 
 // Process catch-up information and update channel properties
 - (void)processCatchupInfoFromAPI:(NSArray *)apiChannels {
-    NSLog(@"Processing catch-up info for %lu API channels", (unsigned long)[apiChannels count]);
+    //NSLog(@"Processing catch-up info for %lu API channels", (unsigned long)[apiChannels count]);
     
     // Create a mapping of stream_id to catch-up info for fast lookup
     NSMutableDictionary *catchupInfo = [NSMutableDictionary dictionary];
@@ -2863,7 +2863,7 @@ static char tempEarlyPlaybackChannelKey;
         }
     }
     
-    NSLog(@"Created catch-up lookup table with %lu entries", (unsigned long)[catchupInfo count]);
+    //NSLog(@"Created catch-up lookup table with %lu entries", (unsigned long)[catchupInfo count]);
     
     // Update our channels with catch-up information
     NSInteger updatedChannels = 0;
@@ -2885,21 +2885,21 @@ static char tempEarlyPlaybackChannelKey;
                 channel.catchupSource = @"default";
                 channel.catchupTemplate = @""; // Will be constructed dynamically
                 updatedChannels++;
-                NSLog(@"Updated catch-up for channel '%@': %d days", channel.name, (int)channel.catchupDays);
+                //NSLog(@"Updated catch-up for channel '%@': %d days", channel.name, (int)channel.catchupDays);
             }
         }
     }
     
-    NSLog(@"Updated catch-up info for %ld channels", (long)updatedChannels);
+    //NSLog(@"Updated catch-up info for %ld channels", (long)updatedChannels);
     
     // Save the updated channel information to cache (including catch-up properties)
     if (updatedChannels > 0 && self.m3uFilePath) {
-        NSLog(@"Saving updated catch-up information to cache...");
+        //NSLog(@"Saving updated catch-up information to cache...");
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
             [self saveChannelsToCache:self.m3uFilePath];
             
             dispatch_async(dispatch_get_main_queue(), ^{
-                NSLog(@"Successfully saved catch-up information to cache");
+                //NSLog(@"Successfully saved catch-up information to cache");
             });
         });
     }
@@ -2925,7 +2925,7 @@ static char tempEarlyPlaybackChannelKey;
             if (match.numberOfRanges > 1) {
                 NSRange idRange = [match rangeAtIndex:1];
                 NSString *streamId = [urlString substringWithRange:idRange];
-                NSLog(@"Extracted stream ID '%@' from URL: %@", streamId, urlString);
+                //NSLog(@"Extracted stream ID '%@' from URL: %@", streamId, urlString);
                 return streamId;
             }
         }
@@ -3019,10 +3019,10 @@ static char tempEarlyPlaybackChannelKey;
     NSString *startTimeString = [formatter stringFromDate:adjustedTargetTime];
     [formatter release];
     
-    NSLog(@"Manual timeshift URL generation: Original target time = %@", targetTime);
-    NSLog(@"Manual timeshift URL generation: EPG offset = %ld hours, compensation = %.0f seconds", 
-          (long)self.epgTimeOffsetHours, offsetCompensation);
-    NSLog(@"Manual timeshift URL generation: Adjusted target time for server = %@", adjustedTargetTime);
+    //NSLog(@"Manual timeshift URL generation: Original target time = %@", targetTime);
+    //NSLog(@"Manual timeshift URL generation: EPG offset = %ld hours, compensation = %.0f seconds", 
+          //(long)self.epgTimeOffsetHours, offsetCompensation);
+    //NSLog(@"Manual timeshift URL generation: Adjusted target time for server = %@", adjustedTargetTime);
     
     // Generate timeshift URL using PHP-based format
     NSString *timeshiftUrl = [NSString stringWithFormat:@"%@/streaming/timeshift.php?username=%@&password=%@&stream=%@&start=%@&duration=%ld",
@@ -3045,7 +3045,7 @@ static char tempEarlyPlaybackChannelKey;
         }
         
         if (!hasCatchupInfo) {
-            NSLog(@"Auto-fetching catch-up info from API...");
+            //NSLog(@"Auto-fetching catch-up info from API...");
             [self fetchCatchupInfoFromAPI];
         }
     }
@@ -3056,14 +3056,14 @@ static char tempEarlyPlaybackChannelKey;
 // Generate timeshift URL for a specific program
 - (NSString *)generateTimeshiftUrlForProgram:(VLCProgram *)program channel:(VLCChannel *)channel {
     if (!channel.supportsCatchup || !program.startTime || !program.endTime) {
-        NSLog(@"Cannot generate timeshift URL: channel doesn't support catchup or program missing time info");
+        //NSLog(@"Cannot generate timeshift URL: channel doesn't support catchup or program missing time info");
         return nil;
     }
     
     // Extract server info from the channel URL (not M3U URL)
     NSURL *channelURL = [NSURL URLWithString:channel.url];
     if (!channelURL) {
-        NSLog(@"Cannot generate timeshift URL: invalid channel URL: %@", channel.url);
+        //NSLog(@"Cannot generate timeshift URL: invalid channel URL: %@", channel.url);
         return nil;
     }
     
