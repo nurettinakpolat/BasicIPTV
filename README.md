@@ -41,7 +41,7 @@ L: ListView
 
 ## 📄 License
 
-use it, don't sell it, must always free.
+use it, don't sell it, must be always free.
 
 ## 🙏 Acknowledgments
 
