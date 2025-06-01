@@ -1,0 +1,4 @@
+*.dSYM/**/VLCKit filter=lfs diff=lfs merge=lfs -text
+*.xcframework/**/VLCKit filter=lfs diff=lfs merge=lfs -text
+*.dSYM/* filter=lfs diff=lfs merge=lfs -text
+*.xcframework/* filter=lfs diff=lfs merge=lfs -text
