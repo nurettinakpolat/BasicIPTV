@@ -20,7 +20,6 @@ VLCKit 4.0: https://download.videolan.org/cocoapods/unstable/VLCKit-4.0.0a10-d96
 - **Timeshift Capability**: Pause, rewind, and fast-forward live TV content
 
 
-
 ## 🚀 Getting Started
 
 Keyboard:
@@ -31,7 +30,6 @@ L: ListView
 - macOS 10.15 or later
 - Xcode 12.0 or later
 - VLCKit framework (included)
-
 
 
 ## 🎯 Key Components
