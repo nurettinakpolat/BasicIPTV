@@ -393,8 +393,17 @@ static NSTimeInterval lastMouseMoveTime = 0;
     VLCChannel *currentChannel = nil;
     VLCProgram *currentProgram = nil;
     
-    // FIXED: For timeshift content, use the saved program information instead of current time
-    if (isTimeshiftPlaying) {
+    // PRIORITY 1: Check if we have a temporary current channel (e.g., from search results)
+    if (self.tmpCurrentChannel) {
+        currentChannel = self.tmpCurrentChannel;
+        // For movies from search results, try to get current program if available
+        if (currentChannel.programs && currentChannel.programs.count > 0) {
+            currentProgram = [currentChannel currentProgramWithTimeOffset:self.epgTimeOffsetHours];
+        }
+        NSLog(@"Player Controls - Using tmpCurrentChannel: %@", currentChannel.name);
+    }
+    // PRIORITY 2: For timeshift content, use the saved program information instead of current time
+    else if (isTimeshiftPlaying) {
         // Get the saved timeshift content info which contains the specific program that was selected
         NSDictionary *cachedInfo = [self getLastPlayedContentInfo];
         if (cachedInfo) {
@@ -3064,7 +3073,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
                         currentProgram = [self getCurrentTimeshiftPlayingProgram];
                         
                         // Cache this channel for future use
-                        [self cacheTimeshiftChannel:channel];
+                        [self cacheTimeshiftChannel:currentChannel];
                         NSLog(@"Found original channel from cached info for seeking: %@ with %ld programs", channel.name, (long)channel.programs.count);
                         break;
                     }

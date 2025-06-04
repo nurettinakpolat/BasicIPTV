@@ -5,6 +5,15 @@
 #import <objc/runtime.h>
 #import "VLCOverlayView+Utilities.h"
 #import <math.h>
+#import "VLCSliderControl.h"
+
+// Constants for slider types
+#define SLIDER_TYPE_NONE 0
+#define SLIDER_TYPE_TRANSPARENCY 1
+#define SLIDER_TYPE_RED 2
+#define SLIDER_TYPE_GREEN 3
+#define SLIDER_TYPE_BLUE 4
+#define SLIDER_TYPE_SUBTITLE 5
 
 // Global variable to track menu fade-out state
 BOOL isFadingOut = NO;
@@ -28,6 +37,18 @@ NSOperationQueue *coverDownloadQueue = nil;
 BOOL isPersistingHoverState = NO;
 NSInteger lastValidHoveredChannelIndex = -1;
 NSInteger lastValidHoveredGroupIndex = -1;
+
+// Add property to track the active slider
+NSInteger activeSliderType = SLIDER_TYPE_NONE;
+
+// Add properties for view mode cycling
+NSInteger currentViewMode = 0; // 0 = Stacked, 1 = Grid, 2 = List
+BOOL isStackedViewActive = YES; // Start with stacked view
+
+// Remove conflicting global variables - use the properties instead defined in the header file
+// CGFloat customSelectionRed = 0.2;
+// CGFloat customSelectionGreen = 0.4;
+// CGFloat customSelectionBlue = 0.9;
 
 #pragma mark - UI Setup
 
@@ -72,13 +93,155 @@ NSInteger lastValidHoveredGroupIndex = -1;
 
 #pragma mark - Drawing Methods
 
+// Helper method to get category icons using SF Symbols
+- (NSImage *)iconForCategory:(NSString *)category {
+    NSImage *icon = nil;
+    NSString *symbolName = nil;
+    
+    if ([category isEqualToString:@"SEARCH"]) {
+        symbolName = @"magnifyingglass";
+    } else if ([category isEqualToString:@"FAVORITES"]) {
+        symbolName = @"heart.fill";
+    } else if ([category isEqualToString:@"TV"]) {
+        symbolName = @"tv";
+    } else if ([category isEqualToString:@"MOVIES"]) {
+        symbolName = @"film";
+    } else if ([category isEqualToString:@"SERIES"]) {
+        symbolName = @"play.tv";
+    } else if ([category isEqualToString:@"SETTINGS"]) {
+        symbolName = @"gearshape";
+    }
+    
+    if (symbolName) {
+        // Try to use SF Symbols if available (macOS 11+)
+        if (@available(macOS 11.0, *)) {
+            icon = [NSImage imageWithSystemSymbolName:symbolName accessibilityDescription:nil];
+            
+            // Configure the icon size
+            if (icon) {
+                [icon setSize:NSMakeSize(16, 16)];
+                
+                // Create a white tinted version of the icon
+                NSImage *tintedIcon = [[NSImage alloc] initWithSize:NSMakeSize(16, 16)];
+                [tintedIcon lockFocus];
+                
+                // Set white color for the icon
+                [[NSColor colorWithCalibratedWhite:0.95 alpha:1.0] set];
+                
+                // Draw the icon as a template
+                NSRect iconRect = NSMakeRect(0, 0, 16, 16);
+                [icon drawInRect:iconRect fromRect:NSZeroRect operation:NSCompositeSourceOver fraction:1.0];
+                
+                // Apply the white tint using source atop
+                NSRectFillUsingOperation(iconRect, NSCompositeSourceAtop);
+                
+                [tintedIcon unlockFocus];
+                
+                return [tintedIcon autorelease];
+            }
+        } else {
+            // Fallback to creating simple icons for older macOS versions
+            icon = [self createFallbackIconForCategory:category];
+        }
+    }
+    
+    return icon;
+}
+
+// Fallback method to create simple icons for older macOS versions
+- (NSImage *)createFallbackIconForCategory:(NSString *)category {
+    NSImage *icon = [[NSImage alloc] initWithSize:NSMakeSize(16, 16)];
+    [icon lockFocus];
+    
+    // Set the drawing context
+    NSGraphicsContext *context = [NSGraphicsContext currentContext];
+    [context saveGraphicsState];
+    
+    // Create a simple colored circle with a symbol
+    NSRect iconRect = NSMakeRect(1, 1, 14, 14);
+    NSBezierPath *circlePath = [NSBezierPath bezierPathWithOvalInRect:iconRect];
+    
+    // Set different colors for different categories
+    if ([category isEqualToString:@"SEARCH"]) {
+        [[NSColor colorWithCalibratedRed:0.3 green:0.7 blue:1.0 alpha:1.0] set];
+    } else if ([category isEqualToString:@"FAVORITES"]) {
+        [[NSColor colorWithCalibratedRed:1.0 green:0.4 blue:0.4 alpha:1.0] set];
+    } else if ([category isEqualToString:@"TV"]) {
+        [[NSColor colorWithCalibratedRed:0.4 green:0.8 blue:0.4 alpha:1.0] set];
+    } else if ([category isEqualToString:@"MOVIES"]) {
+        [[NSColor colorWithCalibratedRed:1.0 green:0.7 blue:0.3 alpha:1.0] set];
+    } else if ([category isEqualToString:@"SERIES"]) {
+        [[NSColor colorWithCalibratedRed:0.8 green:0.4 blue:1.0 alpha:1.0] set];
+    } else if ([category isEqualToString:@"SETTINGS"]) {
+        [[NSColor colorWithCalibratedRed:0.7 green:0.7 blue:0.7 alpha:1.0] set];
+    } else {
+        [[NSColor colorWithCalibratedRed:0.6 green:0.6 blue:0.6 alpha:1.0] set];
+    }
+    
+    [circlePath fill];
+    
+    // Add a subtle border
+    [[NSColor colorWithCalibratedWhite:1.0 alpha:0.3] set];
+    [circlePath setLineWidth:0.5];
+    [circlePath stroke];
+    
+    // Add a simple white symbol in the center
+    NSMutableParagraphStyle *style = [[NSMutableParagraphStyle alloc] init];
+    [style setAlignment:NSTextAlignmentCenter];
+    
+    NSDictionary *attrs = @{
+        NSFontAttributeName: [NSFont boldSystemFontOfSize:9],
+        NSForegroundColorAttributeName: [NSColor whiteColor],
+        NSParagraphStyleAttributeName: style
+    };
+    
+    NSString *symbolChar = @"?";
+    if ([category isEqualToString:@"SEARCH"]) {
+        symbolChar = @"🔍";
+    } else if ([category isEqualToString:@"FAVORITES"]) {
+        symbolChar = @"♥";
+    } else if ([category isEqualToString:@"TV"]) {
+        symbolChar = @"📺";
+    } else if ([category isEqualToString:@"MOVIES"]) {
+        symbolChar = @"🎬";
+    } else if ([category isEqualToString:@"SERIES"]) {
+        symbolChar = @"📺";
+    } else if ([category isEqualToString:@"SETTINGS"]) {
+        symbolChar = @"⚙";
+    }
+    
+    // For better looking fallback icons, use simple letters instead of emoji
+    if ([category isEqualToString:@"SEARCH"]) {
+        symbolChar = @"S";
+    } else if ([category isEqualToString:@"FAVORITES"]) {
+        symbolChar = @"♥";
+    } else if ([category isEqualToString:@"TV"]) {
+        symbolChar = @"T";
+    } else if ([category isEqualToString:@"MOVIES"]) {
+        symbolChar = @"M";
+    } else if ([category isEqualToString:@"SERIES"]) {
+        symbolChar = @"S";
+    } else if ([category isEqualToString:@"SETTINGS"]) {
+        symbolChar = @"⚙";
+    }
+    
+    NSRect textRect = NSMakeRect(0, 2, 16, 12);
+    [symbolChar drawInRect:textRect withAttributes:attrs];
+    
+    [style release];
+    [context restoreGraphicsState];
+    [icon unlockFocus];
+    
+    return [icon autorelease];
+}
+
 - (void)drawCategories:(NSRect)rect {
     CGFloat catWidth = 200;
     
     // Draw background with modern gradient
     NSRect menuRect = NSMakeRect(0, 0, catWidth, self.bounds.size.height);
-    NSGradient *backgroundGradient = [[NSGradient alloc] initWithStartingColor:[NSColor colorWithCalibratedRed:0.08 green:0.10 blue:0.14 alpha:0.75]
-                                                                   endingColor:[NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.75]];
+    NSGradient *backgroundGradient = [[NSGradient alloc] initWithStartingColor:self.themeCategoryStartColor ? self.themeCategoryStartColor : [NSColor colorWithCalibratedRed:0.08 green:0.10 blue:0.14 alpha:0.75]
+                                                                   endingColor:self.themeCategoryEndColor ? self.themeCategoryEndColor : [NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.75]];
     [backgroundGradient drawInRect:menuRect angle:90];
     [backgroundGradient release];
     
@@ -86,12 +249,12 @@ NSInteger lastValidHoveredGroupIndex = -1;
     CGFloat rowHeight = 40;
     CGFloat totalCategoriesHeight = [self.categories count] * rowHeight;
     
-    // Draw each category with modern styling
+    // Draw each category with modern styling and icons
     for (NSInteger i = 0; i < [self.categories count]; i++) {
         NSRect itemRect = NSMakeRect(0, 
-                                   self.bounds.size.height - ((i+1) * rowHeight) + categoryScrollPosition, 
-                                   catWidth, 
-                                   rowHeight);
+                                     self.bounds.size.height - ((i+1) * rowHeight) + categoryScrollPosition, 
+                                     catWidth, 
+                                     rowHeight);
         
         // Skip drawing if not visible
         if (!NSIntersectsRect(itemRect, rect)) {
@@ -104,11 +267,11 @@ NSInteger lastValidHoveredGroupIndex = -1;
                                          NSInsetRect(itemRect, 4, 2)
                                                                          xRadius:6
                                                                          yRadius:6];
-            [[NSColor colorWithCalibratedRed:0.2 green:0.4 blue:0.9 alpha:0.3] set];
+            [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.3] set];
             [selectionPath fill];
             
             // Add subtle highlight
-            [[NSColor colorWithCalibratedRed:0.3 green:0.5 blue:1.0 alpha:0.2] set];
+            [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.2] set];
             [selectionPath stroke];
         } else if (i == self.hoveredCategoryIndex) {
             // Hover state - lighter version of selection
@@ -116,16 +279,40 @@ NSInteger lastValidHoveredGroupIndex = -1;
                                      NSInsetRect(itemRect, 4, 2)
                                                                      xRadius:6
                                                                      yRadius:6];
-            [[NSColor colorWithCalibratedRed:0.2 green:0.4 blue:0.9 alpha:0.15] set];
+            [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.25] set]; // Increased alpha from 0.15
             [hoverPath fill];
             
             // Add subtle highlight
-            [[NSColor colorWithCalibratedRed:0.3 green:0.5 blue:1.0 alpha:0.1] set];
+            [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.15] set]; // Increased stroke alpha from 0.1
             [hoverPath stroke];
         }
         
-        // Draw the category name with shadow
+        // Get category name and icon
         NSString *category = [self.categories objectAtIndex:i];
+        NSImage *categoryIcon = [self iconForCategory:category];
+        
+        // Calculate icon and text positions
+        CGFloat iconSize = 16;
+        CGFloat iconPadding = 12;
+        CGFloat textLeftMargin = iconPadding + iconSize + 8; // Icon + spacing
+        
+        // Draw icon if available
+        if (categoryIcon) {
+            NSRect iconRect = NSMakeRect(
+                itemRect.origin.x + iconPadding,
+                itemRect.origin.y + (itemRect.size.height - iconSize) / 2,
+                iconSize,
+                iconSize
+            );
+            
+            // Tint the icon to match the text color
+            [categoryIcon drawInRect:iconRect 
+                            fromRect:NSZeroRect 
+                           operation:NSCompositeSourceOver 
+                            fraction:0.9];
+        }
+        
+        // Draw the category name with shadow
         NSMutableParagraphStyle *style = [[NSMutableParagraphStyle alloc] init];
         [style setAlignment:NSTextAlignmentLeft];
         
@@ -146,9 +333,9 @@ NSInteger lastValidHoveredGroupIndex = -1;
             NSShadowAttributeName: shadowDict[NSShadowAttributeName]
         };
         
-        NSRect textRect = NSMakeRect(itemRect.origin.x + 16,
+        NSRect textRect = NSMakeRect(itemRect.origin.x + textLeftMargin,
                                    itemRect.origin.y + (itemRect.size.height - 16) / 2,
-                                   itemRect.size.width - 32,
+                                   itemRect.size.width - textLeftMargin - 16,
                                    16);
         
         [category drawInRect:textRect withAttributes:attrs];
@@ -168,14 +355,18 @@ NSInteger lastValidHoveredGroupIndex = -1;
     
     // Draw background with modern gradient
     NSRect menuRect = NSMakeRect(catWidth, 0, groupWidth, self.bounds.size.height);
-    NSGradient *backgroundGradient = [[NSGradient alloc] initWithStartingColor:[NSColor colorWithCalibratedRed:0.08 green:0.10 blue:0.14 alpha:0.75]
-                                                                   endingColor:[NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.75]];
+    NSGradient *backgroundGradient = [[NSGradient alloc] initWithStartingColor:self.themeGroupStartColor ? self.themeGroupStartColor : [NSColor colorWithCalibratedRed:0.08 green:0.10 blue:0.14 alpha:0.75]
+                                                                   endingColor:self.themeGroupEndColor ? self.themeGroupEndColor : [NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.75]];
     [backgroundGradient drawInRect:menuRect angle:90];
     [backgroundGradient release];
     
     // Get appropriate groups based on selected category
     NSArray *groups = nil;
-    if (self.selectedCategoryIndex == CATEGORY_FAVORITES) {
+    if (self.selectedCategoryIndex == CATEGORY_SEARCH) {
+        // When Search is selected, show search textbox instead of groups
+        [self drawSearchInterface:rect menuRect:menuRect];
+        return;
+    } else if (self.selectedCategoryIndex == CATEGORY_FAVORITES) {
         groups = [self safeGroupsForCategory:@"FAVORITES"];
     } else if (self.selectedCategoryIndex == CATEGORY_TV) {
         groups = [self safeTVGroups];
@@ -183,16 +374,18 @@ NSInteger lastValidHoveredGroupIndex = -1;
         groups = [self safeValueForKey:@"MOVIES" fromDictionary:self.groupsByCategory];
     } else if (self.selectedCategoryIndex == CATEGORY_SERIES) {
         groups = [self safeValueForKey:@"SERIES" fromDictionary:self.groupsByCategory];
+    } else if (self.selectedCategoryIndex == CATEGORY_SETTINGS) {
+        groups = [self safeValueForKey:@"SETTINGS" fromDictionary:self.groupsByCategory];
     }
     
     if (!groups) return;
-    
+        
     // Draw each group with modern styling
     for (NSInteger i = 0; i < [groups count]; i++) {
-        NSRect itemRect = NSMakeRect(catWidth,
+        NSRect itemRect = NSMakeRect(catWidth, 
                                    self.bounds.size.height - ((i+1) * rowHeight) + groupScrollPosition,
-                                   groupWidth,
-                                   rowHeight);
+                                     groupWidth, 
+                                     rowHeight);
         
         if (!NSIntersectsRect(itemRect, rect)) continue;
         
@@ -204,11 +397,11 @@ NSInteger lastValidHoveredGroupIndex = -1;
                                          NSInsetRect(itemRect, 4, 2)
                                                                          xRadius:6
                                                                          yRadius:6];
-            [[NSColor colorWithCalibratedRed:0.2 green:0.4 blue:0.9 alpha:0.3] set];
+            [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.3] set];
             [selectionPath fill];
             
             // Add subtle highlight
-            [[NSColor colorWithCalibratedRed:0.3 green:0.5 blue:1.0 alpha:0.2] set];
+            [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.2] set];
             [selectionPath stroke];
         } else if (i == self.hoveredGroupIndex) {
             // Hover state - lighter version of selection
@@ -216,11 +409,11 @@ NSInteger lastValidHoveredGroupIndex = -1;
                                      NSInsetRect(itemRect, 4, 2)
                                                                      xRadius:6
                                                                      yRadius:6];
-            [[NSColor colorWithCalibratedRed:0.2 green:0.4 blue:0.9 alpha:0.15] set];
+            [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.25] set]; // Increased alpha from 0.15
             [hoverPath fill];
-            
+        
             // Add subtle highlight
-            [[NSColor colorWithCalibratedRed:0.3 green:0.5 blue:1.0 alpha:0.1] set];
+            [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.15] set]; // Increased stroke alpha from 0.1
             [hoverPath stroke];
         }
         
@@ -247,7 +440,7 @@ NSInteger lastValidHoveredGroupIndex = -1;
         };
         
         NSRect textRect = NSMakeRect(itemRect.origin.x + 16,
-                                   itemRect.origin.y + (itemRect.size.height - 16) / 2,
+                                        itemRect.origin.y + (itemRect.size.height - 16) / 2, 
                                    itemRect.size.width - 32,
                                    16);
         
@@ -255,6 +448,165 @@ NSInteger lastValidHoveredGroupIndex = -1;
         
         [style release];
         [shadow release];
+    }
+}
+
+- (void)drawSearchInterface:(NSRect)rect menuRect:(NSRect)menuRect {
+    // Calculate textbox position
+    CGFloat padding = 20;
+    CGFloat textboxHeight = 35;
+    CGFloat textboxY = menuRect.size.height - 80; // Position near top
+    
+    NSRect searchRect = NSMakeRect(menuRect.origin.x + padding,
+                                  textboxY,
+                                  menuRect.size.width - (padding * 2),
+                                  textboxHeight);
+    
+    // Only create search textfield if it doesn't exist or if it's not in the superview
+    if (!self.searchTextField || ![self.subviews containsObject:self.searchTextField]) {
+        // Store previous search value if textfield exists but is not in superview
+        NSString *previousSearchValue = nil;
+        if (self.searchTextField) {
+            previousSearchValue = [self.searchTextField stringValue];
+            [self.searchTextField release];
+        }
+        
+        // Create new search textfield
+        self.searchTextField = [[VLCReusableTextField alloc] initWithFrame:searchRect identifier:@"search"];
+        self.searchTextField.textFieldDelegate = self;
+        [self.searchTextField setPlaceholderText:@"Search channels..."];
+        
+        // Restore previous search value if it existed
+        if (previousSearchValue && [previousSearchValue length] > 0) {
+            [self.searchTextField setStringValue:previousSearchValue];
+        }
+        
+        // Add to superview
+        [self addSubview:self.searchTextField];
+    } else {
+        // Just update frame if textfield already exists and is in superview
+        [self.searchTextField setFrame:searchRect];
+    }
+    
+    // Make sure search textfield is visible and active
+    [self.searchTextField setHidden:NO];
+    
+    // Draw search label
+    NSMutableParagraphStyle *style = [[NSMutableParagraphStyle alloc] init];
+    [style setAlignment:NSTextAlignmentLeft];
+    NSDictionary *labelAttrs = @{
+        NSFontAttributeName: [NSFont systemFontOfSize:14],
+        NSForegroundColorAttributeName: [NSColor whiteColor],
+        NSParagraphStyleAttributeName: style
+    };
+    
+    NSRect labelRect = NSMakeRect(searchRect.origin.x, searchRect.origin.y + textboxHeight + 10, 100, 20);
+    [@"Search:" drawInRect:labelRect withAttributes:labelAttrs];
+    [style release];
+}
+
+- (void)performSearch:(NSString *)searchText {
+    // Cancel previous timer if running
+    if (self.searchTimer) {
+        [self.searchTimer invalidate];
+        self.searchTimer = nil;
+    }
+    
+    if (!searchText || [searchText length] == 0) {
+        // Clear search results immediately if search text is empty
+        self.searchResults = [NSMutableArray array];
+        self.isSearchActive = NO;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self setNeedsDisplay:YES];
+        });
+        return;
+    }
+    
+    // Debounce search - wait 300ms after user stops typing
+    self.searchTimer = [NSTimer scheduledTimerWithTimeInterval:0.3
+                                                        target:self
+                                                      selector:@selector(performDelayedSearch:)
+                                                      userInfo:@{@"searchText": searchText}
+                                                       repeats:NO];
+}
+
+- (void)performDelayedSearch:(NSTimer *)timer {
+    NSString *searchText = [[timer userInfo] objectForKey:@"searchText"];
+    
+    // Create search queue if needed
+    if (!self.searchQueue) {
+        self.searchQueue = dispatch_queue_create("com.vlc.search", DISPATCH_QUEUE_SERIAL);
+    }
+    
+    // Perform search on background thread
+    dispatch_async(self.searchQueue, ^{
+        NSMutableArray *allResults = [NSMutableArray array];
+        NSMutableArray *channelResults = [NSMutableArray array];
+        NSMutableArray *movieResults = [NSMutableArray array];
+        NSString *lowercaseSearchText = [searchText lowercaseString];
+        
+        // Search in channels (regular TV channels)
+        if (self.channels) {
+            for (VLCChannel *channel in self.channels) {
+                if ([self channel:channel matchesSearchText:lowercaseSearchText]) {
+                    // Check if this is a movie/series or regular channel based on group
+                    if (channel.group && 
+                        ([[channel.group lowercaseString] containsString:@"movie"] ||
+                         [[channel.group lowercaseString] containsString:@"series"] ||
+                         [[channel.group lowercaseString] containsString:@"film"] ||
+                         [[channel.group lowercaseString] containsString:@"cinema"])) {
+                        [movieResults addObject:channel];
+                    } else {
+                        [channelResults addObject:channel];
+                    }
+                    [allResults addObject:channel];
+                }
+            }
+        }
+        
+        // Update UI on main thread
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.searchResults = allResults;
+            self.searchChannelResults = channelResults;
+            self.searchMovieResults = movieResults;
+            self.isSearchActive = ([allResults count] > 0 || [searchText length] > 0);
+            [self setNeedsDisplay:YES];
+        });
+    });
+}
+
+- (BOOL)channel:(VLCChannel *)channel matchesSearchText:(NSString *)searchText {
+    if (!channel || !searchText) return NO;
+    
+    // Search in channel name
+    if (channel.name && [[channel.name lowercaseString] containsString:searchText]) {
+        return YES;
+    }
+    
+    // Search in channel group
+    if (channel.group && [[channel.group lowercaseString] containsString:searchText]) {
+        return YES;
+    }
+    
+    // Search in channel URL (for specific stream names) 
+    if (channel.url && [[channel.url lowercaseString] containsString:searchText]) {
+        return YES;
+    }
+    
+    return NO;
+}
+
+#pragma mark - VLCReusableTextFieldDelegate
+
+- (void)textFieldDidChange:(NSString *)newValue forIdentifier:(NSString *)identifier {
+    if ([identifier isEqualToString:@"search"]) {
+        [self performSearch:newValue];
+    }
+}
+
+- (void)textFieldDidEndEditing:(NSString *)finalValue forIdentifier:(NSString *)identifier {
+    if ([identifier isEqualToString:@"search"]) {
+        [self performSearch:finalValue];
     }
 }
 
@@ -268,54 +620,129 @@ NSInteger lastValidHoveredGroupIndex = -1;
     CGFloat programGuideWidth = 400; // Increased width for program guide
     CGFloat channelListWidth = self.bounds.size.width - channelListX - programGuideWidth;
     
-    // Draw background with consistent semi-transparent black
+    // Draw background using theme colors with gradient
     NSRect menuRect = NSMakeRect(channelListX, 0, channelListWidth, self.bounds.size.height);
-    [[NSColor colorWithCalibratedRed:0 green:0 blue:0 alpha:0.7] set];
-    NSRectFill(menuRect);
+    NSGradient *backgroundGradient = [[NSGradient alloc] initWithStartingColor:self.themeChannelStartColor ? self.themeChannelStartColor : [NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.7]
+                                                                   endingColor:self.themeChannelEndColor ? self.themeChannelEndColor : [NSColor colorWithCalibratedRed:0.12 green:0.14 blue:0.18 alpha:0.7]];
+    [backgroundGradient drawInRect:menuRect angle:90];
+    [backgroundGradient release];
     
-    // Draw consistent background for program guide area on the right
+    // Draw program guide background using theme colors (darker version)
     CGFloat programGuideX = channelListX + channelListWidth;
     NSRect programGuideRect = NSMakeRect(programGuideX, 0, programGuideWidth, self.bounds.size.height);
-    [[NSColor colorWithCalibratedRed:0 green:0 blue:0 alpha:0.7] set];
-    NSRectFill(programGuideRect);
+    
+    // Create darker theme colors for program guide
+    NSColor *programGuideStartColor, *programGuideEndColor;
+    if (self.themeChannelStartColor && self.themeChannelEndColor) {
+        // Make the program guide slightly darker than channel list
+        CGFloat darkAlpha = self.themeAlpha * 0.9; // Slightly more transparent
+        programGuideStartColor = [self.themeChannelStartColor colorWithAlphaComponent:darkAlpha];
+        programGuideEndColor = [self.themeChannelEndColor colorWithAlphaComponent:darkAlpha];
+    } else {
+        programGuideStartColor = [NSColor colorWithCalibratedRed:0.08 green:0.10 blue:0.14 alpha:0.65];
+        programGuideEndColor = [NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.65];
+    }
+    
+    NSGradient *programGuideGradient = [[NSGradient alloc] initWithStartingColor:programGuideStartColor endingColor:programGuideEndColor];
+    [programGuideGradient drawInRect:programGuideRect angle:90];
+    [programGuideGradient release];
     
     // Define the content rect for the channel list
     NSRect contentRect = NSMakeRect(channelListX, 0, channelListWidth, self.bounds.size.height);
     
+    // Determine which channels to display
+    NSArray *channelNames = nil;
+    NSArray *channelUrls = nil;
+    
+    if (self.selectedCategoryIndex == CATEGORY_SEARCH && self.searchChannelResults && [self.searchChannelResults count] > 0) {
+        // Use search channel results
+        NSMutableArray *searchNames = [NSMutableArray array];
+        NSMutableArray *searchUrls = [NSMutableArray array];
+        
+        for (VLCChannel *channel in self.searchChannelResults) {
+            [searchNames addObject:channel.name ? channel.name : @""];
+            [searchUrls addObject:channel.url ? channel.url : @""];
+        }
+        
+        channelNames = searchNames;
+        channelUrls = searchUrls;
+    } else {
+        // Use regular simple channel lists
+        channelNames = self.simpleChannelNames;
+        channelUrls = self.simpleChannelUrls;
+    }
+    
     // Calculate total content height
-    CGFloat totalContentHeight = [self.simpleChannelNames count] * rowHeight;
+    CGFloat totalContentHeight = [channelNames count] * rowHeight;
     
     // Add extra space at bottom to ensure last item is fully visible when scrolled to the end
     totalContentHeight += rowHeight;
     
     // Update scroll limits to ensure last item is fully visible
     CGFloat maxScroll = MAX(0, totalContentHeight - contentRect.size.height);
-    CGFloat scrollPosition = MIN(channelScrollPosition, maxScroll);
+    
+    // Use appropriate scroll position based on search mode
+    CGFloat currentScrollPosition;
+    if (self.selectedCategoryIndex == CATEGORY_SEARCH) {
+        currentScrollPosition = self.searchChannelScrollPosition;
+    } else {
+        currentScrollPosition = channelScrollPosition;
+    }
+    
+    CGFloat scrollPosition = MIN(currentScrollPosition, maxScroll);
     
     // Draw each channel - removed header bar completely
-    for (NSInteger i = 0; i < [self.simpleChannelNames count]; i++) {
+    for (NSInteger i = 0; i < [channelNames count]; i++) {
         // Calculate visible position accounting for scroll
         NSInteger visibleIndex = i - (NSInteger)floor(scrollPosition / rowHeight);
         
         // Adjusted positioning to start from top with no header offset
-        NSRect itemRect = NSMakeRect(channelListX,
+        NSRect itemRect = NSMakeRect(channelListX, 
                                      self.bounds.size.height - ((visibleIndex+1) * rowHeight), 
-                                   channelListWidth,
-                                   rowHeight);
+                                     channelListWidth, 
+                                     rowHeight);
         
         // Skip drawing if not visible
         if (!NSIntersectsRect(itemRect, rect)) {
             continue;
         }
         
-        // Highlight hovered or selected channel
+        // Highlight hovered or selected channel with rounded corners (matching categories/groups style)
         if (i == self.hoveredChannelIndex || i == self.selectedChannelIndex) {
-            [self.hoverColor set];
-            NSRectFill(itemRect);
+            if (i == self.selectedChannelIndex) {
+                // Selected channel - use custom selection color with rounded corners
+                NSBezierPath *selectionPath = [NSBezierPath bezierPathWithRoundedRect:
+                                             NSInsetRect(itemRect, 4, 2)
+                                                                             xRadius:6
+                                                                             yRadius:6];
+                [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.3] set];
+                [selectionPath fill];
+                
+                // Add subtle highlight border
+                [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.2] set];
+                [selectionPath stroke];
+            } else {
+                // Hovered channel - use lighter version (auto-calculated hover color) with rounded corners
+                CGFloat blendFactor = 0.5; // Increased from 0.3 for better visibility
+                CGFloat hoverRed = self.customSelectionRed + (1.0 - self.customSelectionRed) * blendFactor;
+                CGFloat hoverGreen = self.customSelectionGreen + (1.0 - self.customSelectionGreen) * blendFactor;
+                CGFloat hoverBlue = self.customSelectionBlue + (1.0 - self.customSelectionBlue) * blendFactor;
+                
+                NSBezierPath *hoverPath = [NSBezierPath bezierPathWithRoundedRect:
+                                         NSInsetRect(itemRect, 4, 2)
+                                                                         xRadius:6
+                                                                         yRadius:6];
+                [[NSColor colorWithCalibratedRed:hoverRed green:hoverGreen blue:hoverBlue alpha:0.25] set]; // Increased alpha from 0.15
+                [hoverPath fill];
+                
+                // Add subtle highlight border
+                [[NSColor colorWithCalibratedRed:hoverRed green:hoverGreen blue:hoverBlue alpha:0.15] set]; // Increased stroke alpha from 0.1
+                [hoverPath stroke];
+            }
         }
         
         // Draw channel name
-        NSString *channelName = [self.simpleChannelNames objectAtIndex:i];
+        NSString *channelName = [channelNames objectAtIndex:i];
         
         [self.textColor set];
         NSMutableParagraphStyle *style = [[NSMutableParagraphStyle alloc] init];
@@ -446,38 +873,6 @@ NSInteger lastValidHoveredGroupIndex = -1;
                 NSArray *channelsInGroup = [self.channelsByGroup objectForKey:currentGroup];
                 if (channelsInGroup && i < channelsInGroup.count) {
                     channel = [channelsInGroup objectAtIndex:i];
-                    
-                    // Proactively start loading movie info for movie channels
-                    if ([currentCategory isEqualToString:@"MOVIES"] && 
-                        channel && 
-                        !channel.hasLoadedMovieInfo && 
-                        !channel.hasStartedFetchingMovieInfo) {
-                        
-                        // Check if this is one of the visible items
-                        NSInteger start = (NSInteger)floor(scrollPosition / rowHeight);
-                        NSInteger end = start + (NSInteger)(self.bounds.size.height / rowHeight) + 2;
-                        
-                        if (i >= start && i <= end) {
-                            // Check cache first
-                            BOOL loadedFromCache = [self loadMovieInfoFromCacheForChannel:channel];
-                            
-                            // If not in cache, trigger an async load
-                            if (!loadedFromCache) {
-                                // Flag to prevent multiple fetches
-                                channel.hasStartedFetchingMovieInfo = YES;
-                                
-                                // Queue the fetch on a background thread
-                                dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-                                    [self fetchMovieInfoForChannel:channel];
-                                    
-                                    // Trigger UI update on main thread
-                                    dispatch_async(dispatch_get_main_queue(), ^{
-                                        [self setNeedsDisplay:YES];
-                                    });
-                                });
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -580,9 +975,13 @@ NSInteger lastValidHoveredGroupIndex = -1;
         
         [style release];
     }
+       // Draw search movie results in the program guide area if in search mode
+    if (self.selectedCategoryIndex == CATEGORY_SEARCH && self.searchMovieResults && [self.searchMovieResults count] > 0) {
+        [self drawSearchMovieResults:programGuideRect];
+    }
     
     // Show program guide when hovering over a channel
-    if (self.hoveredChannelIndex >= 0 && self.hoveredChannelIndex < [self.simpleChannelNames count]) {
+    if (self.hoveredChannelIndex >= 0 && self.hoveredChannelIndex < [channelNames count]) {
         [self drawProgramGuideForHoveredChannel];
     }
     
@@ -727,7 +1126,7 @@ NSInteger lastValidHoveredGroupIndex = -1;
         NSRect progressFilledRect = NSMakeRect(
             progressBarBgRect.origin.x,
             progressBarBgRect.origin.y,
-            progressBarBgRect.size.width * MIN(1.0, progressValue),
+            progressBarWidth * MIN(1.0, progressValue),
                                                progressBarBgRect.size.height
         );
         
@@ -817,10 +1216,24 @@ NSInteger lastValidHoveredGroupIndex = -1;
     CGFloat epgPanelWidth = self.bounds.size.width - epgPanelX;
     CGFloat rowHeight = 40;
     
-    // Draw background
+    // Draw background using theme colors
     NSRect epgRect = NSMakeRect(epgPanelX, 0, epgPanelWidth, self.bounds.size.height);
-    [self.backgroundColor set];
-    NSRectFill(epgRect);
+    
+    // Use theme colors for EPG panel background
+    NSColor *epgStartColor, *epgEndColor;
+    if (self.themeChannelStartColor && self.themeChannelEndColor) {
+        // Make the EPG panel use a darker version of channel theme colors
+        CGFloat darkAlpha = self.themeAlpha * 0.8;
+        epgStartColor = [self.themeChannelStartColor colorWithAlphaComponent:darkAlpha];
+        epgEndColor = [self.themeChannelEndColor colorWithAlphaComponent:darkAlpha];
+    } else {
+        epgStartColor = [NSColor colorWithCalibratedRed:0.08 green:0.10 blue:0.14 alpha:0.7];
+        epgEndColor = [NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.7];
+    }
+    
+    NSGradient *epgGradient = [[NSGradient alloc] initWithStartingColor:epgStartColor endingColor:epgEndColor];
+    [epgGradient drawInRect:epgRect angle:90];
+    [epgGradient release];
     
     // Remove the header bar completely
     
@@ -881,44 +1294,34 @@ NSInteger lastValidHoveredGroupIndex = -1;
     CGFloat settingsPanelWidth = self.bounds.size.width - settingsPanelX;
     CGFloat rowHeight = 40;
     
-    // Draw background
+    // Draw background using theme colors
     NSRect settingsRect = NSMakeRect(settingsPanelX, 0, settingsPanelWidth, self.bounds.size.height);
-    [self.backgroundColor set];
-    NSRectFill(settingsRect);
     
-    // Draw header
-    NSRect headerRect = NSMakeRect(settingsPanelX, self.bounds.size.height - rowHeight, settingsPanelWidth, rowHeight);
-    [self.groupColor set];
-    NSRectFill(headerRect);
-    
-    [self.textColor set];
-    NSMutableParagraphStyle *style = [[NSMutableParagraphStyle alloc] init];
-    [style setAlignment:NSTextAlignmentCenter];
-    
-    NSDictionary *attrs = @{
-        NSFontAttributeName: [NSFont boldSystemFontOfSize:16],
-        NSForegroundColorAttributeName: self.textColor,
-        NSParagraphStyleAttributeName: style
-    };
-    
-    // Get the selected settings group
-    NSString *headerText = @"Settings";
-    NSArray *settingsGroups = [self safeValueForKey:@"SETTINGS" fromDictionary:self.groupsByCategory];
-    
-    if (self.selectedGroupIndex >= 0 && self.selectedGroupIndex < [settingsGroups count]) {
-        NSString *selectedGroup = [settingsGroups objectAtIndex:self.selectedGroupIndex];
-        headerText = [NSString stringWithFormat:@"Settings - %@", selectedGroup];
+    // Use theme colors for settings panel background
+    NSColor *settingsStartColor, *settingsEndColor;
+    if (self.themeChannelStartColor && self.themeChannelEndColor) {
+        // Make the settings panel use theme colors with slight alpha adjustment
+        CGFloat settingsAlpha = self.themeAlpha * 0.85;
+        settingsStartColor = [self.themeChannelStartColor colorWithAlphaComponent:settingsAlpha];
+        settingsEndColor = [self.themeChannelEndColor colorWithAlphaComponent:settingsAlpha];
+    } else {
+        settingsStartColor = [NSColor colorWithCalibratedRed:0.08 green:0.10 blue:0.14 alpha:0.7];
+        settingsEndColor = [NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.7];
     }
     
-    [headerText drawInRect:headerRect withAttributes:attrs];
+    NSGradient *settingsGradient = [[NSGradient alloc] initWithStartingColor:settingsStartColor endingColor:settingsEndColor];
+    [settingsGradient drawInRect:settingsRect angle:90];
+    [settingsGradient release];
     
     // Only draw settings content if a settings group is selected
+    NSArray *settingsGroups = [self safeValueForKey:@"SETTINGS" fromDictionary:self.groupsByCategory];
+    
     if (self.selectedGroupIndex >= 0 && self.selectedGroupIndex < [settingsGroups count]) {
         NSString *selectedGroup = [settingsGroups objectAtIndex:self.selectedGroupIndex];
         
         if ([selectedGroup isEqualToString:@"Playlist"]) {
             // Draw Playlist settings
-            [self drawPlaylistSettingsWithComponents:rect x:settingsPanelX width:settingsPanelWidth];
+            [self drawPlaylistSettings:rect x:settingsPanelX width:settingsPanelWidth];
         } else if ([selectedGroup isEqualToString:@"General"]) {
             // Draw General settings
             [self drawGeneralSettings:rect x:settingsPanelX width:settingsPanelWidth];
@@ -928,9 +1331,15 @@ NSInteger lastValidHoveredGroupIndex = -1;
         } else if ([selectedGroup isEqualToString:@"Movie Info"]) {
             // Draw Movie Info settings
             [self drawMovieInfoSettings:rect x:settingsPanelX width:settingsPanelWidth];
+        } else if ([selectedGroup isEqualToString:@"Themes"]) {
+            // Draw Theme settings
+            [self drawThemeSettings:rect x:settingsPanelX width:settingsPanelWidth];
         }
     } else {
         // No group selected, show a helper message
+        NSMutableParagraphStyle *style = [[NSMutableParagraphStyle alloc] init];
+        [style setAlignment:NSTextAlignmentCenter];
+        
         NSDictionary *helpAttrs = @{
             NSFontAttributeName: [NSFont systemFontOfSize:14],
             NSForegroundColorAttributeName: self.textColor,
@@ -943,9 +1352,8 @@ NSInteger lastValidHoveredGroupIndex = -1;
                                     20);
         
         [@"Select a settings group from the left panel" drawInRect:helpRect withAttributes:helpAttrs];
-    }
-    
     [style release];
+    }
 }
 
 - (void)drawPlaylistSettings:(NSRect)rect x:(CGFloat)x width:(CGFloat)width {
@@ -1107,105 +1515,53 @@ NSInteger lastValidHoveredGroupIndex = -1;
     NSRect loadButtonRect = NSMakeRect(x + padding, buttonY, buttonWidth, buttonHeight);
     self.loadButtonRect = loadButtonRect;
     
-    [[NSColor colorWithCalibratedRed:0.2 green:0.4 blue:0.6 alpha:1.0] set];
-    NSRectFill(loadButtonRect);
-    [[NSColor whiteColor] set];
-    NSFrameRect(loadButtonRect);
+    // Draw load button background with disabled state
+    NSColor *loadButtonColor;
+    if (self.isLoading) {
+        loadButtonColor = [NSColor colorWithCalibratedRed:0.5 green:0.5 blue:0.5 alpha:0.6]; // Grayed out when disabled
+    } else {
+        loadButtonColor = [NSColor colorWithCalibratedRed:0.2 green:0.4 blue:0.7 alpha:1.0]; // Normal blue
+    }
+    [loadButtonColor set];
+    NSBezierPath *loadButtonPath = [NSBezierPath bezierPathWithRoundedRect:loadButtonRect xRadius:5 yRadius:5];
+    [loadButtonPath fill];
     
-    NSRect loadButtonTextRect = NSMakeRect(loadButtonRect.origin.x + 5, 
-                                          loadButtonRect.origin.y + 7, 
-                                          loadButtonRect.size.width - 10, 
-                                          loadButtonRect.size.height - 14);
-    [@"Load From URL" drawInRect:loadButtonTextRect withAttributes:@{
-        NSFontAttributeName: [NSFont systemFontOfSize:12],
-        NSForegroundColorAttributeName: [NSColor whiteColor],
-        NSParagraphStyleAttributeName: style
-    }];
+    // Draw load button text with centered alignment
+    NSMutableParagraphStyle *buttonStyle = [[NSMutableParagraphStyle alloc] init];
+    [buttonStyle setAlignment:NSTextAlignmentCenter];
+    
+    NSColor *buttonTextColor = self.isLoading ? [NSColor colorWithCalibratedWhite:0.8 alpha:0.6] : [NSColor whiteColor];
+    NSDictionary *buttonTextAttrs = @{
+        NSFontAttributeName: [NSFont boldSystemFontOfSize:14],
+        NSForegroundColorAttributeName: buttonTextColor,
+        NSParagraphStyleAttributeName: buttonStyle
+    };
+    
+    NSRect loadButtonTextRect = NSMakeRect(loadButtonRect.origin.x, loadButtonRect.origin.y + 10, 
+                                          loadButtonRect.size.width, loadButtonRect.size.height - 20);
+    [@"Load Playlist" drawInRect:loadButtonTextRect withAttributes:buttonTextAttrs];
     
     // Update EPG button
     NSRect epgButtonRect = NSMakeRect(x + padding + buttonWidth + buttonSpacing, buttonY, buttonWidth, buttonHeight);
     self.epgButtonRect = epgButtonRect;
     
-    [[NSColor colorWithCalibratedRed:0.2 green:0.6 blue:0.4 alpha:1.0] set];
-    NSRectFill(epgButtonRect);
-    [[NSColor whiteColor] set];
-    NSFrameRect(epgButtonRect);
+    // Draw EPG button background with disabled state
+    NSColor *epgButtonColor;
+    if (self.isLoading) {
+        epgButtonColor = [NSColor colorWithCalibratedRed:0.5 green:0.5 blue:0.5 alpha:0.6]; // Grayed out when disabled
+    } else {
+        epgButtonColor = [NSColor colorWithCalibratedRed:0.2 green:0.6 blue:0.3 alpha:1.0]; // Normal green
+    }
+    [epgButtonColor set];
+    NSBezierPath *epgButtonPath = [NSBezierPath bezierPathWithRoundedRect:epgButtonRect xRadius:5 yRadius:5];
+    [epgButtonPath fill];
     
-    NSRect epgButtonTextRect = NSMakeRect(epgButtonRect.origin.x + 5, 
-                                         epgButtonRect.origin.y + 7, 
-                                         epgButtonRect.size.width - 10, 
-                                         epgButtonRect.size.height - 14);
-    [@"Update EPG" drawInRect:epgButtonTextRect withAttributes:@{
-        NSFontAttributeName: [NSFont systemFontOfSize:12],
-        NSForegroundColorAttributeName: [NSColor whiteColor],
-        NSParagraphStyleAttributeName: style
-    }];
+    // Draw EPG button text
+    NSRect epgButtonTextRect = NSMakeRect(epgButtonRect.origin.x, epgButtonRect.origin.y + 10, 
+                                         epgButtonRect.size.width, epgButtonRect.size.height - 20);
+    [@"Update EPG" drawInRect:epgButtonTextRect withAttributes:buttonTextAttrs];
     
     [style release];
-}
-
-- (void)updateEpgButtonClicked {
-    // Check if we have a valid EPG URL
-    NSString *epgUrlToLoad = nil;
-    
-    // Priority 1: If there's a temp URL being edited, use that
-    if (self.tempEpgUrl && [self.tempEpgUrl length] > 0) {
-        epgUrlToLoad = self.tempEpgUrl;
-    } 
-    // Priority 2: If there's a saved epgUrl, use that
-    else if (self.epgUrl && [self.epgUrl length] > 0) {
-        epgUrlToLoad = self.epgUrl;
-        // Also update the temp URL for display
-        self.tempEpgUrl = [[NSString alloc] initWithString:self.epgUrl];
-    }
-    
-    // Only load if we have a non-empty URL
-    if (epgUrlToLoad && [epgUrlToLoad length] > 0) {
-        // Make sure it has http:// prefix
-        if (![epgUrlToLoad hasPrefix:@"http://"] && ![epgUrlToLoad hasPrefix:@"https://"]) {
-            epgUrlToLoad = [@"http://" stringByAppendingString:epgUrlToLoad];
-            self.tempEpgUrl = epgUrlToLoad;
-        }
-        
-        // Set the EPG URL
-        self.epgUrl = epgUrlToLoad;
-        
-        // Save settings to user defaults
-        [self saveSettings];
-        
-        // Set loading state and start the progress timer
-        self.isLoading = YES;
-        self.isLoadingEpg = YES;
-        [self startProgressRedrawTimer];
-        [self setLoadingStatusText:@"Updating EPG data..."];
-        [self setNeedsDisplay:YES];
-        
-        // Load EPG data immediately - force refresh from URL
-        [self loadEpgData];
-        
-        // Deactivate text fields but keep the values
-        self.m3uFieldActive = NO;
-        self.epgFieldActive = NO;
-    } else {
-        // Show error for empty URL
-        [self setLoadingStatusText:@"Error: Please enter an EPG URL"];
-        dispatch_async(dispatch_get_main_queue(), ^{
-            self.isLoading = NO;
-            [self stopProgressRedrawTimer];
-            [self setNeedsDisplay:YES];
-            
-            // Clear error message after a delay
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                if (gProgressMessageLock) {
-                    [gProgressMessageLock lock];
-                    [gProgressMessage release];
-                    gProgressMessage = nil;
-                    [gProgressMessageLock unlock];
-                }
-                [self setNeedsDisplay:YES];
-            });
-        });
-    }
 }
 
 - (void)drawGeneralSettings:(NSRect)rect x:(CGFloat)x width:(CGFloat)width {
@@ -1440,6 +1796,15 @@ NSInteger lastValidHoveredGroupIndex = -1;
         // Make sure channels are prepared when a group is clicked
         [self prepareSimpleChannelLists];
         
+        // NEW: When a movie group is selected, immediately scan and load cached info/covers
+        if ([categoryName isEqualToString:@"MOVIES"] || 
+            ([categoryName isEqualToString:@"FAVORITES"] && [self currentGroupContainsMovieChannels])) {
+            [self immediatelyLoadCachedMovieDataForCurrentGroup];
+        }
+        
+        // REMOVED: Don't bulk download entire group - only process visible movies on demand
+        // [self checkAndRefreshMovieDataForCurrentGroup];
+        
         // Reset scroll positions
         channelScrollPosition = 0;
         
@@ -1483,7 +1848,12 @@ NSInteger lastValidHoveredGroupIndex = -1;
         return [self handleSettingsClickAtPoint:point];
     }
     
-    // Don't process clicks in the movie info panel area (only if NOT in settings)
+    // Handle search results clicks when in search mode
+    if (self.selectedCategoryIndex == CATEGORY_SEARCH) {
+        return [self handleSearchResultsClickAtPoint:point];
+    }
+    
+    // Don't process clicks in the movie info panel area (only if NOT in settings or search)
     if (point.x >= channelListEndX) {
         // This is a click in the movie info panel, just update display
         NSLog(@"Click in movie info panel area - ignoring for channel selection");
@@ -1523,172 +1893,310 @@ NSInteger lastValidHoveredGroupIndex = -1;
         selectedGroup = [settingsGroups objectAtIndex:self.selectedGroupIndex];
     }
     
-    // Check for clicks on Movie Info refresh button
-    if (selectedGroup && [selectedGroup isEqualToString:@"Movie Info"] && 
-        NSPointInRect(point, self.movieInfoRefreshButtonRect)) {
+    if ([selectedGroup isEqualToString:@"Playlist"]) {
+        // Don't handle button clicks if we're already loading
+        if (self.isLoading) {
+            NSLog(@"Ignoring button click - operation in progress");
+            return YES; // Return YES to indicate we handled the click (even though we ignored it)
+        }
         
-        // Prevent multiple clicks while already refreshing
-        if (self.isRefreshingMovieInfo) {
-            //NSLog(@"Movie Info refresh already in progress - ignoring click");
+        // Handle Load From URL button click
+        if (NSPointInRect(point, self.loadButtonRect)) {
+            NSLog(@"Load From URL button clicked");
+            [self loadFromUrlButtonClicked];
             return YES;
         }
         
-        //NSLog(@"Movie Info refresh button clicked");
-        [self startMovieInfoRefresh];
-        return YES;
-    }
-    
-    // If either text field is active, any click outside deactivates it
-    if (self.m3uFieldActive || self.epgFieldActive) {
-        // If clicked on another text field, switch active field
-        if (NSPointInRect(point, self.m3uFieldRect) && !self.m3uFieldActive) {
-            self.m3uFieldActive = YES;
-            self.epgFieldActive = NO;
-            
-            // Initialize temp URL if needed
-            if (!self.tempM3uUrl) {
-                if ([self.m3uFilePath hasPrefix:@"http://"] || [self.m3uFilePath hasPrefix:@"https://"]) {
-                    self.tempM3uUrl = [[NSString alloc] initWithString:self.m3uFilePath];
-                } else {
-                    self.tempM3uUrl = [[NSString alloc] initWithString:@""];
-                }
-            }
-            
-            // Calculate cursor position based on click position
-            [self calculateCursorPositionForTextField:YES withPoint:point];
-            
-            [self setNeedsDisplay:YES];
-            return YES;
-        } 
-        else if (NSPointInRect(point, self.epgFieldRect) && !self.epgFieldActive) {
-            self.epgFieldActive = YES;
-            self.m3uFieldActive = NO;
-            
-            // Initialize temp URL if needed
-            if (!self.tempEpgUrl) {
-                if (self.epgUrl && [self.epgUrl length] > 0) {
-                    self.tempEpgUrl = [[NSString alloc] initWithString:self.epgUrl];
-                } else {
-                    self.tempEpgUrl = [[NSString alloc] initWithString:@""];
-                }
-            }
-            
-            // Calculate cursor position based on click position
-            [self calculateCursorPositionForTextField:NO withPoint:point];
-            
-            [self setNeedsDisplay:YES];
+        // Handle Update EPG button click
+        if (NSPointInRect(point, self.epgButtonRect)) {
+            NSLog(@"Update EPG button clicked");
+            [self updateEpgButtonClicked];
             return YES;
         }
-        else {
-            // Click outside text fields, deactivate both
-            self.m3uFieldActive = NO;
-            self.epgFieldActive = NO;
-            [self setNeedsDisplay:YES];
-        }
-    }
-    
-    // Check for clicks on the Load button
-    if (NSPointInRect(point, self.loadButtonRect)) {
-        [self loadFromUrlButtonClicked];
-        return YES;
-    }
-    
-    // Check for clicks on the EPG button
-    if (NSPointInRect(point, self.epgButtonRect)) {
-        [self updateEpgButtonClicked];
-        return YES;
-    }
-    
-    // Check for clicks on the M3U URL field (now handled by VLCReusableTextField)
-    if (NSPointInRect(point, self.m3uFieldRect)) {
-        // Activate the text field component
-        if (self.m3uTextField) {
-            [self.m3uTextField activateField];
-        }
-        return YES;
-    }
-    
-    // Check for clicks on the EPG URL field (now handled by VLCClickableLabel)
-    if (NSPointInRect(point, self.epgFieldRect)) {
-        // The clickable label will handle the click and copy to clipboard
-        // No need to do anything here as the label handles its own clicks
-        return YES;
-    }
-    
-    // Check for clicks on the EPG Time Offset dropdown
-    if (NSPointInRect(point, self.epgTimeOffsetDropdownRect)) {
-        //NSLog(@"Click detected on EPG Time Offset dropdown at point: (%.1f, %.1f)", point.x, point.y);
         
-        // Only handle dropdown clicks in the Playlist settings group
-        if (selectedGroup && [selectedGroup isEqualToString:@"Playlist"]) {
-            //NSLog(@"In Playlist settings group, proceeding with dropdown handling");
-            self.m3uFieldActive = NO;
-            self.epgFieldActive = NO;
-            
-            // Use dropdown manager to handle the click
-            VLCDropdown *offsetDropdown = [self.dropdownManager dropdownWithIdentifier:@"EPGTimeOffset"];
-            if (offsetDropdown) {
-                //NSLog(@"Found dropdown, isOpen: %@", offsetDropdown.isOpen ? @"YES" : @"NO");
-                if (offsetDropdown.isOpen) {
-                    // Dropdown is open - let dropdown manager handle the click
-                    if ([self.dropdownManager handleMouseDown:[NSApp currentEvent]]) {
-                        // Click was handled by dropdown manager
-                        //NSLog(@"Click handled by dropdown manager");
-                        return YES;
-                    }
+        // Handle other playlist-related UI elements here as needed
+        
+    } else if ([selectedGroup isEqualToString:@"Themes"]) {
+        // Handle theme dropdown click
+        if (NSPointInRect(point, self.themeDropdownRect)) {
+            VLCDropdown *dropdown = [self.dropdownManager dropdownWithIdentifier:@"theme"];
+            if (dropdown) {
+                if (dropdown.isOpen) {
+                    [self.dropdownManager hideDropdown:@"theme"];
                 } else {
-                    // Open dropdown
-                    //NSLog(@"Opening dropdown...");
-                    [self.dropdownManager showDropdown:@"EPGTimeOffset"];
-                    //NSLog(@"Dropdown opened, isOpen: %@", offsetDropdown.isOpen ? @"YES" : @"NO");
-                    return YES;
+                    dropdown.frame = self.themeDropdownRect;
+                    [self.dropdownManager showDropdown:@"theme"];
                 }
             } else {
-                //NSLog(@"ERROR: Dropdown not found!");
+                [self setupThemeDropdowns];
+                [self.dropdownManager showDropdown:@"theme"];
             }
-        } else {
-            //NSLog(@"EPG dropdown click ignored - not in Playlist settings group. Current group: %@", selectedGroup ? selectedGroup : @"none");
+            return YES;
         }
-    }
-    
-    // Check for clicks on subtitle settings slider (only in Subtitles group)
-    if (selectedGroup && [selectedGroup isEqualToString:@"Subtitles"]) {
-        NSValue *sliderRectValue = objc_getAssociatedObject(self, "subtitleFontSizeSliderRect");
-        if (sliderRectValue) {
-            NSRect sliderRect = [sliderRectValue rectValue];
-            if (NSPointInRect(point, sliderRect)) {
-                // Calculate new font size based on click position
-                // Remove interaction rect padding to get actual slider rect
-                NSRect actualSliderRect = NSMakeRect(sliderRect.origin.x + 10, sliderRect.origin.y + 10, 
-                                                    sliderRect.size.width - 20, sliderRect.size.height - 20);
-                
-                CGFloat clickProgress = (point.x - actualSliderRect.origin.x) / actualSliderRect.size.width;
-                clickProgress = MAX(0.0, MIN(1.0, clickProgress)); // Clamp to 0-1
-                
-                // Convert to font scale factor (5-30 range, where 10 = 1.0x scale)
-                NSInteger newFontSize = (NSInteger)(5 + (clickProgress * (30 - 5)));
-                
-                // Update settings and apply to player immediately
-                VLCSubtitleSettings *settings = [VLCSubtitleSettings sharedInstance];
-                settings.fontSize = newFontSize;
-                [settings saveSettings];
-                
-                // Apply to VLC player in real-time
-                if (self.player) {
-                    [settings applyToPlayer:self.player];
-                }
-                
-                NSLog(@"Subtitle font scale changed to: %ld (%.2fx)", (long)newFontSize, (float)newFontSize / 10.0f);
-                
-                // Redraw to show updated slider position
+        
+        // Handle transparency slider interaction
+        if ([VLCSliderControl isPoint:point inSliderRect:self.transparencySliderRect]) {
+            CGFloat value = [VLCSliderControl valueForPoint:point
+                                               sliderRect:self.transparencySliderRect
+                                                minValue:0.0
+                                                maxValue:1.0];
+            
+            // Use the exact slider value instead of converting to discrete levels
+            // This provides smooth transparency adjustment
+            if (self.themeAlpha != value) {
+                self.themeAlpha = value;
+                [self updateThemeColors];
+                [self saveThemeSettings];
                 [self setNeedsDisplay:YES];
+            }
+            return YES;
+        }
+        
+        // Handle RGB slider interactions (only when Custom theme is selected)
+        if (self.currentTheme == VLC_THEME_CUSTOM) {
+            // Red slider interaction
+            if ([VLCSliderControl isPoint:point inSliderRect:self.redSliderRect]) {
+                CGFloat value = [VLCSliderControl valueForPoint:point
+                                                   sliderRect:self.redSliderRect
+                                                    minValue:0.0
+                                                    maxValue:1.0];
+                
+                if (self.customThemeRed != value) {
+                    self.customThemeRed = value;
+                    [self updateThemeColors];
+                    [self saveThemeSettings];
+                    [self setNeedsDisplay:YES];
+                }
+                return YES;
+            }
+            
+            // Green slider interaction
+            if ([VLCSliderControl isPoint:point inSliderRect:self.greenSliderRect]) {
+                CGFloat value = [VLCSliderControl valueForPoint:point
+                                                   sliderRect:self.greenSliderRect
+                                                    minValue:0.0
+                                                    maxValue:1.0];
+                
+                if (self.customThemeGreen != value) {
+                    self.customThemeGreen = value;
+                    [self updateThemeColors];
+                    [self saveThemeSettings];
+                    [self setNeedsDisplay:YES];
+                }
+                return YES;
+            }
+            
+            // Blue slider interaction
+            if ([VLCSliderControl isPoint:point inSliderRect:self.blueSliderRect]) {
+                CGFloat value = [VLCSliderControl valueForPoint:point
+                                                   sliderRect:self.blueSliderRect
+                                                    minValue:0.0
+                                                    maxValue:1.0];
+                
+                if (self.customThemeBlue != value) {
+                    self.customThemeBlue = value;
+                    [self updateThemeColors];
+                    [self saveThemeSettings];
+                    [self setNeedsDisplay:YES];
+                }
                 return YES;
             }
         }
     }
     
-    return NO;     return NO;
+    // Handle Selection Color RGB sliders dragging (always available)
+    // Selection Red slider dragging
+    NSRect expandedSelectionRedRect = NSMakeRect(self.selectionRedSliderRect.origin.x - 20, 
+                                                 self.selectionRedSliderRect.origin.y - 20, 
+                                                 self.selectionRedSliderRect.size.width + 40, 
+                                                 self.selectionRedSliderRect.size.height + 40);
+    
+    if (NSPointInRect(point, expandedSelectionRedRect)) {
+        CGFloat value = [VLCSliderControl valueForPoint:point
+                                           sliderRect:self.selectionRedSliderRect
+                                            minValue:0.0
+                                            maxValue:1.0];
+        
+        if (self.customSelectionRed != value) {
+            self.customSelectionRed = value;
+            [self updateSelectionColors];
+            [self saveThemeSettings];
+            [self setNeedsDisplay:YES];
+        }
+        return YES;
+    }
+    
+    // Selection Green slider dragging
+    NSRect expandedSelectionGreenRect = NSMakeRect(self.selectionGreenSliderRect.origin.x - 20, 
+                                                   self.selectionGreenSliderRect.origin.y - 20, 
+                                                   self.selectionGreenSliderRect.size.width + 40, 
+                                                   self.selectionGreenSliderRect.size.height + 40);
+    
+    if (NSPointInRect(point, expandedSelectionGreenRect)) {
+        CGFloat value = [VLCSliderControl valueForPoint:point
+                                           sliderRect:self.selectionGreenSliderRect
+                                            minValue:0.0
+                                            maxValue:1.0];
+        
+        if (self.customSelectionGreen != value) {
+            self.customSelectionGreen = value;
+            [self updateSelectionColors];
+            [self saveThemeSettings];
+            [self setNeedsDisplay:YES];
+        }
+        return YES;
+    }
+    
+    // Selection Blue slider dragging
+    NSRect expandedSelectionBlueRect = NSMakeRect(self.selectionBlueSliderRect.origin.x - 20, 
+                                                  self.selectionBlueSliderRect.origin.y - 20, 
+                                                  self.selectionBlueSliderRect.size.width + 40, 
+                                                  self.selectionBlueSliderRect.size.height + 40);
+    
+    if (NSPointInRect(point, expandedSelectionBlueRect)) {
+        CGFloat value = [VLCSliderControl valueForPoint:point
+                                           sliderRect:self.selectionBlueSliderRect
+                                            minValue:0.0
+                                            maxValue:1.0];
+        
+        if (self.customSelectionBlue != value) {
+            self.customSelectionBlue = value;
+            [self updateSelectionColors];
+            [self saveThemeSettings];
+            [self setNeedsDisplay:YES];
+        }
+        return YES;
+    }
+    
+    return NO;
 }
+
+- (BOOL)handleSearchResultsClickAtPoint:(NSPoint)point {
+    CGFloat catWidth = 200;
+    CGFloat groupWidth = 250;
+    CGFloat programGuideWidth = 350;
+    CGFloat channelListWidth = self.bounds.size.width - catWidth - groupWidth - programGuideWidth;
+    CGFloat channelListStartX = catWidth + groupWidth;
+    CGFloat channelListEndX = channelListStartX + channelListWidth;
+    
+    // Check if click is in channel list area (for channel search results)
+    if (point.x >= channelListStartX && point.x < channelListEndX) {
+        return [self handleSearchChannelClickAtPoint:point];
+    }
+    
+    // Check if click is in program guide area (for movie search results)
+    if (point.x >= channelListEndX) {
+        return [self handleSearchMovieClickAtPoint:point];
+    }
+    
+    return NO;
+}
+
+- (BOOL)handleSearchChannelClickAtPoint:(NSPoint)point {
+    if (!self.searchChannelResults || [self.searchChannelResults count] == 0) {
+        return NO;
+    }
+    
+    // Calculate which channel was clicked using the same logic as channel list
+    CGFloat rowHeight = 40;
+    CGFloat totalY = self.bounds.size.height - point.y + self.searchChannelScrollPosition;
+    NSInteger channelIndex = (NSInteger)(totalY / rowHeight);
+    
+    if (channelIndex >= 0 && channelIndex < [self.searchChannelResults count]) {
+        VLCChannel *selectedChannel = [self.searchChannelResults objectAtIndex:channelIndex];
+        NSLog(@"Search channel clicked: %@", selectedChannel.name);
+        
+        // Hide the search interface/controls before playing
+        [self hideControls];
+        
+        // Update the current channel reference for player controls
+        self.tmpCurrentChannel = selectedChannel;
+        
+        // Update selected channel index if we can find it in the main channels list
+        // This helps with UI consistency
+        if (self.channels) {
+            for (NSInteger i = 0; i < [self.channels count]; i++) {
+                VLCChannel *channel = [self.channels objectAtIndex:i];
+                if ([channel.url isEqualToString:selectedChannel.url]) {
+                    self.selectedChannelIndex = i;
+                    break;
+                }
+            }
+        }
+        
+        // Play the channel directly using the VLCChannel object
+        [self playChannel:selectedChannel];
+        
+        // Force immediate UI update to reflect the new channel info
+        [self setNeedsDisplay:YES];
+        
+        // Show player controls with channel information
+        // This ensures the player controls display the correct channel info
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            // After a short delay (to let playback start), refresh the display
+            // to ensure channel info is properly shown in player controls
+            [self setNeedsDisplay:YES];
+        });
+        
+        return YES;
+    }
+    
+    return NO;
+}
+
+- (BOOL)handleSearchMovieClickAtPoint:(NSPoint)point {
+    if (!self.searchMovieResults || [self.searchMovieResults count] == 0) {
+        return NO;
+    }
+    
+    // Calculate movie index based on the drawing logic from drawSearchMovieResults
+    CGFloat rowHeight = 120; // Match the row height from drawSearchMovieResults
+    CGFloat contentAreaY = 30; // Account for header height
+    CGFloat totalY = (self.bounds.size.height - contentAreaY - point.y) + self.searchMovieScrollPosition;
+    NSInteger movieIndex = (NSInteger)(totalY / rowHeight);
+    
+    if (movieIndex >= 0 && movieIndex < [self.searchMovieResults count]) {
+        VLCChannel *selectedMovie = [self.searchMovieResults objectAtIndex:movieIndex];
+        NSLog(@"Search movie clicked: %@", selectedMovie.name);
+        
+        // Hide the search interface/controls before playing
+        [self hideControls];
+        
+        // Update the current channel reference for player controls
+        self.tmpCurrentChannel = selectedMovie;
+        
+        // Update selected channel index if we can find it in the main channels list
+        // This helps with UI consistency
+        if (self.channels) {
+            for (NSInteger i = 0; i < [self.channels count]; i++) {
+                VLCChannel *channel = [self.channels objectAtIndex:i];
+                if ([channel.url isEqualToString:selectedMovie.url]) {
+                    self.selectedChannelIndex = i;
+                    break;
+                }
+            }
+        }
+        
+        // Play the movie directly using the VLCChannel object
+        [self playChannel:selectedMovie];
+        
+        // Force immediate UI update to reflect the new movie info
+        [self setNeedsDisplay:YES];
+        
+        // Show player controls with movie information
+        // This ensures the player controls display the correct movie info
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            // After a short delay (to let playback start), refresh the display
+            // to ensure movie info is properly shown in player controls
+            [self setNeedsDisplay:YES];
+        });
+        
+        return YES;
+    }
+    
+    return NO;
+}
+
 
 // Helper method to calculate cursor position in text field when clicked
 - (void)calculateCursorPositionForTextField:(BOOL)isM3uField withPoint:(NSPoint)point {
@@ -1744,6 +2252,8 @@ NSInteger lastValidHoveredGroupIndex = -1;
 }
 
 - (void)loadFromUrlButtonClicked {
+    NSLog(@"loadFromUrlButtonClicked method called");
+    
     // Set loading state and start the progress timer immediately
     self.isLoading = YES;
     [self startProgressRedrawTimer];
@@ -1856,6 +2366,100 @@ NSInteger lastValidHoveredGroupIndex = -1;
     } else {
         // Show error for empty URL
         [self setLoadingStatusText:@"Error: Please enter a URL"];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.isLoading = NO;
+            [self stopProgressRedrawTimer];
+            [self setNeedsDisplay:YES];
+            
+            // Clear error message after a delay
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                if (gProgressMessageLock) {
+                    [gProgressMessageLock lock];
+                    [gProgressMessage release];
+                    gProgressMessage = nil;
+                    [gProgressMessageLock unlock];
+                }
+                [self setNeedsDisplay:YES];
+            });
+        });
+    }
+}
+
+- (void)updateEpgButtonClicked {
+    NSLog(@"updateEpgButtonClicked method called");
+    
+    // Set loading state and start the progress timer immediately
+    self.isLoading = YES;
+    [self startProgressRedrawTimer];
+    [self setLoadingStatusText:@"Updating EPG data..."];
+    [self setNeedsDisplay:YES];
+    
+    // Check if there's a valid EPG URL
+    NSString *epgUrlToLoad = nil;
+    
+    // Priority 1: If there's a temp EPG URL being edited, use that
+    if (self.tempEpgUrl && [self.tempEpgUrl length] > 0) {
+        epgUrlToLoad = self.tempEpgUrl;
+    } 
+    // Priority 2: If there's a saved epgUrl and it's a URL, use that
+    else if (self.epgUrl && [self.epgUrl length] > 0) {
+        epgUrlToLoad = self.epgUrl;
+        // Also update the temp URL for display
+        self.tempEpgUrl = [[NSString alloc] initWithString:self.epgUrl];
+    }
+    
+    // Only proceed if we have a valid EPG URL
+    if (epgUrlToLoad && [epgUrlToLoad length] > 0) {
+        // Make sure it has http:// prefix
+        if (![epgUrlToLoad hasPrefix:@"http://"] && ![epgUrlToLoad hasPrefix:@"https://"]) {
+            epgUrlToLoad = [@"http://" stringByAppendingString:epgUrlToLoad];
+            self.tempEpgUrl = epgUrlToLoad;
+        }
+        
+        // Basic URL validation - use a less strict pattern to allow query params
+        NSString *urlPattern = @"^https?://[-A-Za-z0-9+&@#/%?=~_|!:,.;]*[-A-Za-z0-9+&@#/%=~_|]";
+        NSPredicate *urlTest = [NSPredicate predicateWithFormat:@"SELF MATCHES %@", urlPattern];
+        BOOL isValid = [urlTest evaluateWithObject:epgUrlToLoad];
+        
+        if (!isValid) {
+            // Show an error message
+            [self setLoadingStatusText:@"Error: Invalid EPG URL format"];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                self.isLoading = NO;
+                [self stopProgressRedrawTimer];
+                [self setNeedsDisplay:YES];
+                
+                // Clear error message after a delay
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    if (gProgressMessageLock) {
+                        [gProgressMessageLock lock];
+                        [gProgressMessage release];
+                        gProgressMessage = nil;
+                        [gProgressMessageLock unlock];
+                    }
+                    [self setNeedsDisplay:YES];
+                });
+            });
+            return;
+        }
+        
+        // Save the EPG URL
+        self.epgUrl = epgUrlToLoad;
+        [self saveSettings];
+        
+        // Force reload EPG data
+        if ([self respondsToSelector:@selector(forceReloadEpgData)]) {
+            [self forceReloadEpgData];
+        } else {
+            // Fallback to regular load if the force method isn't available
+            [self loadEpgData];
+        }
+        
+        // Deactivate text fields but keep the values
+        self.epgFieldActive = NO;
+    } else {
+        // Show error for empty EPG URL
+        [self setLoadingStatusText:@"Error: Please enter an EPG URL"];
         dispatch_async(dispatch_get_main_queue(), ^{
             self.isLoading = NO;
             [self stopProgressRedrawTimer];
@@ -2071,8 +2675,8 @@ NSInteger lastValidHoveredGroupIndex = -1;
                 NSArray *channels = [self getChannelsForCurrentGroup];
                 if (channels && gridIndex < channels.count) {
                     VLCChannel *channel = [channels objectAtIndex:gridIndex];
-                    // Queue async loading for this channel if needed
-                    [self queueAsyncLoadForGridChannel:channel atIndex:gridIndex];
+                    // REMOVED: Don't auto-download on hover - handled by validateMovieInfoForVisibleItems
+                    // [self queueAsyncLoadForGridChannel:channel atIndex:gridIndex];
                 }
             }
         }
@@ -2141,7 +2745,6 @@ NSInteger lastValidHoveredGroupIndex = -1;
     // Handle dropdown hover states
     [self handleDropdownHover:point];
 }
-
 // Timer callback to check if we should fetch movie info
 - (void)checkAndFetchMovieInfo:(NSTimer *)timer {
     // Only proceed if still hovering on same channel
@@ -2176,6 +2779,20 @@ NSInteger lastValidHoveredGroupIndex = -1;
 - (void)saveMovieInfoToCache:(VLCChannel *)channel {
     if (!channel || !channel.name) return;
     
+    // CRITICAL FIX: Only save to cache if we have useful data
+    // Check if we have at least a meaningful description OR sufficient metadata
+    BOOL hasUsefulDescription = (channel.movieDescription && [channel.movieDescription length] > 10); // At least 10 chars
+    BOOL hasUsefulMetadata = ((channel.movieYear && [channel.movieYear length] > 0) || 
+                             (channel.movieGenre && [channel.movieGenre length] > 0) || 
+                             (channel.movieDirector && [channel.movieDirector length] > 0) || 
+                             (channel.movieRating && [channel.movieRating length] > 0));
+    
+    if (!hasUsefulDescription && !hasUsefulMetadata) {
+        NSLog(@"🚫 NOT saving incomplete movie info to cache for '%@' (desc: %ld chars, has metadata: %@)", 
+              channel.name, (long)[channel.movieDescription length], hasUsefulMetadata ? @"YES" : @"NO");
+        return;
+    }
+    
     // Get the movie info cache directory
     NSString *appSupportDir = [self applicationSupportDirectory];
     NSString *movieInfoCacheDir = [appSupportDir stringByAppendingPathComponent:@"MovieInfo"];
@@ -2209,9 +2826,11 @@ NSInteger lastValidHoveredGroupIndex = -1;
     if (channel.movieYear) [movieInfo setObject:channel.movieYear forKey:@"year"];
     if (channel.movieRating) [movieInfo setObject:channel.movieRating forKey:@"rating"];
     if (channel.movieDuration) [movieInfo setObject:channel.movieDuration forKey:@"duration"];
+    if (channel.movieDirector) [movieInfo setObject:channel.movieDirector forKey:@"director"];
+    if (channel.movieCast) [movieInfo setObject:channel.movieCast forKey:@"cast"];
     if (channel.logo) [movieInfo setObject:channel.logo forKey:@"logo"];
     
-    // Only save if we have some data
+    // Only save if we have some data (this check should now always pass due to validation above)
     if (movieInfo.count > 0) {
         // Add timestamp for cache invalidation
         [movieInfo setObject:@([[NSDate date] timeIntervalSince1970]) forKey:@"timestamp"];
@@ -2230,7 +2849,8 @@ NSInteger lastValidHoveredGroupIndex = -1;
             BOOL moveSuccess = [fileManager moveItemAtPath:tempPath toPath:cacheFilePath error:&moveError];
             
             if (moveSuccess) {
-                //NSLog(@"Saved movie info for '%@' to cache file: %@", channel.name, cacheFilePath);
+                NSLog(@"💾 Saved USEFUL movie info for '%@' to cache - desc: %ld chars, metadata: %@", 
+                      channel.name, (long)[channel.movieDescription length], hasUsefulMetadata ? @"YES" : @"NO");
             } else {
                 //NSLog(@"Failed to move temp file to cache path: %@, error: %@", cacheFilePath, moveError);
             }
@@ -2251,11 +2871,12 @@ NSInteger lastValidHoveredGroupIndex = -1;
     // Create a safe filename from the channel name
     NSString *safeFilename = [self md5HashForString:channel.name];
     NSString *cacheFilePath = [movieInfoCacheDir stringByAppendingPathComponent:
-                              [NSString stringWithFormat:@"%@.plist", safeFilename]];
+                               [NSString stringWithFormat:@"%@.plist", safeFilename]];
     
     // Check if cache file exists
     NSFileManager *fileManager = [NSFileManager defaultManager];
     if (![fileManager fileExistsAtPath:cacheFilePath]) {
+        NSLog(@"No cache file found for channel: %@ at path: %@", channel.name, cacheFilePath);
         return NO;
     }
     
@@ -2268,13 +2889,39 @@ NSInteger lastValidHoveredGroupIndex = -1;
         if (timestamp) {
             NSTimeInterval cacheAge = [[NSDate date] timeIntervalSince1970] - [timestamp doubleValue];
             if (cacheAge < (30 * 24 * 60 * 60)) { // 30 days in seconds (extended from 7 days)
-                // Load data from cache
+                
+                // CRITICAL FIX: Validate that cached data is actually useful before loading it
+                NSString *cachedDescription = [movieInfo objectForKey:@"description"];
+                NSString *cachedYear = [movieInfo objectForKey:@"year"];
+                NSString *cachedGenre = [movieInfo objectForKey:@"genre"];
+                NSString *cachedDirector = [movieInfo objectForKey:@"director"];
+                NSString *cachedRating = [movieInfo objectForKey:@"rating"];
+                
+                // Check if we have at least a meaningful description OR sufficient metadata
+                BOOL hasUsefulDescription = (cachedDescription && [cachedDescription length] > 10); // At least 10 chars
+                BOOL hasUsefulMetadata = ((cachedYear && [cachedYear length] > 0) || 
+                                         (cachedGenre && [cachedGenre length] > 0) || 
+                                         (cachedDirector && [cachedDirector length] > 0) || 
+                                         (cachedRating && [cachedRating length] > 0));
+                
+                if (!hasUsefulDescription && !hasUsefulMetadata) {
+                    NSLog(@"❌ Cached data for '%@' is incomplete (desc: %ld chars, has metadata: %@) - removing cache and allowing fresh fetch", 
+                          channel.name, (long)[cachedDescription length], hasUsefulMetadata ? @"YES" : @"NO");
+                    
+                    // Remove the incomplete cache file
+                    [fileManager removeItemAtPath:cacheFilePath error:nil];
+                    return NO;
+                }
+                
+                // Load data from cache only if it passes validation
                 channel.movieId = [movieInfo objectForKey:@"movieId"];
-                channel.movieDescription = [movieInfo objectForKey:@"description"];
-                channel.movieGenre = [movieInfo objectForKey:@"genre"];
-                channel.movieYear = [movieInfo objectForKey:@"year"];
-                channel.movieRating = [movieInfo objectForKey:@"rating"];
+                channel.movieDescription = cachedDescription;
+                channel.movieGenre = cachedGenre;
+                channel.movieYear = cachedYear;
+                channel.movieRating = cachedRating;
                 channel.movieDuration = [movieInfo objectForKey:@"duration"];
+                channel.movieDirector = [movieInfo objectForKey:@"director"];
+                channel.movieCast = [movieInfo objectForKey:@"cast"];
                 
                 // Mark as loaded
                 channel.hasStartedFetchingMovieInfo = YES;
@@ -2283,10 +2930,19 @@ NSInteger lastValidHoveredGroupIndex = -1;
                 // Also try to load cached poster image from disk
                 [self loadCachedPosterImageForChannel:channel];
                 
-                //NSLog(@"Loaded movie info for '%@' from cache: %@", channel.name, cacheFilePath);
+                NSLog(@"✅ Successfully loaded USEFUL movie info from cache for '%@': %ld chars description, metadata: %@", 
+                      channel.name, (long)[channel.movieDescription length], hasUsefulMetadata ? @"YES" : @"NO");
                 return YES;
+            } else {
+                NSLog(@"Cache file too old for channel: %@ (%.1f days old)", channel.name, cacheAge / (24 * 60 * 60));
+                // Remove old cache file
+                [fileManager removeItemAtPath:cacheFilePath error:nil];
             }
+        } else {
+            NSLog(@"No timestamp in cache file for channel: %@", channel.name);
         }
+    } else {
+        NSLog(@"Failed to load plist data from cache file for channel: %@", channel.name);
     }
     
     return NO;
@@ -2416,22 +3072,50 @@ NSInteger lastValidHoveredGroupIndex = -1;
     }
 }
 
-// Load poster image from disk cache
+// Load poster image from disk cache - Improved lazy loading version with memory management
 - (void)loadCachedPosterImageForChannel:(VLCChannel *)channel {
     if (!channel || !channel.logo || channel.logo.length == 0) return;
+    
+    // Don't load if already in memory - this prevents unnecessary disk I/O
+    if (channel.cachedPosterImage) {
+        return;
+    }
     
     NSString *cachePath = [self cachePathForImageURL:channel.logo];
     if (cachePath) {
         NSFileManager *fileManager = [NSFileManager defaultManager];
         if ([fileManager fileExistsAtPath:cachePath]) {
+            // Check file age to ensure cache is still valid (e.g., not older than 30 days)
+            NSError *error;
+            NSDictionary *attributes = [fileManager attributesOfItemAtPath:cachePath error:&error];
+            if (attributes && !error) {
+                NSDate *modificationDate = [attributes fileModificationDate];
+                NSTimeInterval age = [[NSDate date] timeIntervalSinceDate:modificationDate];
+                
+                // Cache expires after 30 days (2592000 seconds)
+                if (age > 2592000) {
+                    NSLog(@"Cache file expired for %@, removing", channel.name);
+                    [fileManager removeItemAtPath:cachePath error:nil];
+                    return;
+                }
+            }
+            
+            // Load the cached image data
             NSData *imageData = [NSData dataWithContentsOfFile:cachePath];
-            if (imageData) {
+            if (imageData && imageData.length > 0) {
                 NSImage *cachedImage = [[NSImage alloc] initWithData:imageData];
                 if (cachedImage) {
                     channel.cachedPosterImage = cachedImage;
-                    //NSLog(@"Loaded poster image from disk cache for channel: %@", channel.name);
+                    //NSLog(@"Loaded poster image from disk cache for channel: %@ (%.1f KB)", 
+                    //      channel.name, (float)imageData.length / 1024.0);
                     [cachedImage release];
+                } else {
+                    //NSLog(@"Failed to create image from cached data for %@, removing corrupt cache", channel.name);
+                    [fileManager removeItemAtPath:cachePath error:nil];
                 }
+            } else {
+                //NSLog(@"Empty or corrupt cache file for %@, removing", channel.name);
+                [fileManager removeItemAtPath:cachePath error:nil];
             }
         }
     }
@@ -2439,17 +3123,54 @@ NSInteger lastValidHoveredGroupIndex = -1;
 
 // Improve fetchMovieInfoForChannelAsync to properly mark hasLoadedMovieInfo and save to cache
 - (void)fetchMovieInfoForChannelAsync:(VLCChannel *)channel {
-    // Call the actual movie info fetching logic from ChannelManagement category
-    if (channel && [channel respondsToSelector:@selector(setHasLoadedMovieInfo:)]) {
-        // Make sure we call the real implementation in the channel management category
+    if (!channel) return;
+    
+    NSLog(@"Starting async movie info fetch for: %@", channel.name);
+    
+    // Fetch movie info synchronously on background thread
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        // Call the actual movie info fetching logic from ChannelManagement category
         [self fetchMovieInfoForChannel:channel];
         
-        // Save the info to cache after fetching
-        [self saveMovieInfoToCache:channel];
-        
-        // Log that we're fetching
-        //NSLog(@"Asynchronously fetched movie info for: %@", channel.name);
-    }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            // Always clear the fetching flag when done (success or failure)
+            channel.hasStartedFetchingMovieInfo = NO;
+            
+            // Check if we actually got useful movie info
+            BOOL hasUsefulInfo = NO;
+            if (channel.movieDescription && [channel.movieDescription length] > 0) {
+                hasUsefulInfo = YES;
+            } else if (channel.movieYear && [channel.movieYear length] > 0) {
+                hasUsefulInfo = YES;
+            } else if (channel.movieGenre && [channel.movieGenre length] > 0) {
+                hasUsefulInfo = YES;
+            } else if (channel.movieDirector && [channel.movieDirector length] > 0) {
+                hasUsefulInfo = YES;
+            } else if (channel.movieRating && [channel.movieRating length] > 0) {
+                hasUsefulInfo = YES;
+            }
+            
+            // Handle the result
+            if (hasUsefulInfo) {
+                channel.hasLoadedMovieInfo = YES;
+                
+                // Save the info to cache after successful fetching
+                [self saveMovieInfoToCache:channel];
+                
+                NSLog(@"✅ Successfully fetched movie info for '%@' - Description: %ld chars, Year: %@, Genre: %@", 
+                      channel.name, (long)[channel.movieDescription length], channel.movieYear, channel.movieGenre);
+            } else {
+                // No useful info found - reset flags to allow retry later
+                channel.hasLoadedMovieInfo = NO;
+                channel.hasStartedFetchingMovieInfo = NO;
+                
+                NSLog(@"❌ No useful movie info found for '%@' - flags reset for retry", channel.name);
+            }
+            
+            // Trigger UI update to show the new information
+            [self setNeedsDisplay:YES];
+        });
+    });
 }
 
 - (void)mouseExited:(NSEvent *)event {
@@ -2538,55 +3259,83 @@ NSInteger lastValidHoveredGroupIndex = -1;
     // Check if mouse is in program guide area
     BOOL isInEpgPanelArea = (point.x >= guidePanelX);
     
-    // Handle EPG panel scrolling
-    if (isInEpgPanelArea && (self.hoveredChannelIndex >= 0 || self.selectedChannelIndex >= 0)) {
-        // Calculate scroll amount exactly like the channel list, using -deltaY * 12
-        CGFloat scrollAmount = -[event deltaY] * 12;
-        
-        // Get the appropriate channel for calculations
-        VLCChannel *channel = nil;
-        if (self.hoveredChannelIndex >= 0) {
-            channel = [self getChannelAtHoveredIndex];
-        } 
-        else if (self.selectedChannelIndex >= 0) {
-            channel = [self getChannelAtIndex:self.selectedChannelIndex];
-        }
-        
-        if (channel && channel.programs) {
-            // Calculate program count and dimensions exactly as in the drawing code
-            NSInteger programCount = [channel.programs count];
-            CGFloat entryHeight = 65;
-            CGFloat entrySpacing = 8;
+    // Handle EPG panel scrolling or search movie results scrolling
+    if (isInEpgPanelArea) {
+        // Check if we're in search mode with movie results
+        if (self.selectedCategoryIndex == CATEGORY_SEARCH && self.searchMovieResults && [self.searchMovieResults count] > 0) {
+            // Calculate scroll amount for search movie results
+            CGFloat scrollAmount = -[event deltaY] * 12;
             
-            // Calculate total content height
-            CGFloat totalContentHeight = (programCount * (entryHeight + entrySpacing));
-            
-            // Calculate visible height
-            CGFloat visibleHeight = self.bounds.size.height;
-            
-            // Calculate maxScroll
+            // Calculate max scroll for movie search results
+            CGFloat rowHeight = 120; // Match the row height from drawSearchMovieResults
+            CGFloat totalContentHeight = [self.searchMovieResults count] * rowHeight;
+            CGFloat visibleHeight = self.bounds.size.height - 30; // Account for header
             CGFloat maxScroll = MAX(0, totalContentHeight - visibleHeight);
             
             // Update scroll position
-            self.epgScrollPosition += scrollAmount;
-            self.epgScrollPosition = MAX(0, self.epgScrollPosition);
-            self.epgScrollPosition = MIN(maxScroll, self.epgScrollPosition);
+            self.searchMovieScrollPosition += scrollAmount;
+            self.searchMovieScrollPosition = MAX(0, self.searchMovieScrollPosition);
+            self.searchMovieScrollPosition = MIN(maxScroll, self.searchMovieScrollPosition);
             
-            // Mark that user has manually scrolled the EPG
-            hasUserScrolledEpg = YES;
+            // Redraw
+            [self setNeedsDisplay:YES];
             
-            //NSLog(@"EPG scrolling: position=%.1f, maxScroll=%.1f, programs=%ld, contentHeight=%.1f", 
-            //      self.epgScrollPosition, maxScroll, (long)programCount, totalContentHeight);
+            // Return here to prevent other panels from scrolling
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                isScrolling = NO;
+            });
+            return;
         }
-        
-        // Redraw
-        [self setNeedsDisplay:YES];
-        
-        // Return here to prevent other panels from scrolling
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            isScrolling = NO;
-        });
-        return;
+        // Handle regular EPG panel scrolling
+        else if (self.hoveredChannelIndex >= 0 || self.selectedChannelIndex >= 0) {
+            // Calculate scroll amount exactly like the channel list, using -deltaY * 12
+            CGFloat scrollAmount = -[event deltaY] * 12;
+            
+            // Get the appropriate channel for calculations
+            VLCChannel *channel = nil;
+            if (self.hoveredChannelIndex >= 0) {
+                channel = [self getChannelAtHoveredIndex];
+            } 
+            else if (self.selectedChannelIndex >= 0) {
+                channel = [self getChannelAtIndex:self.selectedChannelIndex];
+            }
+            
+            if (channel && channel.programs) {
+                // Calculate program count and dimensions exactly as in the drawing code
+                NSInteger programCount = [channel.programs count];
+                CGFloat entryHeight = 65;
+                CGFloat entrySpacing = 8;
+                
+                // Calculate total content height
+                CGFloat totalContentHeight = (programCount * (entryHeight + entrySpacing));
+                
+                // Calculate visible height
+                CGFloat visibleHeight = self.bounds.size.height;
+                
+                // Calculate maxScroll
+                CGFloat maxScroll = MAX(0, totalContentHeight - visibleHeight);
+                
+                // Update scroll position
+                self.epgScrollPosition += scrollAmount;
+                self.epgScrollPosition = MAX(0, self.epgScrollPosition);
+                self.epgScrollPosition = MIN(maxScroll, self.epgScrollPosition);
+                
+                // Mark that user has manually scrolled the EPG
+                hasUserScrolledEpg = YES;
+                
+                //NSLog(@"EPG scrolling: position=%.1f, maxScroll=%.1f, programs=%ld, contentHeight=%.1f", 
+                //      self.epgScrollPosition, maxScroll, (long)programCount, totalContentHeight);
+            }
+            
+            // Redraw
+            [self setNeedsDisplay:YES];
+            
+            // Return here to prevent other panels from scrolling
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                isScrolling = NO;
+            });
+            return;
+        }
     }
     
     // Check movie info area
@@ -2604,32 +3353,32 @@ NSInteger lastValidHoveredGroupIndex = -1;
                 self.movieInfoScrollPosition += scrollAmount;
                 self.movieInfoScrollPosition = MAX(0, self.movieInfoScrollPosition);
                 
-                            // Calculate maximum scroll position based on content
-            // Set to a very high value to ensure sufficient scrolling range
-            CGFloat contentHeight = 5000; // Significantly increased to guarantee scrollable content
-            
-            // Adjust based on actual content (description length, etc.)
-            if (selectedChannel.movieDescription) {
-                // Much more aggressive scaling factor to ensure scrolling works
-                NSInteger descriptionLength = [selectedChannel.movieDescription length];
-                // Using a much higher scaling factor - this is key to making scrolling work
-                contentHeight = MAX(contentHeight, 1000 + (descriptionLength * 5.0)); // Very aggressive approximation
+                // Calculate maximum scroll position based on content
+                // Set to a very high value to ensure sufficient scrolling range
+                CGFloat contentHeight = 5000; // Significantly increased to guarantee scrollable content
                 
-                //NSLog(@"SCROLL EVENT: Movie description length: %ld, calculated content height: %.1f, current scroll pos: %.1f", 
-                      //(long)descriptionLength, contentHeight, self.movieInfoScrollPosition);
-            }
-            
-            // Calculate max scroll with extra buffer
-            CGFloat maxScroll = MAX(0, contentHeight - self.bounds.size.height);
-            CGFloat oldScrollPos = self.movieInfoScrollPosition;
-            self.movieInfoScrollPosition = MIN(maxScroll, self.movieInfoScrollPosition);
-            
-            //NSLog(@"Movie info scrolling: oldPos=%.1f, newPos=%.1f, delta=%.1f, maxScroll=%.1f", 
-                  //oldScrollPos, self.movieInfoScrollPosition, 
-                  //self.movieInfoScrollPosition - oldScrollPos, maxScroll);
+                // Adjust based on actual content (description length, etc.)
+                if (selectedChannel.movieDescription) {
+                    // Much more aggressive scaling factor to ensure scrolling works
+                    NSInteger descriptionLength = [selectedChannel.movieDescription length];
+                    // Using a much higher scaling factor - this is key to making scrolling work
+                    contentHeight = MAX(contentHeight, 1000 + (descriptionLength * 5.0)); // Very aggressive approximation
+                    
+                    //NSLog(@"SCROLL EVENT: Movie description length: %ld, calculated content height: %.1f, current scroll pos: %.1f", 
+                          //(long)descriptionLength, contentHeight, self.movieInfoScrollPosition);
+                }
                 
-                // Redraw the movie info panel
-                [self setNeedsDisplay:YES];
+                // Calculate max scroll with extra buffer
+                CGFloat maxScroll = MAX(0, contentHeight - self.bounds.size.height);
+                CGFloat oldScrollPos = self.movieInfoScrollPosition;
+                self.movieInfoScrollPosition = MIN(maxScroll, self.movieInfoScrollPosition);
+                
+                NSLog(@"Movie info scrolling: oldPos=%.1f, newPos=%.1f, delta=%.1f, maxScroll=%.1f", 
+                      oldScrollPos, self.movieInfoScrollPosition, 
+                      self.movieInfoScrollPosition - oldScrollPos, maxScroll);
+                
+                // Use throttled update instead of immediate redraw during scrolling
+                [self throttledDisplayUpdate];
             }
             
             // Return here to prevent scrolling other panels when mouse is in movie info area
@@ -2719,17 +3468,67 @@ NSInteger lastValidHoveredGroupIndex = -1;
                     channelScrollPosition = MAX(0, channelScrollPosition);
                     CGFloat maxScroll = MAX(0, totalGridHeight - contentHeight);
                     channelScrollPosition = MIN(maxScroll, channelScrollPosition);
+                    
+                    // Immediately validate movie info for newly visible items in grid mode
+                    // This ensures cover images load as they become visible during scrolling
+                    if ((self.selectedCategoryIndex == CATEGORY_MOVIES) || 
+                        (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels])) {
+                        [self validateMovieInfoForVisibleItems];
+                    }
                 }
             } else {
-                // Scroll channel list
-        channelScrollPosition += scrollAmount;
-        
-        // Limit scrolling
-        channelScrollPosition = MAX(0, channelScrollPosition);
-                // Add extra space to ensure the last item is fully visible
-                CGFloat maxScroll = MAX(0, ([self.simpleChannelNames count] * 40 + 40) - (self.bounds.size.height));
-        channelScrollPosition = MIN(maxScroll, channelScrollPosition);
-    }
+                // Scroll channel list - need to calculate max scroll based on current view mode
+                if (self.selectedCategoryIndex == CATEGORY_SEARCH) {
+                    // Handle search mode scrolling
+                    self.searchChannelScrollPosition += scrollAmount;
+                    self.searchChannelScrollPosition = MAX(0, self.searchChannelScrollPosition);
+                    
+                    // Calculate max scroll for search results
+                    CGFloat maxScroll = MAX(0, ([self.searchChannelResults count] * 40 + 40) - (self.bounds.size.height));
+                    self.searchChannelScrollPosition = MIN(maxScroll, self.searchChannelScrollPosition);
+                } else {
+                    // Regular channel list scrolling
+                    channelScrollPosition += scrollAmount;
+                    
+                    // Limit scrolling
+                    channelScrollPosition = MAX(0, channelScrollPosition);
+                    
+                    // Calculate max scroll based on current view mode
+                    CGFloat maxScroll = 0;
+                    NSArray *channelsInCurrentGroup = [self getChannelsForCurrentGroup];
+                    
+                    if (isStackedViewActive && channelsInCurrentGroup && channelsInCurrentGroup.count > 0) {
+                        // For stacked view - use EXACT same calculation as drawStackedView
+                        CGFloat stackedRowHeight = 400; // Match drawStackedView row height
+                        
+                        // Calculate stacked view visible height - exactly as in drawStackedView
+                        CGFloat catWidth = 200;
+                        CGFloat groupWidth = 250;
+                        CGFloat stackedViewX = catWidth + groupWidth;
+                        CGFloat stackedViewWidth = self.bounds.size.width - stackedViewX;
+                        NSRect stackedRect = NSMakeRect(stackedViewX, 0, stackedViewWidth, self.bounds.size.height);
+                        
+                        // Account for potential rowHeight adjustment (matches drawStackedView logic)
+                        NSInteger minVisibleRows = 4;
+                        CGFloat requiredHeight = minVisibleRows * stackedRowHeight;
+                        if (stackedRect.size.height < requiredHeight) {
+                            // Adjust row height if window is too small (matches drawStackedView)
+                            stackedRowHeight = MAX(80, stackedRect.size.height / minVisibleRows);
+                        }
+                        
+                        CGFloat totalContentHeight = channelsInCurrentGroup.count * stackedRowHeight;
+                        // Add extra space at bottom to ensure last item is fully visible (matches drawStackedView)
+                        totalContentHeight += stackedRowHeight;
+                        
+                        maxScroll = MAX(0, totalContentHeight - stackedRect.size.height);
+                    } else {
+                        // For regular list view - use the original calculation
+                        maxScroll = MAX(0, ([self.simpleChannelNames count] * 40 + 40) - (self.bounds.size.height));
+                    }
+                    
+                    channelScrollPosition = MIN(maxScroll, channelScrollPosition);
+                }
+            }
         } else {
             // We're not in the channel list area, but should still allow scrolling 
             // in the movie info panel if it's active and the mouse is in that area
@@ -2770,30 +3569,57 @@ NSInteger lastValidHoveredGroupIndex = -1;
                           oldScrollPos, self.movieInfoScrollPosition, 
                           self.movieInfoScrollPosition - oldScrollPos, maxScroll);
                     
-                    // Trigger a redraw to update the scrolled content
-    [self setNeedsDisplay:YES];
+                    // Use throttled update instead of immediate redraw during scrolling
+                    [self throttledDisplayUpdate];
                 }
             }
             // If not in channel list or movie info area, ignore scroll event
         }
     }
     
-    [self setNeedsDisplay:YES];
+    // Use throttled update instead of immediate redraw during scrolling
+    [self throttledDisplayUpdate];
     
     // Reset scrolling flag after a short delay (to prevent fetching immediately after scroll)
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         isScrolling = NO;
+        
+        // When scrolling stops, check if any new movies became visible and need info/cache checking
+        if ((self.selectedCategoryIndex == CATEGORY_MOVIES) || 
+            (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels])) {
+            [self validateMovieInfoForVisibleItems];
+        }
         
         // Start fading out scroll bars after scrolling ends
         if (scrollBarFadeTimer) {
             [scrollBarFadeTimer invalidate];
         }
         scrollBarFadeTimer = [NSTimer scheduledTimerWithTimeInterval:0.1
-                                                         target:self
-                                                       selector:@selector(fadeScrollBars:)
-                                                       userInfo:nil
-                                                        repeats:YES];
+                                                             target:self
+                                                           selector:@selector(fadeScrollBars:)
+                                                           userInfo:nil
+                                                            repeats:YES];
     });
+}
+
+// Throttled display update to prevent too many redraws during scrolling
+- (void)throttledDisplayUpdate {
+    // This properly cancels previous requests without accessing potentially corrupted references
+    [NSObject cancelPreviousPerformRequestsWithTarget:self 
+                                             selector:@selector(performDisplayUpdate) 
+                                               object:nil];
+
+    [self performDisplayUpdate];
+    return;
+    // This schedules a new request safely with higher refresh rate for smoother scrolling
+    [self performSelector:@selector(performDisplayUpdate)
+               withObject:nil
+               afterDelay:0.008]; // ~120fps for smoother scrolling
+}
+
+// Actual display update method
+- (void)performDisplayUpdate {
+    [self setNeedsDisplay:YES];
 }
 
 #pragma mark - Context Menu
@@ -2939,8 +3765,8 @@ NSInteger lastValidHoveredGroupIndex = -1;
     
     // Play option
     NSMenuItem *playItem = [[NSMenuItem alloc] initWithTitle:@"Play Channel" 
-                                                    action:@selector(playChannelFromMenu:) 
-                                             keyEquivalent:@""];
+                                                     action:@selector(playChannelFromMenu:) 
+                                              keyEquivalent:@""];
     [playItem setTarget:self];
     [playItem setRepresentedObject:channel];
     [menu addItem:playItem];
@@ -2954,8 +3780,8 @@ NSInteger lastValidHoveredGroupIndex = -1;
         // Add timeshift menu item
         NSString *timeshiftTitle = [NSString stringWithFormat:@"Timeshift (%ld days available)", (long)channel.catchupDays];
         NSMenuItem *timeshiftItem = [[NSMenuItem alloc] initWithTitle:timeshiftTitle 
-                                                            action:@selector(showTimeshiftOptionsForChannel:) 
-                                                     keyEquivalent:@""];
+                                                              action:@selector(showTimeshiftOptionsForChannel:) 
+                                                       keyEquivalent:@""];
         [timeshiftItem setTarget:self];
         [timeshiftItem setRepresentedObject:channel];
         [menu addItem:timeshiftItem];
@@ -3286,99 +4112,36 @@ NSInteger lastValidHoveredGroupIndex = -1;
         NSLog(@"Nothing to hide");
     }
     
-    // Handle 'g' key to toggle grid view
-    if (key == 'g' || key == 'G') {
-        // Only switch to grid view if we're in a valid category with a selected group
-        if ([self getChannelsForCurrentGroup]) {
-            isGridViewActive = YES;
-            self.hoveredChannelIndex = -1; // Reset hover state
+    // Handle 'V' key to cycle through views
+    if (key == 'v' || key == 'V') {
+        // Cycle through view modes: Stacked, Grid, List
+        currentViewMode = (currentViewMode + 1) % 3;
+        
+        // Update view mode based on currentViewMode
+        switch (currentViewMode) {
+            case 0: // Stacked
+            isGridViewActive = NO;
+                isStackedViewActive = YES;
+                break;
+            case 1: // Grid
+                isGridViewActive = YES;
+                isStackedViewActive = NO;
+                break;
+            case 2: // List
+                isGridViewActive = NO;
+                isStackedViewActive = NO;
+                break;
+            }
             
-            // Reset the grid loading queue when switching to grid view
-            [gridLoadingQueue removeAllObjects];
-            
-            // Reset scroll position
+            // Reset hover state and scroll position
+            self.hoveredChannelIndex = -1;
             channelScrollPosition = 0;
             
-            [self setNeedsDisplay:YES];
-        }
-        return;
-    }
-    
-    // Handle 'l' key to return to list view
-    if (key == 'l' || key == 'L') {
-        if (isGridViewActive) {
-            isGridViewActive = NO;
-            [self setNeedsDisplay:YES];
-        }
-        return;
-    }
-    
-    // Handle Up/Down arrow keys for scrolling program guide when in program guide area
-    if (key == NSUpArrowFunctionKey || key == NSDownArrowFunctionKey) {
-        // Determine if we're in the program guide area
-        NSPoint mouseLocation = [NSEvent mouseLocation];
-        NSPoint point = [self convertPoint:[NSEvent mouseLocation] fromView:nil];
+        // Save view mode preference
+        [self saveViewModePreference];
         
-        // Calculate the boundaries for the program guide area
-        CGFloat catWidth = 200;
-        CGFloat groupWidth = 250;
-        CGFloat programGuideWidth = 350;
-        CGFloat channelListWidth = self.bounds.size.width - catWidth - groupWidth - programGuideWidth;
-        CGFloat guidePanelX = catWidth + groupWidth + channelListWidth;
-        CGFloat movieInfoX = guidePanelX + programGuideWidth;
-        
-        // Check if mouse is in the program guide area
-        BOOL isInProgramGuideArea = (point.x >= guidePanelX && point.x < movieInfoX);
-        
-        if (isInProgramGuideArea) {
-            // Use same scroll amount as mouse wheel for consistency - 35px per key press
-            CGFloat scrollAmount = (key == NSUpArrowFunctionKey) ? -35 : 35;
-            
-            // Adjust epg scroll position
-            self.epgScrollPosition += scrollAmount;
-            self.epgScrollPosition = MAX(0, self.epgScrollPosition);
-            
-            // Mark that user has manually scrolled the EPG
-            hasUserScrolledEpg = YES;
-            
-            // Get the appropriate channel for scrolling limits
-            VLCChannel *channel = nil;
-            if (self.hoveredChannelIndex >= 0) {
-                channel = [self getChannelAtHoveredIndex];
-            } else if (self.selectedChannelIndex >= 0) {
-                channel = [self getChannelAtIndex:self.selectedChannelIndex];
-            }
-            
-            // Calculate max scroll if we have a channel
-            if (channel && channel.programs) {
-                NSInteger programCount = [channel.programs count];
-                CGFloat entryHeight = 65;
-                CGFloat entrySpacing = 8;
-                
-                // Calculate total content height for all programs
-                CGFloat totalContentHeight = (programCount * (entryHeight + entrySpacing));
-                
-                // Get visible height
-                CGFloat visibleHeight = self.bounds.size.height;
-                
-                // Get backing scale factor for Retina displays
-                NSWindow *window = [self window];
-                
-                
-                // Calculate total content height with proper scaling
-                totalContentHeight = (programCount * (entryHeight + entrySpacing));
-                CGFloat scaledContentHeight = totalContentHeight;
-                
-                // Calculate maxScroll correctly
-                CGFloat maxScroll = scaledContentHeight - visibleHeight;
-                maxScroll = MAX(0, maxScroll);
-                self.epgScrollPosition = MIN(maxScroll, self.epgScrollPosition);
-            }
-            
-            // Redraw the display
             [self setNeedsDisplay:YES];
             return;
-        }
     }
     
     // Handle editing in settings text fields
@@ -3728,13 +4491,164 @@ NSInteger lastValidHoveredGroupIndex = -1;
     
     NSPoint point = [self convertPoint:[event locationInWindow] fromView:nil];
     
-    // Check if we're in the settings panel and Subtitles group
+    // Check if we're in the settings panel
     if (self.selectedCategoryIndex == CATEGORY_SETTINGS) {
         NSString *selectedGroup = nil;
         NSArray *settingsGroups = [self safeValueForKey:@"SETTINGS" fromDictionary:self.groupsByCategory];
         
         if (self.selectedGroupIndex >= 0 && self.selectedGroupIndex < [settingsGroups count]) {
             selectedGroup = [settingsGroups objectAtIndex:self.selectedGroupIndex];
+        }
+        
+        // Handle transparency slider dragging (only in Themes group)
+        if (selectedGroup && [selectedGroup isEqualToString:@"Themes"]) {
+            // Handle RGB sliders dragging (only when Custom theme is selected)
+            if (self.currentTheme == VLC_THEME_CUSTOM) {
+                // Red slider dragging
+                NSRect expandedRedRect = NSMakeRect(self.redSliderRect.origin.x - 20, 
+                                                   self.redSliderRect.origin.y - 20, 
+                                                   self.redSliderRect.size.width + 40, 
+                                                   self.redSliderRect.size.height + 40);
+                
+                if (NSPointInRect(point, expandedRedRect)) {
+                    CGFloat value = [VLCSliderControl valueForPoint:point
+                                                       sliderRect:self.redSliderRect
+                                                        minValue:0.0
+                                                        maxValue:1.0];
+                    
+                    if (self.customThemeRed != value) {
+                        self.customThemeRed = value;
+                        [self updateThemeColors];
+                        [self setNeedsDisplay:YES];
+                    }
+                    return;
+                }
+                
+                // Green slider dragging
+                NSRect expandedGreenRect = NSMakeRect(self.greenSliderRect.origin.x - 20, 
+                                                     self.greenSliderRect.origin.y - 20, 
+                                                     self.greenSliderRect.size.width + 40, 
+                                                     self.greenSliderRect.size.height + 40);
+                
+                if (NSPointInRect(point, expandedGreenRect)) {
+                    CGFloat value = [VLCSliderControl valueForPoint:point
+                                                       sliderRect:self.greenSliderRect
+                                                        minValue:0.0
+                                                        maxValue:1.0];
+                    
+                    if (self.customThemeGreen != value) {
+                        self.customThemeGreen = value;
+                        [self updateThemeColors];
+                        [self setNeedsDisplay:YES];
+                    }
+                    return;
+                }
+                
+                // Blue slider dragging
+                NSRect expandedBlueRect = NSMakeRect(self.blueSliderRect.origin.x - 20, 
+                                                    self.blueSliderRect.origin.y - 20, 
+                                                    self.blueSliderRect.size.width + 40, 
+                                                    self.blueSliderRect.size.height + 40);
+                
+                if (NSPointInRect(point, expandedBlueRect)) {
+                    CGFloat value = [VLCSliderControl valueForPoint:point
+                                                       sliderRect:self.blueSliderRect
+                                                        minValue:0.0
+                                                        maxValue:1.0];
+                    
+                    if (self.customThemeBlue != value) {
+                        self.customThemeBlue = value;
+                        [self updateThemeColors];
+                        [self setNeedsDisplay:YES];
+                    }
+                    return;
+                }
+            }
+            
+            // Selection Color RGB sliders dragging (always available in Themes group)
+            // Selection Red slider dragging
+            NSRect expandedSelectionRedRect = NSMakeRect(self.selectionRedSliderRect.origin.x - 20, 
+                                                        self.selectionRedSliderRect.origin.y - 20, 
+                                                        self.selectionRedSliderRect.size.width + 40, 
+                                                        self.selectionRedSliderRect.size.height + 40);
+            
+            if (NSPointInRect(point, expandedSelectionRedRect)) {
+                CGFloat value = [VLCSliderControl valueForPoint:point
+                                                   sliderRect:self.selectionRedSliderRect
+                                                    minValue:0.0
+                                                    maxValue:1.0];
+                
+                if (self.customSelectionRed != value) {
+                    self.customSelectionRed = value;
+                    [self updateSelectionColors];
+                    [self setNeedsDisplay:YES];
+                }
+                return;
+            }
+            
+            // Selection Green slider dragging
+            NSRect expandedSelectionGreenRect = NSMakeRect(self.selectionGreenSliderRect.origin.x - 20, 
+                                                          self.selectionGreenSliderRect.origin.y - 20, 
+                                                          self.selectionGreenSliderRect.size.width + 40, 
+                                                          self.selectionGreenSliderRect.size.height + 40);
+            
+            if (NSPointInRect(point, expandedSelectionGreenRect)) {
+                CGFloat value = [VLCSliderControl valueForPoint:point
+                                                   sliderRect:self.selectionGreenSliderRect
+                                                    minValue:0.0
+                                                    maxValue:1.0];
+                
+                if (self.customSelectionGreen != value) {
+                    self.customSelectionGreen = value;
+                    [self updateSelectionColors];
+                    [self setNeedsDisplay:YES];
+                }
+                return;
+            }
+            
+            // Selection Blue slider dragging
+            NSRect expandedSelectionBlueRect = NSMakeRect(self.selectionBlueSliderRect.origin.x - 20, 
+                                                         self.selectionBlueSliderRect.origin.y - 20, 
+                                                         self.selectionBlueSliderRect.size.width + 40, 
+                                                         self.selectionBlueSliderRect.size.height + 40);
+            
+            if (NSPointInRect(point, expandedSelectionBlueRect)) {
+                CGFloat value = [VLCSliderControl valueForPoint:point
+                                                   sliderRect:self.selectionBlueSliderRect
+                                                    minValue:0.0
+                                                    maxValue:1.0];
+                
+                if (self.customSelectionBlue != value) {
+                    self.customSelectionBlue = value;
+                    [self updateSelectionColors];
+                    [self setNeedsDisplay:YES];
+                }
+                return;
+            }
+            
+            // Transparency slider dragging
+            // Allow dragging even if mouse is slightly outside the slider for better UX
+            NSRect expandedRect = NSMakeRect(self.transparencySliderRect.origin.x - 20, 
+                                           self.transparencySliderRect.origin.y - 20, 
+                                           self.transparencySliderRect.size.width + 40, 
+                                           self.transparencySliderRect.size.height + 40);
+            
+            if (NSPointInRect(point, expandedRect)) {
+                CGFloat value = [VLCSliderControl valueForPoint:point
+                                                   sliderRect:self.transparencySliderRect
+                                                    minValue:0.0
+                                                    maxValue:1.0];
+                
+                // Use the exact slider value instead of converting to discrete levels
+                // This provides smooth transparency adjustment
+                if (self.themeAlpha != value) {
+                    self.themeAlpha = value;
+                    [self updateThemeColors];
+                    [self saveThemeSettings];
+                    [self setNeedsDisplay:YES];
+                }
+                return;
+            }
         }
         
         // Handle subtitle slider dragging (only in Subtitles group)
@@ -3977,7 +4891,6 @@ NSInteger lastValidHoveredGroupIndex = -1;
     
     return epgUrl;
 }
-
 // Draw program guide panel for hovered channel
 - (void)drawProgramGuideForHoveredChannel {
     // Get the hovered channel
@@ -4018,7 +4931,7 @@ NSInteger lastValidHoveredGroupIndex = -1;
     }
     
     // Calculate position for the panel
-    CGFloat rowHeight = 40;
+    CGFloat rowHeight = 400;
     CGFloat catWidth = 200;
     CGFloat groupWidth = 250;
     CGFloat channelListX = catWidth + groupWidth;
@@ -4034,8 +4947,22 @@ NSInteger lastValidHoveredGroupIndex = -1;
     
     // Draw background with consistent semi-transparent black
     NSRect guidePanelRect = NSMakeRect(guidePanelX, 0, guidePanelWidth, guidePanelHeight);
-    [[NSColor colorWithCalibratedRed:0 green:0 blue:0 alpha:0.7] set];
-    NSRectFill(guidePanelRect);
+    
+    // Use theme colors for program guide background
+    NSColor *programGuideStartColor, *programGuideEndColor;
+    if (self.themeChannelStartColor && self.themeChannelEndColor) {
+        // Make the program guide slightly darker than channel list
+        CGFloat darkAlpha = self.themeAlpha * 0.9; // Slightly more transparent
+        programGuideStartColor = [self.themeChannelStartColor colorWithAlphaComponent:darkAlpha];
+        programGuideEndColor = [self.themeChannelEndColor colorWithAlphaComponent:darkAlpha];
+    } else {
+        programGuideStartColor = [NSColor colorWithCalibratedRed:0.08 green:0.10 blue:0.14 alpha:0.65];
+        programGuideEndColor = [NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.65];
+    }
+    
+    NSGradient *programGuideGradient = [[NSGradient alloc] initWithStartingColor:programGuideStartColor endingColor:programGuideEndColor];
+    [programGuideGradient drawInRect:guidePanelRect angle:90];
+    [programGuideGradient release];
     
     // No header with channel name
     NSMutableParagraphStyle *headerStyle = [[NSMutableParagraphStyle alloc] init];
@@ -4269,30 +5196,77 @@ NSInteger lastValidHoveredGroupIndex = -1;
             titleColor = [NSColor whiteColor];
             descColor = [NSColor colorWithCalibratedWhite:0.9 alpha:1.0];
         } else if (i == currentProgramIndex) {
-            // Current live program gets highlight colors
+            // Current live program gets theme-based highlight colors
             if (program.hasArchive) {
-                // Current program with catch-up: blue highlight with green tint
-                cardBgColor = [NSColor colorWithCalibratedRed:0.10 green:0.28 blue:0.35 alpha:0.6];
-                cardBorderColor = [NSColor colorWithCalibratedRed:0.3 green:0.8 blue:0.6 alpha:0.8];
+                // Current program with catch-up: use theme colors with green tint
+                if (self.currentTheme == VLC_THEME_GREEN) {
+                    cardBgColor = [NSColor colorWithCalibratedRed:0.08 green:0.25 blue:0.15 alpha:0.6];
+                    cardBorderColor = [NSColor colorWithCalibratedRed:0.2 green:0.7 blue:0.4 alpha:0.8];
+                } else if (self.currentTheme == VLC_THEME_BLUE) {
+                    cardBgColor = [NSColor colorWithCalibratedRed:0.08 green:0.20 blue:0.32 alpha:0.6];
+                    cardBorderColor = [NSColor colorWithCalibratedRed:0.2 green:0.6 blue:0.9 alpha:0.8];
+                } else if (self.currentTheme == VLC_THEME_PURPLE) {
+                    cardBgColor = [NSColor colorWithCalibratedRed:0.20 green:0.12 blue:0.25 alpha:0.6];
+                    cardBorderColor = [NSColor colorWithCalibratedRed:0.6 green:0.3 blue:0.8 alpha:0.8];
+                } else {
+                    // Dark themes get blue-green tint
+                    cardBgColor = [NSColor colorWithCalibratedRed:0.10 green:0.28 blue:0.35 alpha:0.6];
+                    cardBorderColor = [NSColor colorWithCalibratedRed:0.3 green:0.8 blue:0.6 alpha:0.8];
+                }
             } else {
-                // Current program without catch-up: standard blue highlight
-                cardBgColor = [NSColor colorWithCalibratedRed:0.12 green:0.24 blue:0.4 alpha:0.5];
-                cardBorderColor = [NSColor colorWithCalibratedRed:0.4 green:0.7 blue:1.0 alpha:0.7];
+                // Current program without catch-up: theme-based highlight
+                if (self.currentTheme == VLC_THEME_BLUE) {
+                    cardBgColor = [NSColor colorWithCalibratedRed:0.10 green:0.20 blue:0.35 alpha:0.5];
+                    cardBorderColor = [NSColor colorWithCalibratedRed:0.3 green:0.6 blue:1.0 alpha:0.7];
+                } else if (self.currentTheme == VLC_THEME_GREEN) {
+                    cardBgColor = [NSColor colorWithCalibratedRed:0.08 green:0.25 blue:0.15 alpha:0.5];
+                    cardBorderColor = [NSColor colorWithCalibratedRed:0.2 green:0.8 blue:0.4 alpha:0.7];
+                } else if (self.currentTheme == VLC_THEME_PURPLE) {
+                    cardBgColor = [NSColor colorWithCalibratedRed:0.20 green:0.12 blue:0.30 alpha:0.5];
+                    cardBorderColor = [NSColor colorWithCalibratedRed:0.6 green:0.3 blue:0.9 alpha:0.7];
+                } else {
+                    // Dark themes get standard blue highlight
+                    cardBgColor = [NSColor colorWithCalibratedRed:0.12 green:0.24 blue:0.4 alpha:0.5];
+                    cardBorderColor = [NSColor colorWithCalibratedRed:0.4 green:0.7 blue:1.0 alpha:0.7];
+                }
             }
             timeColor = [NSColor colorWithCalibratedRed:0.6 green:0.9 blue:1.0 alpha:1.0];
             titleColor = [NSColor whiteColor];
             descColor = [NSColor colorWithCalibratedWhite:0.85 alpha:1.0];
         } else if (program.hasArchive) {
-            // Non-current program with catch-up: light green tint
-            cardBgColor = [NSColor colorWithCalibratedRed:0.12 green:0.22 blue:0.15 alpha:0.5];
-            cardBorderColor = [NSColor colorWithCalibratedRed:0.2 green:0.5 blue:0.3 alpha:0.5];
-            timeColor = [NSColor colorWithCalibratedRed:0.7 green:0.9 blue:0.7 alpha:1.0];
+            // Non-current program with catch-up: theme-based light tint
+            if (self.currentTheme == VLC_THEME_GREEN) {
+                cardBgColor = [NSColor colorWithCalibratedRed:0.08 green:0.18 blue:0.12 alpha:0.5];
+                cardBorderColor = [NSColor colorWithCalibratedRed:0.15 green:0.4 blue:0.25 alpha:0.5];
+                timeColor = [NSColor colorWithCalibratedRed:0.6 green:0.9 blue:0.7 alpha:1.0];
+            } else if (self.currentTheme == VLC_THEME_BLUE) {
+                cardBgColor = [NSColor colorWithCalibratedRed:0.08 green:0.15 blue:0.20 alpha:0.5];
+                cardBorderColor = [NSColor colorWithCalibratedRed:0.15 green:0.35 blue:0.5 alpha:0.5];
+                timeColor = [NSColor colorWithCalibratedRed:0.6 green:0.8 blue:0.9 alpha:1.0];
+            } else if (self.currentTheme == VLC_THEME_PURPLE) {
+                cardBgColor = [NSColor colorWithCalibratedRed:0.15 green:0.10 blue:0.18 alpha:0.5];
+                cardBorderColor = [NSColor colorWithCalibratedRed:0.3 green:0.2 blue:0.4 alpha:0.5];
+                timeColor = [NSColor colorWithCalibratedRed:0.8 green:0.7 blue:0.9 alpha:1.0];
+            } else {
+                // Dark themes get default green tint
+                cardBgColor = [NSColor colorWithCalibratedRed:0.12 green:0.22 blue:0.15 alpha:0.5];
+                cardBorderColor = [NSColor colorWithCalibratedRed:0.2 green:0.5 blue:0.3 alpha:0.5];
+                timeColor = [NSColor colorWithCalibratedRed:0.7 green:0.9 blue:0.7 alpha:1.0];
+            }
             titleColor = [NSColor colorWithCalibratedWhite:0.95 alpha:1.0];
             descColor = [NSColor colorWithCalibratedRed:0.8 green:0.9 blue:0.8 alpha:1.0];
         } else {
-            // Other programs get standard card colors with more transparency
-            cardBgColor = [NSColor colorWithCalibratedRed:0.15 green:0.15 blue:0.15 alpha:0.5];
-            cardBorderColor = [NSColor colorWithCalibratedRed:0.3 green:0.3 blue:0.3 alpha:0.4];
+            // Other programs get theme-based standard card colors
+            if (self.themeChannelStartColor && self.themeChannelEndColor) {
+                // Use a slightly lighter version of the theme colors for cards
+                CGFloat cardAlpha = self.themeAlpha * 0.7;
+                cardBgColor = [self.themeChannelStartColor colorWithAlphaComponent:cardAlpha];
+                cardBorderColor = [self.themeChannelEndColor colorWithAlphaComponent:cardAlpha * 0.8];
+            } else {
+                // Fallback to standard colors
+                cardBgColor = [NSColor colorWithCalibratedRed:0.15 green:0.15 blue:0.15 alpha:0.5];
+                cardBorderColor = [NSColor colorWithCalibratedRed:0.3 green:0.3 blue:0.3 alpha:0.4];
+            }
             timeColor = [NSColor colorWithCalibratedRed:0.7 green:0.7 blue:0.7 alpha:1.0];
             titleColor = [NSColor whiteColor];
             descColor = [NSColor colorWithCalibratedWhite:0.75 alpha:1.0];
@@ -4490,7 +5464,6 @@ NSInteger lastValidHoveredGroupIndex = -1;
         [self drawScrollBar:contentRect contentHeight:totalContentHeight scrollPosition:self.epgScrollPosition];
     }
 }
-
 // Draw movie info when hovering over a movie item - fix the top bar and title overlapping
 - (void)drawMovieInfoForChannel:(VLCChannel *)channel inRect:(NSRect)panelRect {
     if (!channel) return;
@@ -4508,7 +5481,7 @@ NSInteger lastValidHoveredGroupIndex = -1;
     
     // Calculate base measurements based on available space
     CGFloat padding = MAX(10, panelRect.size.width * 0.02); // Responsive padding (min 10px)
-    CGFloat rowHeight = 40;
+    CGFloat rowHeight = 400;
     
     // Apply scroll position with debugging
     NSGraphicsContext *context = [NSGraphicsContext currentContext];
@@ -5244,13 +6217,26 @@ NSInteger lastValidHoveredGroupIndex = -1;
         }
     }
 }
-
 // Improved simpleChannelIndexAtPoint method with exact boundary calculations
 - (NSInteger)simpleChannelIndexAtPoint:(NSPoint)point {
     // Define exact boundaries for the channel list area
     CGFloat catWidth = 200;
     CGFloat groupWidth = 250;
-    CGFloat rowHeight = 40;
+    
+    // Use the correct row height based on view mode
+    CGFloat rowHeight = 40; // Default for regular list view
+    
+    // Check if we're in stacked view mode (when showing movies AND stacked view is active)
+    BOOL isStackedView = NO;
+    if (self.selectedCategoryIndex >= 0 && self.selectedCategoryIndex < [self.categories count]) {
+        NSString *currentCategory = [self.categories objectAtIndex:self.selectedCategoryIndex];
+        if (([currentCategory isEqualToString:@"MOVIES"] || 
+            ([currentCategory isEqualToString:@"FAVORITES"] && [self currentGroupContainsMovieChannels])) && 
+            isStackedViewActive) { // Added actual view mode check
+            rowHeight = 400; // Match the row height used in drawStackedView
+            isStackedView = YES;
+        }
+    }
     
     // Calculate channelListWidth dynamically to match the UI layout
     CGFloat programGuideWidth = 350; // Width reserved for program guide
@@ -5260,28 +6246,165 @@ NSInteger lastValidHoveredGroupIndex = -1;
     CGFloat channelListStartX = catWidth + groupWidth;
     CGFloat channelListEndX = channelListStartX + channelListWidth;
     
-    // Add debug logging to see point coordinates
-   // NSLog(@"Mouse point: (%.1f, %.1f) - Channel list bounds: X from %.1f to %.1f", 
-   //       point.x, point.y, channelListStartX, channelListEndX);
-    
     // Check if point is precisely within channel list area horizontally
     if (point.x < channelListStartX || point.x >= channelListEndX) {
-        //NSLog(@"Mouse outside channel list horizontal bounds");
         return -1;
     }
     
-    // Calculate index from Y position, accounting for scroll
-    NSInteger index = (NSInteger)((self.bounds.size.height - point.y) / rowHeight + channelScrollPosition / rowHeight);
+    if (isStackedView) {
+        // Use the exact positioning logic from drawStackedView for stacked view
+        NSRect stackedRect = NSMakeRect(channelListStartX, 0, channelListWidth, self.bounds.size.height);
+        
+        // Get current movies count
+        NSArray *moviesInCurrentGroup = [self getChannelsForCurrentGroup];
+        if (!moviesInCurrentGroup || moviesInCurrentGroup.count == 0) {
+            return -1;
+        }
+        
+        // Apply the EXACT same scroll calculations as drawStackedView
+        CGFloat totalContentHeight = moviesInCurrentGroup.count * rowHeight;
+        totalContentHeight += rowHeight; // Add extra space at bottom
+        
+        CGFloat maxScroll = MAX(0, totalContentHeight - stackedRect.size.height);
+        CGFloat scrollPosition = MIN(channelScrollPosition, maxScroll); // Apply same scroll limits
+        
+        // Apply the EXACT same row height adjustment as drawStackedView
+        NSInteger minVisibleRows = 4;
+        CGFloat requiredHeight = minVisibleRows * rowHeight;
+        if (stackedRect.size.height < requiredHeight) {
+            // If window is too small, adjust row height to fit at least 4 rows
+            rowHeight = MAX(80, stackedRect.size.height / minVisibleRows); // Minimum 80px per row
+        }
+        
+        // Check each movie position to find which one the mouse is over
+        for (NSInteger i = 0; i < moviesInCurrentGroup.count; i++) {
+            // Use the exact same calculation as drawStackedView
+            CGFloat movieYPosition = stackedRect.size.height - ((i + 1) * rowHeight) + scrollPosition;
+            
+            NSRect itemRect = NSMakeRect(channelListStartX, 
+                                         movieYPosition, 
+                                         channelListWidth, 
+                                         rowHeight);
+            
+            // Check if the mouse point is within this movie's rect
+            if (NSPointInRect(point, itemRect)) {
+                return i;
+            }
+        }
+        
+        return -1;
+    } else {
+      // Regular list view calculation - must match exactly how drawChannelList positions items
+        
+        // Get the appropriate scroll position (same logic as drawChannelList)
+        CGFloat currentScrollPosition;
+        if (self.selectedCategoryIndex == CATEGORY_SEARCH) {
+            currentScrollPosition = self.searchChannelScrollPosition;
+        } else {
+            currentScrollPosition = channelScrollPosition;
+        }
+        
+        // Get channel list dimensions (same as drawChannelList)
+        CGFloat catWidth = 200;
+        CGFloat groupWidth = 250;
+        CGFloat channelListX = catWidth + groupWidth;
+        CGFloat programGuideWidth = 400; // Same as drawChannelList
+        CGFloat channelListWidth = self.bounds.size.width - channelListX - programGuideWidth;
+        
+        // Get current channels
+        NSArray *channels = [self getChannelsForCurrentGroup];
+        if (!channels || channels.count == 0) {
+            return -1;
+        }
+        
+        // Calculate total content height and max scroll (same as drawChannelList)
+        CGFloat totalContentHeight = channels.count * rowHeight;
+        totalContentHeight += rowHeight; // Add extra space at bottom
+        CGFloat maxScroll = MAX(0, totalContentHeight - self.bounds.size.height);
+        CGFloat scrollPosition = MAX(0, MIN(currentScrollPosition, maxScroll));
+        
+        // Check each channel's actual position (matching drawChannelList logic exactly)
+        for (NSInteger i = 0; i < channels.count; i++) {
+            // Calculate visible position accounting for scroll (same as drawChannelList)
+            NSInteger visibleIndex = i - (NSInteger)floor(scrollPosition / rowHeight);
+            
+            // Skip items that are scrolled out of view
+            if (visibleIndex < 0) {
+                continue;
+            }
+            
+            // Calculate item rect (same positioning as drawChannelList)
+            NSRect itemRect = NSMakeRect(channelListX, 
+                                       self.bounds.size.height - ((visibleIndex+1) * rowHeight), 
+                                       channelListWidth, 
+                                       rowHeight);
+            
+            // Check if mouse point is within this item's rect
+            if (NSPointInRect(point, itemRect)) {
+                return i;
+            }
+        }
+    }
+}
+
+// Helper method to determine which grid item is at a given point
+- (NSInteger)gridItemIndexAtPoint:(NSPoint)point {
+    // Calculate grid area dimensions
+    CGFloat catWidth = 200;
+    CGFloat groupWidth = 250;
+    CGFloat gridX = catWidth + groupWidth;
+    CGFloat gridWidth = self.bounds.size.width - gridX;
     
-    // Validate index against available channels
-    if (index >= 0 && index < [self.simpleChannelNames count]) {
-       //NSLog(@"Valid channel index found: %ld", (long)index);
-        return index;
+    // If point is outside grid area, return -1
+    if (point.x < gridX) {
+        return -1;
     }
     
-    //NSLog(@"No valid channel index at current point");
-    return -1;
-}
+    // Calculate grid metrics
+    CGFloat itemPadding = 10;
+    CGFloat itemWidth = MIN(180, (gridWidth / 2) - (itemPadding * 2));
+    CGFloat itemHeight = itemWidth * 1.5;
+    
+    // Calculate columns
+    NSInteger maxColumns = (NSInteger)((gridWidth - itemPadding) / (itemWidth + itemPadding));
+    maxColumns = MAX(1, maxColumns);
+    
+    // Get channels
+    NSArray *channels = [self getChannelsForCurrentGroup];
+    if (!channels || channels.count == 0) {
+        return -1;
+    }
+    
+    // Calculate number of rows and total height
+    NSInteger numRows = (NSInteger)ceilf((float)channels.count / (float)maxColumns);
+    CGFloat totalGridHeight = numRows * (itemHeight + itemPadding) + itemPadding;
+    
+    // Calculate scroll offset
+    CGFloat scrollOffset = MAX(0, MIN(channelScrollPosition, totalGridHeight - self.bounds.size.height));
+    
+    // Calculate grid item positions and check if point is inside any of them
+    for (NSInteger i = 0; i < channels.count; i++) {
+        NSInteger row = i / maxColumns;
+        NSInteger col = i % maxColumns;
+        
+        // Calculate position with centering
+        CGFloat totalGridWidth = maxColumns * (itemWidth + itemPadding) + itemPadding;
+        CGFloat leftMargin = gridX + (gridWidth - totalGridWidth) / 2;
+        
+        CGFloat x = leftMargin + itemPadding + col * (itemWidth + itemPadding);
+        CGFloat y = self.bounds.size.height - 60 - itemHeight - (row * (itemHeight + itemPadding)) + scrollOffset;
+        
+        // Create rect for this grid item
+        NSRect itemRect = NSMakeRect(x, y, itemWidth, itemHeight);
+        
+        // Check if point is inside this rect
+            if (NSPointInRect(point, itemRect)) {
+                return i;
+            }
+        }
+        
+        return -1;
+    }
 
 // Add back the helper method to get the channel at the hovered index
 - (VLCChannel *)getChannelAtHoveredIndex {
@@ -5473,66 +6596,29 @@ int cnt=0;
             [self drawEpgPanel:dirtyRect];
         } else {
             // For content categories, either draw grid or channel list
-            if (isGridViewActive) {
+            if (isGridViewActive && ((self.selectedCategoryIndex == CATEGORY_MOVIES) || 
+                                   (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]))) {
                 [self drawGridView:dirtyRect];
+                
+                // When movies become visible in grid view, check cache and fetch missing info
+                [self validateMovieInfoForVisibleItems];
+            } else if (isStackedViewActive && ((self.selectedCategoryIndex == CATEGORY_MOVIES) || 
+                                             (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]))) {
+                [self drawStackedView:dirtyRect];
+                
+                // When movies become visible in stacked view, check cache and fetch missing info
+                [self validateMovieInfoForVisibleItems];
             } else {
                 [self drawChannelList:dirtyRect];
                 
-                // Don't draw movie info panel for selected channel when in regular browse mode
-                // This allows program guides to show normally when hovering over channels
-                
-                // Proactively load movie info and images for all visible channels in list mode
-                NSArray *channelsInCurrentGroup = [self getChannelsForCurrentGroup];
-                if (channelsInCurrentGroup) {
-                    // Calculate which channels are currently visible
-                    CGFloat rowHeight = 40;
-                    NSInteger start = (NSInteger)floor(channelScrollPosition / rowHeight);
-                    NSInteger visible = (NSInteger)(self.bounds.size.height / rowHeight) + 2;
-                    NSInteger end = start + visible;
-                    end = MIN(end, channelsInCurrentGroup.count);
-                    
-                    // Pre-fetch information for all visible channels and the selected channel
-                    for (NSInteger i = start; i < end; i++) {
-                        if (i >= 0 && i < channelsInCurrentGroup.count) {
-                            VLCChannel *channel = [channelsInCurrentGroup objectAtIndex:i];
-                            
-                            // Priority for the selected channel
-                            BOOL isSelected = (i == self.selectedChannelIndex);
-                            
-                            // Fetch movie info for movie channels
-                            if ([channel.category isEqualToString:@"MOVIES"] && !channel.hasLoadedMovieInfo) {
-                                // Check if movie info is already cached
-                                BOOL loadedFromCache = [self loadMovieInfoFromCacheForChannel:channel];
-                                
-                                // If not in cache and not already fetching, start fetch
-                                if (!loadedFromCache && !channel.hasStartedFetchingMovieInfo) {
-                                    channel.hasStartedFetchingMovieInfo = YES;
-                                    
-                                    // Use higher priority dispatch for selected channel
-                                    dispatch_queue_priority_t priority = isSelected ? 
-                                        DISPATCH_QUEUE_PRIORITY_HIGH : DISPATCH_QUEUE_PRIORITY_DEFAULT;
-                                    
-                                    // Fetch movie info asynchronously
-                                    dispatch_async(dispatch_get_global_queue(priority, 0), ^{
-                                        NSLog(@"Fetching movie info for channel %@ (index %ld)", channel.name, (long)i);
-                                        [self fetchMovieInfoForChannel:channel];
-                                        
-                                        // Trigger UI update on main thread
-                                        dispatch_async(dispatch_get_main_queue(), ^{
-                                            [self setNeedsDisplay:YES];
-                                        });
-                                    });
-                                }
-                            }
-                            
-                            // Load image if needed
-                            if (channel.logo && !channel.cachedPosterImage) {
-                                //NSLog(@"Loading image for channel %@ (index %ld)", channel.name, (long)i);
-                                [self loadImageAsynchronously:channel.logo forChannel:channel];
-                            }
-                        }
-                    }
+                // Also check for visible movies in list view if current group contains movies
+                if ((self.selectedCategoryIndex == CATEGORY_MOVIES) || 
+                    (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels])) {
+                    [self validateMovieInfoForVisibleItems];
                 }
+                
+                // REMOVED: No longer bulk process ranges of channels - only visible movies handled above
+                // All movie info fetching is now handled by validateMovieInfoForVisibleItems method
             }
         }
     }
@@ -5623,10 +6709,25 @@ int cnt=0;
     CGFloat gridX = catWidth + groupWidth; // Start after categories and groups
     CGFloat gridWidth = self.bounds.size.width - gridX;
     
-    // Draw background for grid area
+    // Draw background for grid area using theme colors
     NSRect gridBackground = NSMakeRect(gridX, 0, gridWidth, self.bounds.size.height);
-    [self.backgroundColor set];
-    NSRectFill(gridBackground);
+    
+    // Use theme colors for grid background (consistent with other panels)
+    NSColor *gridStartColor, *gridEndColor;
+    if (self.themeChannelStartColor && self.themeChannelEndColor) {
+        // Use theme colors with proper alpha adjustment
+        CGFloat gridAlpha = self.themeAlpha * 0.85;
+        gridStartColor = [self.themeChannelStartColor colorWithAlphaComponent:gridAlpha];
+        gridEndColor = [self.themeChannelEndColor colorWithAlphaComponent:gridAlpha];
+    } else {
+        // Fallback colors consistent with theme system defaults
+        gridStartColor = [NSColor colorWithCalibratedRed:0.08 green:0.10 blue:0.14 alpha:0.7];
+        gridEndColor = [NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.7];
+    }
+    
+    NSGradient *gridGradient = [[NSGradient alloc] initWithStartingColor:gridStartColor endingColor:gridEndColor];
+    [gridGradient drawInRect:gridBackground angle:90];
+    [gridGradient release];
     
     // Define the content area (accounts for header space)
     NSRect contentRect = NSMakeRect(gridX, 0, gridWidth, self.bounds.size.height - 40);
@@ -5673,12 +6774,12 @@ int cnt=0;
     CGFloat scrollOffset = MAX(0, MIN(channelScrollPosition, maxScroll));
     
     // Draw a header showing the current category and group
-    NSString *headerText = @"Grid View";
-    NSString *currentGroup = [self getCurrentGroupName];
-    if (currentGroup) {
-        headerText = [NSString stringWithFormat:@"Grid View: %@", currentGroup];
-    }
-    
+    //NSString *headerText = @"Grid View";
+    //NSString *currentGroup = [self getCurrentGroupName];
+   // if (currentGroup) {
+   //     headerText = [NSString stringWithFormat:@"Grid View: %@", currentGroup];
+   // }
+    /*
     NSMutableParagraphStyle *headerStyle = [[NSMutableParagraphStyle alloc] init];
     [headerStyle setAlignment:NSTextAlignmentCenter];
     
@@ -5688,10 +6789,10 @@ int cnt=0;
         NSParagraphStyleAttributeName: headerStyle
     };
     
-    NSRect headerRect = NSMakeRect(gridX, self.bounds.size.height - 40, gridWidth, 40);
-    [headerText drawInRect:headerRect withAttributes:headerAttrs];
-    [headerStyle release];
-    
+    //NSRect headerRect = NSMakeRect(gridX, self.bounds.size.height - 40, gridWidth, 40);
+    //[headerText drawInRect:headerRect withAttributes:headerAttrs];
+    //[headerStyle release];
+    */
     // Draw info text
     NSMutableParagraphStyle *infoStyle = [[NSMutableParagraphStyle alloc] init];
     [infoStyle setAlignment:NSTextAlignmentRight];
@@ -5702,8 +6803,8 @@ int cnt=0;
         NSParagraphStyleAttributeName: infoStyle
     };
     
-    NSString *infoText = @"Press 'L' to return to list view";
-    NSRect infoRect = NSMakeRect(self.bounds.size.width - 250, self.bounds.size.height - 20, 240, 20);
+    NSString *infoText = @"Press 'V' to change view mode";
+    NSRect infoRect = NSMakeRect(self.bounds.size.width/2 + 70, self.bounds.size.height - 20, 240, 20);
     [infoText drawInRect:infoRect withAttributes:infoAttrs];
     [infoStyle release];
     
@@ -5724,12 +6825,19 @@ int cnt=0;
             continue;
         }
         
-        // Get the channel and draw its grid item
+        // Get the channel and ensure cached image is loaded for immediate display
         VLCChannel *channel = [channelsToShow objectAtIndex:i];
+        
+        // For grid view, immediately try to load cached poster image if not already loaded
+        // This ensures cached images display immediately when grid view is shown
+        if ([channel.category isEqualToString:@"MOVIES"] && !channel.cachedPosterImage) {
+            [self loadCachedPosterImageForChannel:channel];
+        }
+        
         [self drawGridItem:channel atRect:NSMakeRect(x, y, itemWidth, itemHeight) highlight:(i == self.hoveredChannelIndex)];
         
-        // Initiate asynchronous loading of channel data and images if needed
-        [self queueAsyncLoadForGridChannel:channel atIndex:i];
+        // REMOVED: Don't automatically download for each grid item - handled by validateMovieInfoForVisibleItems
+        // [self queueAsyncLoadForGridChannel:channel atIndex:i];
     }
     
     // Draw the scroll bar
@@ -5741,7 +6849,7 @@ int cnt=0;
     // Draw background
     NSRect bgRect = NSInsetRect(itemRect, 1, 1);
     if (highlight) {
-        [self.hoverColor set];
+        [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.3] set];
     } else {
         [[NSColor colorWithCalibratedRed:0.15 green:0.15 blue:0.15 alpha:1.0] set];
     }
@@ -5887,6 +6995,11 @@ int cnt=0;
             [loadingText drawInRect:NSInsetRect(posterRect, 10, posterRect.size.height/2 - 10) withAttributes:loadingAttrs];
         } else {
             // Show empty background with no text
+            
+            // Try to load the image if available and not already loading (similar to stacked view)
+            if (channel.logo && !objc_getAssociatedObject(channel, "imageLoadingInProgress")) {
+                [self loadImageAsynchronously:channel.logo forChannel:channel];
+            }
         }
         
         [style release];
@@ -5970,6 +7083,8 @@ int cnt=0;
             groups = [self safeValueForKey:@"MOVIES" fromDictionary:self.groupsByCategory];
         } else if ([currentCategory isEqualToString:@"SERIES"]) {
             groups = [self safeValueForKey:@"SERIES" fromDictionary:self.groupsByCategory];
+        } else if ([currentCategory isEqualToString:@"SETTINGS"]) {
+            groups = [self safeValueForKey:@"SETTINGS" fromDictionary:self.groupsByCategory];
         }
         
         // Get the current group
@@ -6002,6 +7117,8 @@ int cnt=0;
             groups = [self safeValueForKey:@"MOVIES" fromDictionary:self.groupsByCategory];
         } else if ([currentCategory isEqualToString:@"SERIES"]) {
             groups = [self safeValueForKey:@"SERIES" fromDictionary:self.groupsByCategory];
+        } else if ([currentCategory isEqualToString:@"SETTINGS"]) {
+            groups = [self safeValueForKey:@"SETTINGS" fromDictionary:self.groupsByCategory];
         }
         
         // Get the current group
@@ -6013,6 +7130,23 @@ int cnt=0;
     return nil;
 }
 
+// Helper method to check if the current group contains movie channels
+- (BOOL)currentGroupContainsMovieChannels {
+    NSArray *channelsInCurrentGroup = [self getChannelsForCurrentGroup];
+    if (!channelsInCurrentGroup || channelsInCurrentGroup.count == 0) {
+    return NO;
+}
+
+    // Check if any channel in the current group is a movie channel
+    for (VLCChannel *channel in channelsInCurrentGroup) {
+        if ([channel.category isEqualToString:@"MOVIES"]) {
+            return YES;
+        }
+    }
+    
+        return NO;
+    }
+    
 // Helper method to check if a group has channels with catch-up functionality
 - (BOOL)groupHasCatchupChannels:(NSString *)groupName {
     if (!groupName) return NO;
@@ -6038,184 +7172,141 @@ int cnt=0;
     return NO;
 }
 
-// Queue async loading of channel info and images
-- (void)queueAsyncLoadForGridChannel:(VLCChannel *)channel atIndex:(NSInteger)index {
-    if (!channel || !channel.name) return;
-    
-    // Skip if we've already queued this channel
-    NSString *channelKey = [NSString stringWithFormat:@"%ld", (long)index];
-    if ([gridLoadingQueue objectForKey:channelKey]) {
+// Optimized method to validate and refresh movie info for visible items with better performance
+- (void)validateMovieInfoForVisibleItems {
+    // Cancel any pending validation calls using NSObject's built-in delayed execution
+    // This is much safer than managing timers manually and prevents crashes
+    [NSObject cancelPreviousPerformRequestsWithTarget:self 
+                                             selector:@selector(performValidateMovieInfoForVisibleItems) 
+                                               object:nil];
+    // Schedule new validation with 0.1 second delay to debounce rapid calls
+    [self performSelector:@selector(performValidateMovieInfoForVisibleItems) 
+               withObject:nil 
+               afterDelay:0.1];
+}
+
+// Actual validation method that runs optimized in background
+- (void)performValidateMovieInfoForVisibleItems {
+    NSArray *channelsInCurrentGroup = [self getChannelsForCurrentGroup];
+    if (!channelsInCurrentGroup || channelsInCurrentGroup.count == 0) {
         return;
     }
     
-    // Mark as queued to avoid duplicate requests
-    [gridLoadingQueue setObject:@YES forKey:channelKey];
+    // Calculate visible range based on current view mode (lightweight operation)
+    NSRange visibleRange = [self calculateVisibleChannelRange];
     
-    // Process movie info if this is a movie channel
-    if ([channel.category isEqualToString:@"MOVIES"] && !channel.hasLoadedMovieInfo) {
-        // First check if movie info is in cache
-        BOOL loadedFromCache = [self loadMovieInfoFromCacheForChannel:channel];
-        
-        // If not in cache, fetch asynchronously
-        if (!loadedFromCache) {
-            // Queue the work on a background thread
-            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-                // Set flag to indicate fetching has started
-                channel.hasStartedFetchingMovieInfo = YES;
-                
-                // Fetch the movie info
-                [self fetchMovieInfoForChannel:channel];
-                
-                // Save to cache
-                [self saveMovieInfoToCache:channel];
-                
-                // Trigger redraw on main thread
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    [self setNeedsDisplay:YES];
-                });
-            });
+    // Validate visible range
+    if (visibleRange.location >= channelsInCurrentGroup.count || visibleRange.length == 0) {
+        return;
+    }
+    
+    // Create array of visible movie channels for background processing
+    NSMutableArray *visibleMovieChannels = [NSMutableArray array];
+    NSInteger visibleStart = (NSInteger)visibleRange.location;
+    NSInteger visibleEnd = visibleStart + (NSInteger)visibleRange.length - 1;
+    
+    // Add buffer margin: load 3 items before they become visible for smoother scrolling
+    NSInteger bufferSize = 3;
+    NSInteger originalStart = visibleStart;
+    NSInteger originalEnd = visibleEnd;
+    
+    // Expand range with buffer (with proper bounds checking)
+    visibleStart = MAX(0, visibleStart - bufferSize);
+    visibleEnd = MIN((NSInteger)channelsInCurrentGroup.count - 1, visibleEnd + bufferSize);
+    
+    //NSLog(@"🎯 Loading buffer: visible %ld-%ld expanded to %ld-%ld (+/-%ld buffer)", 
+    //      (long)originalStart, (long)originalEnd, (long)visibleStart, (long)visibleEnd, (long)bufferSize);
+    
+    for (NSInteger i = visibleStart; i <= visibleEnd && i < channelsInCurrentGroup.count; i++) {
+        VLCChannel *channel = [channelsInCurrentGroup objectAtIndex:i];
+        if ([channel.category isEqualToString:@"MOVIES"]) {
+            [visibleMovieChannels addObject:channel];
         }
     }
     
-    // Check if we need to load the poster image
-    if (channel.logo && !channel.cachedPosterImage) {
-        // Try to load from disk cache first
-        [self loadCachedPosterImageForChannel:channel];
+    if (visibleMovieChannels.count == 0) {
+        return;
+    }
+    
+    // Process all validation and cache loading in background thread
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        NSMutableArray *channelsNeedingFetch = [NSMutableArray array];
+        NSMutableArray *channelsLoadedFromCache = [NSMutableArray array];
         
-        // If not in disk cache, load from network
-        if (!channel.cachedPosterImage && channel.logo) {
-            // Validate logo URL first
-            if ([channel.logo length] == 0 || 
-                [channel.logo isEqualToString:@"(null)"] || 
-                [channel.logo isEqualToString:@"null"]) {
-                NSLog(@"Skipping image loading - invalid logo URL: %@", channel.logo);
-                return;
+        // Process each visible movie channel in background
+        for (VLCChannel *channel in visibleMovieChannels) {
+            @autoreleasepool {
+                // Skip if already fetching
+                if (channel.hasStartedFetchingMovieInfo) {
+                    continue;
+                }
+                
+                // Quick check for movie info completeness (in memory)
+                BOOL needsRefresh = NO;
+                
+                if (!channel.hasLoadedMovieInfo) {
+                    needsRefresh = YES;
+                } else {
+                    // Check if the loaded info is actually useful (all in memory - fast)
+                    BOOL hasDescription = channel.movieDescription && [channel.movieDescription length] > 0;
+                    BOOL hasYear = channel.movieYear && [channel.movieYear length] > 0;
+                    BOOL hasGenre = channel.movieGenre && [channel.movieGenre length] > 0;
+                    BOOL hasDirector = channel.movieDirector && [channel.movieDirector length] > 0;
+                    BOOL hasRating = channel.movieRating && [channel.movieRating length] > 0;
+                    BOOL hasDuration = channel.movieDuration && [channel.movieDuration length] > 0;
+                    
+                    // If we're missing critical info, refresh
+                    if (!hasDescription || (!hasYear && !hasGenre && !hasDirector && !hasRating && !hasDuration)) {
+                        needsRefresh = YES;
+                        // Reset the flag so fetchMovieInfoForChannel won't skip it
+                        channel.hasLoadedMovieInfo = NO;
+                    }
+                }
+                
+                if (needsRefresh) {
+                    // Try to load from cache (disk I/O in background thread)
+                    BOOL loadedFromCache = [self loadMovieInfoFromCacheForChannel:channel];
+                    
+                    if (loadedFromCache) {
+                        [channelsLoadedFromCache addObject:channel];
+                    } else {
+                        [channelsNeedingFetch addObject:channel];
+                    }
+                }
+            }
+        }
+        
+        // Update UI and start fetches on main thread (batch updates for better performance)
+        dispatch_async(dispatch_get_main_queue(), ^{
+            // Limit to maximum 10 simultaneous downloads to prevent system overload
+            NSInteger maxSimultaneousDownloads = 10;
+            NSInteger downloadsStarted = 0;
+            
+            // Batch mark channels as fetching and start downloads (limited)
+            for (VLCChannel *channel in channelsNeedingFetch) {
+                if (!channel.hasStartedFetchingMovieInfo && downloadsStarted < maxSimultaneousDownloads) {
+                    channel.hasStartedFetchingMovieInfo = YES;
+                    downloadsStarted++;
+                    
+                    // Start async fetch in background
+                    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0), ^{
+                        [self fetchMovieInfoForChannelAsync:channel];
+                    });
+                }
             }
             
-            // Create an operation for downloading the image
-            NSBlockOperation *downloadOperation = [NSBlockOperation blockOperationWithBlock:^{
-                // Create a correctly encoded URL
-                NSString *logoUrl = channel.logo;
-                
-                // Basic URL validation
-                if (!logoUrl || [logoUrl length] == 0) {
-                    NSLog(@"Empty logo URL, skipping download");
-                    return;
-                }
-                
-                // Add http:// prefix if missing
-                if (![logoUrl hasPrefix:@"http://"] && ![logoUrl hasPrefix:@"https://"]) {
-                    logoUrl = [@"http://" stringByAppendingString:logoUrl];
-                }
-                
-                // URL encode the string properly
-                if (logoUrl && ![logoUrl stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]].length == 0) {
-                    if ([logoUrl respondsToSelector:@selector(stringByAddingPercentEncodingWithAllowedCharacters:)]) {
-                        NSCharacterSet *urlAllowedSet = [NSCharacterSet URLQueryAllowedCharacterSet];
-                        logoUrl = [logoUrl stringByAddingPercentEncodingWithAllowedCharacters:urlAllowedSet];
-                    } else {
-                        logoUrl = [logoUrl stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
-                    }
-                }
-                
-                // Try to download the image with proper validation
-                NSURL *url = [NSURL URLWithString:logoUrl];
-                if (!url || !url.host || [url.host length] == 0) {
-                    NSLog(@"Invalid URL or missing host: %@", logoUrl);
-                    return;
-                }
-                
-                // Use modern asynchronous URLSession API
-                NSURLSessionDataTask *downloadTask = [[NSURLSession sharedSession] dataTaskWithURL:url completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-                    if (error) {
-                        NSLog(@"Image download error: %@", error.localizedDescription);
-                        return;
-                    }
-                    
-                    if (data) {
-                        NSImage *downloadedImage = [[NSImage alloc] initWithData:data];
-                        if (downloadedImage) {
-                            // Update on main thread
-                            dispatch_async(dispatch_get_main_queue(), ^{
-                                channel.cachedPosterImage = downloadedImage;
-                                [downloadedImage release];
-                                
-                                // Save to disk cache
-                                [self savePosterImageToDiskCache:channel.cachedPosterImage forURL:channel.logo];
-                                
-                                // Trigger redraw
-                                [self setNeedsDisplay:YES];
-                            });
-                        }
-                    }
-                }];
-                
-                [downloadTask resume];
-            }];
+            // Log results if any work was done
+            if (channelsLoadedFromCache.count > 0) {
+                NSLog(@"📋 Loaded %ld movies from cache", (long)channelsLoadedFromCache.count);
+                // Use throttled update instead of immediate redraw for better performance
+                [self throttledDisplayUpdate];
+            }
             
-            // Add the operation to the queue for parallel processing
-            [coverDownloadQueue addOperation:downloadOperation];
-        }
-    }
-}
-
-// Helper method to determine which grid item is at a given point
-- (NSInteger)gridItemIndexAtPoint:(NSPoint)point {
-    // Calculate grid area dimensions
-    CGFloat catWidth = 200;
-    CGFloat groupWidth = 250;
-    CGFloat gridX = catWidth + groupWidth;
-    CGFloat gridWidth = self.bounds.size.width - gridX;
-    
-    // If point is outside grid area, return -1
-    if (point.x < gridX) {
-        return -1;
-    }
-    
-    // Calculate grid metrics
-    CGFloat itemPadding = 10;
-    CGFloat itemWidth = MIN(180, (gridWidth / 2) - (itemPadding * 2));
-    CGFloat itemHeight = itemWidth * 1.5;
-    
-    // Calculate columns
-    NSInteger maxColumns = (NSInteger)((gridWidth - itemPadding) / (itemWidth + itemPadding));
-    maxColumns = MAX(1, maxColumns);
-    
-    // Get channels
-    NSArray *channels = [self getChannelsForCurrentGroup];
-    if (!channels || channels.count == 0) {
-        return -1;
-    }
-    
-    // Calculate number of rows and total height
-    NSInteger numRows = (NSInteger)ceilf((float)channels.count / (float)maxColumns);
-    CGFloat totalGridHeight = numRows * (itemHeight + itemPadding) + itemPadding;
-    
-    // Calculate scroll offset
-    CGFloat scrollOffset = MAX(0, MIN(channelScrollPosition, totalGridHeight - self.bounds.size.height));
-    
-    // Calculate grid item positions and check if point is inside any of them
-    for (NSInteger i = 0; i < channels.count; i++) {
-        NSInteger row = i / maxColumns;
-        NSInteger col = i % maxColumns;
-        
-        // Calculate position with centering
-        CGFloat totalGridWidth = maxColumns * (itemWidth + itemPadding) + itemPadding;
-        CGFloat leftMargin = gridX + (gridWidth - totalGridWidth) / 2;
-        
-        CGFloat x = leftMargin + itemPadding + col * (itemWidth + itemPadding);
-        CGFloat y = self.bounds.size.height - 60 - itemHeight - (row * (itemHeight + itemPadding)) + scrollOffset;
-        
-        // Create rect for this grid item
-        NSRect itemRect = NSMakeRect(x, y, itemWidth, itemHeight);
-        
-        // Check if point is inside this rect
-        if (NSPointInRect(point, itemRect)) {
-            return i;
-        }
-    }
-    
-    return -1;
+            if (downloadsStarted > 0) {
+                NSLog(@"🔄 Started fetching %ld movies (limited to 10 max)", (long)downloadsStarted);
+            }
+        });
+    });
 }
 
 // Timer to control scroll bar visibility
@@ -6287,7 +7378,7 @@ float scrollBarAlpha = 0.0; // Used to control scroll bar opacity
     }
     
     // Trigger redraw to update scroll bar appearance
-    [self setNeedsDisplay:YES];
+        [self setNeedsDisplay:YES];
 }
 
 // Add a new method to draw Movie Info settings
@@ -6548,8 +7639,8 @@ float scrollBarAlpha = 0.0; // Used to control scroll bar opacity
     
     // If click was on controls but not on progress bar, just show/hide controls
     //[self togglePlayerControls];
-    return YES;
-}
+        return YES;
+    }
 */
 // Method to draw all dropdowns at the end for proper z-ordering
 - (void)drawDropdowns:(NSRect)rect {
@@ -6802,7 +7893,6 @@ float scrollBarAlpha = 0.0; // Used to control scroll bar opacity
     
     [style release];
 }
-
 - (void)drawPlaylistSettingsWithComponents:(NSRect)rect x:(CGFloat)x width:(CGFloat)width {
     // Check if settings panel should be visible (both menu and settings category must be visible)
     BOOL settingsVisible = (self.isChannelListVisible && self.selectedCategoryIndex == CATEGORY_SETTINGS);
@@ -6819,7 +7909,7 @@ float scrollBarAlpha = 0.0; // Used to control scroll bar opacity
     CGFloat padding = 30;
     CGFloat fieldHeight = 35;
     CGFloat labelHeight = 22;
-    CGFloat verticalSpacing = 15;
+    CGFloat verticalSpacing = 25;
     CGFloat sectionSpacing = 25;
     CGFloat startY = self.bounds.size.height - 80;
     CGFloat fieldWidth = width - (padding * 2);
@@ -6967,8 +8057,13 @@ float scrollBarAlpha = 0.0; // Used to control scroll bar opacity
     NSRect loadButtonRect = NSMakeRect(x + padding, currentY, buttonWidth, buttonHeight);
     self.loadButtonRect = loadButtonRect;
     
-    // Draw load button background
-    NSColor *loadButtonColor = [NSColor colorWithCalibratedRed:0.2 green:0.4 blue:0.7 alpha:1.0];
+    // Draw load button background with disabled state
+    NSColor *loadButtonColor;
+    if (self.isLoading) {
+        loadButtonColor = [NSColor colorWithCalibratedRed:0.5 green:0.5 blue:0.5 alpha:0.6]; // Grayed out when disabled
+    } else {
+        loadButtonColor = [NSColor colorWithCalibratedRed:0.2 green:0.4 blue:0.7 alpha:1.0]; // Normal blue
+    }
     [loadButtonColor set];
     NSBezierPath *loadButtonPath = [NSBezierPath bezierPathWithRoundedRect:loadButtonRect xRadius:5 yRadius:5];
     [loadButtonPath fill];
@@ -6977,9 +8072,10 @@ float scrollBarAlpha = 0.0; // Used to control scroll bar opacity
     NSMutableParagraphStyle *buttonStyle = [[NSMutableParagraphStyle alloc] init];
     [buttonStyle setAlignment:NSTextAlignmentCenter];
     
+    NSColor *buttonTextColor = self.isLoading ? [NSColor colorWithCalibratedWhite:0.8 alpha:0.6] : [NSColor whiteColor];
     NSDictionary *buttonTextAttrs = @{
         NSFontAttributeName: [NSFont boldSystemFontOfSize:14],
-        NSForegroundColorAttributeName: [NSColor whiteColor],
+        NSForegroundColorAttributeName: buttonTextColor,
         NSParagraphStyleAttributeName: buttonStyle
     };
     
@@ -6991,8 +8087,13 @@ float scrollBarAlpha = 0.0; // Used to control scroll bar opacity
     NSRect epgButtonRect = NSMakeRect(x + padding + buttonWidth + buttonSpacing, currentY, buttonWidth, buttonHeight);
     self.epgButtonRect = epgButtonRect;
     
-    // Draw EPG button background
-    NSColor *epgButtonColor = [NSColor colorWithCalibratedRed:0.2 green:0.6 blue:0.3 alpha:1.0];
+    // Draw EPG button background with disabled state
+    NSColor *epgButtonColor;
+    if (self.isLoading) {
+        epgButtonColor = [NSColor colorWithCalibratedRed:0.5 green:0.5 blue:0.5 alpha:0.6]; // Grayed out when disabled
+    } else {
+        epgButtonColor = [NSColor colorWithCalibratedRed:0.2 green:0.6 blue:0.3 alpha:1.0]; // Normal green
+    }
     [epgButtonColor set];
     NSBezierPath *epgButtonPath = [NSBezierPath bezierPathWithRoundedRect:epgButtonRect xRadius:5 yRadius:5];
     [epgButtonPath fill];
@@ -7014,33 +8115,14 @@ float scrollBarAlpha = 0.0; // Used to control scroll bar opacity
     if (self.epgLabel && [self.epgLabel superview] != nil) {
         [self.epgLabel removeFromSuperview];
     }
-    
+    if (self.searchTextField && [self.searchTextField superview] != nil) {
+        [self.searchTextField removeFromSuperview];
+    }
     // Also hide any other UI components that might be visible
     // This ensures a clean slate before showing the menu
 }
 
-- (void)updateUIComponentsVisibility {
-    // Check if settings panel should be visible (both menu and settings category must be visible)
-    BOOL settingsVisible = (self.isChannelListVisible && self.selectedCategoryIndex == CATEGORY_SETTINGS);
-    
-    if (settingsVisible) {
-        // Add components to view if they're not already added
-        if (self.m3uTextField && [self.m3uTextField superview] == nil) {
-            [self addSubview:self.m3uTextField];
-        }
-        if (self.epgLabel && [self.epgLabel superview] == nil) {
-            [self addSubview:self.epgLabel];
-        }
-    } else {
-        // Remove components from view
-        if (self.m3uTextField && [self.m3uTextField superview] != nil) {
-            [self.m3uTextField removeFromSuperview];
-        }
-        if (self.epgLabel && [self.epgLabel superview] != nil) {
-            [self.epgLabel removeFromSuperview];
-        }
-    }
-}
+
 
 - (void)setupEpgTimeOffsetDropdown {
     // Create EPG time offset dropdown with placeholder frame (will be updated in drawPlaylistSettingsWithComponents)
@@ -7085,90 +8167,7 @@ float scrollBarAlpha = 0.0; // Used to control scroll bar opacity
     };
 }
 
-#pragma mark - VLCReusableTextFieldDelegate
 
-- (void)textFieldDidChange:(NSString *)newValue forIdentifier:(NSString *)identifier {
-    if ([identifier isEqualToString:@"m3u"]) {
-        // Check if the value actually changed from the previous temp value
-        BOOL valueChanged = ![newValue isEqualToString:self.tempM3uUrl];
-        
-        // Update the M3U file path as user types
-        self.tempM3uUrl = newValue;
-        
-        // Always auto-generate EPG URL when M3U URL actually changes (real-time updates while typing)
-        // Only when the text field is actually active (being edited by user)
-        if (valueChanged && self.m3uTextField.isActive) {
-            NSString *generatedEpgUrl = [self generateEpgUrlFromM3uUrl:newValue];
-            if (generatedEpgUrl && [generatedEpgUrl length] > 0) {
-                self.epgUrl = generatedEpgUrl;
-                [self.epgLabel setText:generatedEpgUrl];
-                
-                // Trigger a redraw to update the display
-                [self setNeedsDisplay:YES];
-            } else if (!newValue || [newValue length] == 0) {
-                // Clear EPG URL if M3U URL is empty
-                self.epgUrl = @"";
-                [self.epgLabel setText:@""];
-                [self setNeedsDisplay:YES];
-            }
-        }
-    }
-}
-
-- (void)textFieldDidEndEditing:(NSString *)finalValue forIdentifier:(NSString *)identifier {
-    NSLog(@"textFieldDidEndEditing called with finalValue: '%@' for identifier: '%@'", finalValue, identifier);
-    if ([identifier isEqualToString:@"m3u"]) {
-        // Update the M3U file path
-        if (finalValue && [finalValue length] > 0) {
-            // Ensure URL has proper prefix
-            NSString *urlToSave = finalValue;
-            if (![urlToSave hasPrefix:@"http://"] && ![urlToSave hasPrefix:@"https://"]) {
-                urlToSave = [@"http://" stringByAppendingString:urlToSave];
-            }
-            
-            self.m3uFilePath = urlToSave;
-            self.tempM3uUrl = urlToSave;
-            
-            // Always auto-generate EPG URL when M3U URL is finalized (regardless of current EPG URL)
-            NSString *generatedEpgUrl = [self generateEpgUrlFromM3uUrl:urlToSave];
-            if (generatedEpgUrl && [generatedEpgUrl length] > 0) {
-                self.epgUrl = generatedEpgUrl;
-                [self.epgLabel setText:generatedEpgUrl];
-                NSLog(@"EPG URL auto-generated on M3U edit completion: %@", generatedEpgUrl);
-            } else {
-                self.epgUrl = @"";
-                [self.epgLabel setText:@""];
-                NSLog(@"EPG URL cleared - could not generate from M3U URL");
-            }
-            
-            // Save settings
-            if ([self respondsToSelector:@selector(saveSettings)]) {
-                [self saveSettings];
-            }
-        } else {
-            // Clear both M3U and EPG URLs if M3U is empty
-            self.m3uFilePath = @"";
-            self.tempM3uUrl = @"";
-            self.epgUrl = @"";
-            [self.epgLabel setText:@""];
-            NSLog(@"M3U URL cleared - EPG URL also cleared");
-        }
-        
-        // Force a redraw to update the EPG label display
-        [self setNeedsDisplay:YES];
-    }
-}
-
-- (void)textFieldDidBeginEditing:(NSString *)identifier {
-    if ([identifier isEqualToString:@"m3u"]) {
-        // Store original value for potential restoration and set temp value
-        NSString *currentValue = self.m3uFilePath ? self.m3uFilePath : @"";
-        self.tempM3uUrl = currentValue;
-        
-        // The text field should already have the correct value from when it was created/updated
-        // Don't call setTextValue here as it can trigger unwanted delegate calls
-    }
-}
 
 #pragma mark - VLCClickableLabelDelegate
 
@@ -7198,9 +8197,9 @@ float scrollBarAlpha = 0.0; // Used to control scroll bar opacity
 - (BOOL)handleEpgProgramRightClick:(NSPoint)point withEvent:(NSEvent *)event {
     // Only handle if we're hovering on a channel and EPG is visible
     if (self.hoveredChannelIndex < 0) {
-        return NO;
-    }
-    
+    return NO;
+}
+
     // Calculate EPG panel boundaries (same as in drawProgramGuideForHoveredChannel)
     CGFloat catWidth = 200;
     CGFloat groupWidth = 250;
@@ -7492,6 +8491,1337 @@ float scrollBarAlpha = 0.0; // Used to control scroll bar opacity
     }
     
     return -1;
+}
+
+- (void)drawThemeSettings:(NSRect)rect x:(CGFloat)x width:(CGFloat)width {
+    CGFloat padding = 30;
+    CGFloat startY = self.bounds.size.height - 80;
+    CGFloat controlWidth = width - (padding * 2);
+    CGFloat yOffset = 0;
+    CGFloat controlHeight = 35;
+    CGFloat verticalSpacing = 25;
+    
+    // Draw a section title
+    NSMutableParagraphStyle *style = [[NSMutableParagraphStyle alloc] init];
+    [style setAlignment:NSTextAlignmentLeft];
+    
+    NSDictionary *titleAttrs = @{
+        NSFontAttributeName: [NSFont boldSystemFontOfSize:18],
+        NSForegroundColorAttributeName: self.textColor,
+        NSParagraphStyleAttributeName: style
+    };
+    
+    NSRect titleRect = NSMakeRect(x + padding, startY, controlWidth, 25);
+    [@"Theme Settings" drawInRect:titleRect withAttributes:titleAttrs];
+    
+    // Draw Theme Selector
+    yOffset += 45;
+    NSRect themeLabelRect = NSMakeRect(x + padding, startY - yOffset, 100, 20);
+    NSDictionary *labelAttrs = @{
+        NSFontAttributeName: [NSFont systemFontOfSize:14],
+        NSForegroundColorAttributeName: self.textColor,
+        NSParagraphStyleAttributeName: style
+    };
+    [@"Theme:" drawInRect:themeLabelRect withAttributes:labelAttrs];
+    
+    // Theme dropdown button
+    self.themeDropdownRect = NSMakeRect(x + padding + 110, startY - yOffset, controlWidth - 120, controlHeight);
+    
+    // Draw theme dropdown
+    [self drawDropdownButton:self.themeDropdownRect 
+                        text:[self getCurrentThemeDisplayText]
+                  identifier:@"theme"];
+    
+    yOffset += controlHeight + verticalSpacing;
+    
+    // Show RGB sliders only when Custom theme is selected
+    if (self.currentTheme == VLC_THEME_CUSTOM) {
+        // Red slider
+        NSRect redRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
+        NSString *redDisplayText = [NSString stringWithFormat:@"%d", (int)(self.customThemeRed * 255)];
+        
+        NSRect redSliderInteractionRect;
+        [VLCSliderControl drawSlider:redRect
+                              label:@"Red:"
+                           minValue:0.0
+                           maxValue:1.0
+                       currentValue:self.customThemeRed
+                        labelColor:self.textColor
+                        sliderRect:&redSliderInteractionRect
+                       displayText:redDisplayText];
+        self.redSliderRect = redSliderInteractionRect;
+        
+        yOffset += controlHeight + verticalSpacing;
+        
+        // Green slider
+        NSRect greenRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
+        NSString *greenDisplayText = [NSString stringWithFormat:@"%d", (int)(self.customThemeGreen * 255)];
+        
+        NSRect greenSliderInteractionRect;
+        [VLCSliderControl drawSlider:greenRect
+                              label:@"Green:"
+                           minValue:0.0
+                           maxValue:1.0
+                       currentValue:self.customThemeGreen
+                        labelColor:self.textColor
+                        sliderRect:&greenSliderInteractionRect
+                       displayText:greenDisplayText];
+        self.greenSliderRect = greenSliderInteractionRect;
+        
+        yOffset += controlHeight + verticalSpacing;
+        
+        // Blue slider
+        NSRect blueRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
+        NSString *blueDisplayText = [NSString stringWithFormat:@"%d", (int)(self.customThemeBlue * 255)];
+        
+        NSRect blueSliderInteractionRect;
+        [VLCSliderControl drawSlider:blueRect
+                              label:@"Blue:"
+                           minValue:0.0
+                           maxValue:1.0
+                       currentValue:self.customThemeBlue
+                        labelColor:self.textColor
+                        sliderRect:&blueSliderInteractionRect
+                       displayText:blueDisplayText];
+        self.blueSliderRect = blueSliderInteractionRect;
+        
+        yOffset += controlHeight + verticalSpacing;
+    }
+    
+    // Add a section separator for Selection Colors
+    yOffset += 15;
+    NSRect selectionSectionRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, 25);
+    NSDictionary *sectionAttrs = @{
+        NSFontAttributeName: [NSFont boldSystemFontOfSize:16],
+        NSForegroundColorAttributeName: self.textColor,
+        NSParagraphStyleAttributeName: style
+    };
+    [@"Selection Colors" drawInRect:selectionSectionRect withAttributes:sectionAttrs];
+    yOffset += 35;
+    
+    // Selection Color RGB sliders (always shown)
+    // Selection Red slider
+    NSRect selectionRedRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
+    NSString *selectionRedDisplayText = [NSString stringWithFormat:@"%d", (int)(self.customSelectionRed * 255)];
+    
+    NSRect selectionRedSliderInteractionRect;
+    [VLCSliderControl drawSlider:selectionRedRect
+                          label:@"Selection Red:"
+                       minValue:0.0
+                       maxValue:1.0
+                   currentValue:self.customSelectionRed
+                    labelColor:self.textColor
+                    sliderRect:&selectionRedSliderInteractionRect
+                   displayText:selectionRedDisplayText];
+    self.selectionRedSliderRect = selectionRedSliderInteractionRect;
+    
+    yOffset += controlHeight + verticalSpacing;
+    
+    // Selection Green slider
+    NSRect selectionGreenRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
+    NSString *selectionGreenDisplayText = [NSString stringWithFormat:@"%d", (int)(self.customSelectionGreen * 255)];
+    
+    NSRect selectionGreenSliderInteractionRect;
+    [VLCSliderControl drawSlider:selectionGreenRect
+                          label:@"Selection Green:"
+                       minValue:0.0
+                       maxValue:1.0
+                   currentValue:self.customSelectionGreen
+                    labelColor:self.textColor
+                    sliderRect:&selectionGreenSliderInteractionRect
+                   displayText:selectionGreenDisplayText];
+    self.selectionGreenSliderRect = selectionGreenSliderInteractionRect;
+    
+    yOffset += controlHeight + verticalSpacing;
+    
+    // Selection Blue slider
+    NSRect selectionBlueRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
+    NSString *selectionBlueDisplayText = [NSString stringWithFormat:@"%d", (int)(self.customSelectionBlue * 255)];
+    
+    NSRect selectionBlueSliderInteractionRect;
+    [VLCSliderControl drawSlider:selectionBlueRect
+                          label:@"Selection Blue:"
+                       minValue:0.0
+                       maxValue:1.0
+                   currentValue:self.customSelectionBlue
+                    labelColor:self.textColor
+                    sliderRect:&selectionBlueSliderInteractionRect
+                   displayText:selectionBlueDisplayText];
+    self.selectionBlueSliderRect = selectionBlueSliderInteractionRect;
+    
+    yOffset += controlHeight + verticalSpacing;
+    
+    // Draw Transparency Slider (always shown)
+    NSRect transparencyRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
+    
+    // Convert transparency level to continuous slider value (0.5 to 0.95)
+    CGFloat currentValue = self.themeAlpha;
+    NSString *displayText = [NSString stringWithFormat:@"%.0f%%", currentValue * 100];
+    
+    // Use a local variable to store the slider rect for interaction
+    NSRect sliderInteractionRect;
+    [VLCSliderControl drawSlider:transparencyRect
+                          label:@"Transparency:"
+                       minValue:0.0
+                       maxValue:1.0
+                   currentValue:currentValue
+                    labelColor:self.textColor
+                    sliderRect:&sliderInteractionRect
+                   displayText:displayText];
+    
+    // Store the slider rect in the property for later use
+    self.transparencySliderRect = sliderInteractionRect;
+    
+    [style release];
+}
+
+- (void)drawDropdownButton:(NSRect)rect text:(NSString *)text identifier:(NSString *)identifier {
+    // Check if this dropdown is open
+    VLCDropdown *dropdown = [self.dropdownManager dropdownWithIdentifier:identifier];
+    BOOL isOpen = dropdown && dropdown.isOpen;
+    
+    // Draw button background
+    NSColor *bgColor = isOpen ? self.hoverColor : self.backgroundColor;
+    [bgColor set];
+    NSBezierPath *bgPath = [NSBezierPath bezierPathWithRoundedRect:rect xRadius:3 yRadius:3];
+    [bgPath fill];
+    
+    // Draw border
+    [self.textColor set];
+    [bgPath stroke];
+    
+    // Draw text
+    NSMutableParagraphStyle *style = [[NSMutableParagraphStyle alloc] init];
+    [style setAlignment:NSTextAlignmentLeft];
+    
+    NSDictionary *attrs = @{
+        NSFontAttributeName: [NSFont systemFontOfSize:14],
+        NSForegroundColorAttributeName: self.textColor,
+        NSParagraphStyleAttributeName: style
+    };
+    
+    NSRect textRect = NSMakeRect(rect.origin.x + 8,
+                                rect.origin.y + (rect.size.height - 16) / 2,
+                                rect.size.width - 28,
+                                16);
+    [text drawInRect:textRect withAttributes:attrs];
+    
+    // Draw dropdown arrow
+    NSRect arrowRect = NSMakeRect(rect.origin.x + rect.size.width - 20,
+                                 rect.origin.y + (rect.size.height - 10) / 2,
+                                 10, 10);
+    [[NSColor lightGrayColor] set];
+    NSBezierPath *arrowPath = [NSBezierPath bezierPath];
+    if (isOpen) {
+        // Up arrow when dropdown is open
+        [arrowPath moveToPoint:NSMakePoint(arrowRect.origin.x, arrowRect.origin.y)];
+        [arrowPath lineToPoint:NSMakePoint(arrowRect.origin.x + arrowRect.size.width/2, arrowRect.origin.y + arrowRect.size.height)];
+        [arrowPath lineToPoint:NSMakePoint(arrowRect.origin.x + arrowRect.size.width, arrowRect.origin.y)];
+    } else {
+        // Down arrow when dropdown is closed
+        [arrowPath moveToPoint:NSMakePoint(arrowRect.origin.x, arrowRect.origin.y + arrowRect.size.height)];
+        [arrowPath lineToPoint:NSMakePoint(arrowRect.origin.x + arrowRect.size.width/2, arrowRect.origin.y)];
+        [arrowPath lineToPoint:NSMakePoint(arrowRect.origin.x + arrowRect.size.width, arrowRect.origin.y + arrowRect.size.height)];
+    }
+    [arrowPath closePath];
+    [arrowPath fill];
+    
+    [style release];
+}
+
+- (NSString *)getCurrentThemeDisplayText {
+    switch (self.currentTheme) {
+        case VLC_THEME_DARK: return @"Dark";
+        case VLC_THEME_DARKER: return @"Darker";
+        case VLC_THEME_BLUE: return @"Blue";
+        case VLC_THEME_GREEN: return @"Green";
+        case VLC_THEME_PURPLE: return @"Purple";
+        case VLC_THEME_CUSTOM: return @"Custom";
+        default: return @"Dark";
+    }
+}
+
+- (NSString *)getCurrentTransparencyDisplayText {
+    switch (self.transparencyLevel) {
+        case VLC_TRANSPARENCY_OPAQUE: return @"Opaque";
+        case VLC_TRANSPARENCY_LIGHT: return @"Light";
+        case VLC_TRANSPARENCY_MEDIUM: return @"Medium";
+        case VLC_TRANSPARENCY_HIGH: return @"High";
+        case VLC_TRANSPARENCY_VERY_HIGH: return @"Very High";
+        default: return @"Medium";
+    }
+}
+
+- (void)setupThemeDropdowns {
+    if (!self.dropdownManager) {
+        return;
+    }
+    
+    // Create theme dropdown
+    VLCDropdown *themeDropdown = [self.dropdownManager createDropdownWithIdentifier:@"theme" frame:self.themeDropdownRect];
+    [themeDropdown addItemWithValue:@(VLC_THEME_DARK) displayText:@"Dark"];
+    [themeDropdown addItemWithValue:@(VLC_THEME_DARKER) displayText:@"Darker"];
+    [themeDropdown addItemWithValue:@(VLC_THEME_BLUE) displayText:@"Blue"];
+    [themeDropdown addItemWithValue:@(VLC_THEME_GREEN) displayText:@"Green"];
+    [themeDropdown addItemWithValue:@(VLC_THEME_PURPLE) displayText:@"Purple"];
+    [themeDropdown addItemWithValue:@(VLC_THEME_CUSTOM) displayText:@"Custom"];
+    themeDropdown.selectedIndex = self.currentTheme;
+    
+    // Set theme dropdown callback
+    themeDropdown.onSelectionChanged = ^(VLCDropdown *dropdown, VLCDropdownItem *selectedItem, NSInteger index) {
+        VLCColorTheme newTheme = [selectedItem.value integerValue];
+        NSLog(@"Theme changed to: %@ (%ld)", selectedItem.displayText, (long)newTheme);
+        [self applyTheme:newTheme];
+        [self setNeedsDisplay:YES];
+    };
+    
+    // Create transparency slider
+    CGFloat currentValue = [self alphaForTransparencyLevel:self.transparencyLevel];
+    NSString *displayText = [NSString stringWithFormat:@"%.0f%%", currentValue * 100];
+    
+    NSRect sliderInteractionRect;
+    [VLCSliderControl drawSlider:self.transparencyDropdownRect
+                          label:@"Transparency:"
+                       minValue:0.0
+                       maxValue:1.0
+                   currentValue:currentValue
+                    labelColor:self.textColor
+                    sliderRect:&sliderInteractionRect
+                   displayText:displayText];
+    
+    self.transparencySliderRect = sliderInteractionRect;
+}
+
+- (void)handleThemeDropdownClick:(NSPoint)point {
+    if (NSPointInRect(point, self.themeDropdownRect)) {
+        VLCDropdown *dropdown = [self.dropdownManager dropdownWithIdentifier:@"theme"];
+        if (dropdown) {
+            if (dropdown.isOpen) {
+                [self.dropdownManager hideDropdown:@"theme"];
+                } else {
+                // Update dropdown frame to current position
+                dropdown.frame = self.themeDropdownRect;
+                [self.dropdownManager showDropdown:@"theme"];
+            }
+        } else {
+            [self setupThemeDropdowns];
+            [self.dropdownManager showDropdown:@"theme"];
+        }
+    }
+}
+
+#pragma mark - Theme Controls Management
+
+- (void)showThemeControls {
+    // Setup theme dropdowns when in theme settings
+    [self setupThemeDropdowns];
+}
+
+- (void)hideThemeControls {
+    // Hide theme dropdowns when not in theme settings
+    if (self.dropdownManager) {
+        [self.dropdownManager hideDropdown:@"theme"];
+    }
+}
+
+- (void)updateUIComponentsVisibility {
+    BOOL isSettingsVisible = (self.selectedCategoryIndex == CATEGORY_SETTINGS);
+    BOOL isSearchVisible = (self.selectedCategoryIndex == CATEGORY_SEARCH);
+    BOOL isThemeGroupSelected = NO;
+    
+    if (isSettingsVisible) {
+        // Check if Themes group is selected
+        NSArray *settingsGroups = [self safeValueForKey:@"SETTINGS" fromDictionary:self.groupsByCategory];
+        if (self.selectedGroupIndex >= 0 && self.selectedGroupIndex < [settingsGroups count]) {
+            NSString *selectedGroup = [settingsGroups objectAtIndex:self.selectedGroupIndex];
+            isThemeGroupSelected = [selectedGroup isEqualToString:@"Themes"];
+        }
+    }
+    
+    // Manage search textfield visibility
+    if (isSearchVisible) {
+        // Force a redraw to show the search interface
+        [self setNeedsDisplay:YES];
+    } else {
+        if (self.searchTextField) {
+            [self.searchTextField setHidden:YES];
+            [self.searchTextField deactivateField];
+        }
+        
+        // Clear search results when leaving search mode
+        if (self.isSearchActive) {
+            self.searchResults = [NSMutableArray array];
+            self.isSearchActive = NO;
+            [self setNeedsDisplay:YES];
+        }
+    }
+    
+    // Manage theme controls visibility
+    if (isThemeGroupSelected) {
+        [self showThemeControls];
+    } else {
+        [self hideThemeControls];
+    }
+    
+    // Handle other UI components visibility as before
+    BOOL shouldShowTextField = (self.selectedCategoryIndex == CATEGORY_SETTINGS && 
+                               self.selectedGroupIndex >= 0);
+    
+    // Existing text field management code...
+    if (shouldShowTextField) {
+        NSArray *settingsGroups = [self safeValueForKey:@"SETTINGS" fromDictionary:self.groupsByCategory];
+        if (self.selectedGroupIndex < [settingsGroups count]) {
+            NSString *selectedGroup = [settingsGroups objectAtIndex:self.selectedGroupIndex];
+            
+            if ([selectedGroup isEqualToString:@"Playlist"]) {
+                // Show playlist-related UI components
+                if (self.m3uTextField && ![self.subviews containsObject:self.m3uTextField]) {
+                    [self addSubview:self.m3uTextField];
+                }
+                if (self.epgLabel && ![self.subviews containsObject:self.epgLabel]) {
+                    [self addSubview:self.epgLabel];
+                }
+                
+                [self.m3uTextField setHidden:NO];
+                [self.epgLabel setHidden:NO];
+            } else {
+                // Hide playlist-related UI components for other settings groups
+                [self.m3uTextField setHidden:YES];
+                [self.epgLabel setHidden:YES];
+            }
+        }
+    } else {
+        // Hide all text components when not in settings
+        [self.m3uTextField setHidden:YES];
+        [self.epgLabel setHidden:YES];
+    }
+}
+
+#pragma mark - Stacked View Drawing
+
+- (void)drawStackedView:(NSRect)rect {
+    CGFloat catWidth = 200;
+    CGFloat groupWidth = 250;
+    CGFloat stackedViewX = catWidth + groupWidth;
+    CGFloat stackedViewWidth = self.bounds.size.width - stackedViewX;
+    CGFloat rowHeight = 400; // Reduced height for better fit - can show more movies
+    
+    // Draw background using theme colors
+    NSRect stackedRect = NSMakeRect(stackedViewX, 0, stackedViewWidth, self.bounds.size.height);
+    NSGradient *backgroundGradient = [[NSGradient alloc] initWithStartingColor:self.themeChannelStartColor ? self.themeChannelStartColor : [NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.7]
+                                                                   endingColor:self.themeChannelEndColor ? self.themeChannelEndColor : [NSColor colorWithCalibratedRed:0.12 green:0.14 blue:0.18 alpha:0.7]];
+    [backgroundGradient drawInRect:stackedRect angle:90];
+    [backgroundGradient release];
+    
+    // Get current movies for the selected group
+    NSArray *moviesInCurrentGroup = [self getChannelsForCurrentGroup];
+    
+    if (!moviesInCurrentGroup || moviesInCurrentGroup.count == 0) {
+        // No movies to display
+        NSString *message = @"No movies available in this group";
+        NSMutableParagraphStyle *style = [[NSMutableParagraphStyle alloc] init];
+        [style setAlignment:NSTextAlignmentCenter];
+        
+        NSDictionary *attrs = @{
+            NSFontAttributeName: [NSFont systemFontOfSize:16],
+            NSForegroundColorAttributeName: self.textColor,
+            NSParagraphStyleAttributeName: style
+        };
+        
+        NSRect messageRect = NSMakeRect(stackedViewX, self.bounds.size.height/2 - 10, stackedViewWidth, 20);
+        [message drawInRect:messageRect withAttributes:attrs];
+        [style release];
+        return;
+    }
+    
+    // Calculate total content height for scrolling
+    CGFloat totalContentHeight = moviesInCurrentGroup.count * rowHeight;
+    
+    // Add extra space at bottom to ensure last item is fully visible when scrolled to the end
+    totalContentHeight += rowHeight;
+    
+    // Update scroll limits to ensure last item is fully visible
+    CGFloat maxScroll = MAX(0, totalContentHeight - stackedRect.size.height);
+    CGFloat scrollPosition = MIN(channelScrollPosition, maxScroll); // Reuse channelScrollPosition for stacked view
+    
+    // Calculate minimum number of visible rows (at least 4)
+    NSInteger minVisibleRows = 4;
+    CGFloat requiredHeight = minVisibleRows * rowHeight;
+    if (stackedRect.size.height < requiredHeight) {
+        // If window is too small, adjust row height to fit at least 4 rows
+        rowHeight = MAX(80, stackedRect.size.height / minVisibleRows); // Minimum 80px per row
+        
+        // Recalculate content height with adjusted row height for accurate scroll bar
+        totalContentHeight = moviesInCurrentGroup.count * rowHeight;
+        totalContentHeight += rowHeight; // Add extra space
+        maxScroll = MAX(0, totalContentHeight - stackedRect.size.height);
+        scrollPosition = MIN(channelScrollPosition, maxScroll);
+    }
+    
+    // Draw each movie row
+    for (NSInteger i = 0; i < moviesInCurrentGroup.count; i++) {
+        VLCChannel *movie = [moviesInCurrentGroup objectAtIndex:i];
+        
+        // Calculate smooth position with correct scroll direction
+        // Position movies from bottom to top, with proper scroll offset
+        CGFloat movieYPosition = stackedRect.size.height - ((i + 1) * rowHeight) + scrollPosition;
+        
+        // Position the movie row
+        NSRect itemRect = NSMakeRect(stackedViewX, 
+                                     movieYPosition, 
+                                     stackedViewWidth, 
+                                     rowHeight);
+        
+        // Skip drawing if completely outside visible area
+        if (itemRect.origin.y + itemRect.size.height < 0 || 
+            itemRect.origin.y > stackedRect.size.height) {
+            continue;
+        }
+        
+        // Clip to visible area for smooth scrolling
+        NSRect clippedRect = NSIntersectionRect(itemRect, stackedRect);
+        if (NSIsEmptyRect(clippedRect)) {
+            continue;
+        }
+        
+        // ONLY load cached poster image for visible movies (after visibility check)
+        if ([movie.category isEqualToString:@"MOVIES"] && !movie.cachedPosterImage) {
+            [self loadCachedPosterImageForChannel:movie];
+        }
+        
+        // Draw row background and selection state
+        if (i == self.selectedChannelIndex) {
+            // Selected movie - use exact same style as categories/groups
+            NSBezierPath *selectionPath = [NSBezierPath bezierPathWithRoundedRect:
+                                         NSInsetRect(clippedRect, 4, 2)
+                                                                         xRadius:6
+                                                                         yRadius:6];
+            [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.3] set];
+            [selectionPath fill];
+            
+            // Add subtle highlight - exact same as categories/groups
+            [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.2] set];
+            [selectionPath stroke];
+        } else if (i == self.hoveredChannelIndex) {
+            // Hovered movie - use exact same style as categories/groups
+            NSBezierPath *hoverPath = [NSBezierPath bezierPathWithRoundedRect:
+                                     NSInsetRect(clippedRect, 4, 2)
+                                                                     xRadius:6
+                                                                     yRadius:6];
+            [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.25] set];
+            [hoverPath fill];
+            
+            // Add subtle highlight - exact same as categories/groups
+            [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.15] set];
+            [hoverPath stroke];
+        }
+        
+        // Draw border around each movie row
+        [[NSColor colorWithCalibratedWhite:0.4 alpha:0.6] set];
+        NSBezierPath *borderPath = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(clippedRect, 2, 2) xRadius:4 yRadius:4];
+        [borderPath setLineWidth:1.0];
+        [borderPath stroke];
+        
+        // Calculate layout dimensions using original itemRect for positioning
+        // Movie poster aspect ratio is typically 2:3 (width:height)
+        CGFloat posterHeight = rowHeight - 10; // Leave some padding
+        CGFloat posterAspectRatio = 2.0 / 3.0; // Standard movie poster ratio
+        CGFloat posterWidth = posterHeight * posterAspectRatio; // Calculate width to maintain aspect ratio
+        CGFloat posterX = itemRect.origin.x + 10;
+        CGFloat posterY = itemRect.origin.y + 5;
+        
+        CGFloat textAreaX = posterX + posterWidth + 15;
+        CGFloat textAreaWidth = itemRect.size.width - posterWidth - 30;
+        
+        // Draw movie poster
+        NSRect posterRect = NSMakeRect(posterX, posterY, posterWidth, posterHeight);
+        
+        // Only draw poster if it intersects with visible area
+        if (NSIntersectsRect(posterRect, clippedRect)) {
+            if (movie.cachedPosterImage) {
+                // Draw the actual poster image
+                [[NSColor colorWithCalibratedWhite:0.2 alpha:0.8] set];
+                NSBezierPath *posterBg = [NSBezierPath bezierPathWithRoundedRect:posterRect xRadius:4 yRadius:4];
+                [posterBg fill];
+                
+                NSRect imageRect = NSInsetRect(posterRect, 2, 2);
+                [movie.cachedPosterImage drawInRect:imageRect 
+                                           fromRect:NSZeroRect 
+                                          operation:NSCompositeSourceOver 
+                                           fraction:1.0 
+                                    respectFlipped:YES 
+                                             hints:nil];
+            } else {
+                // Draw placeholder
+                [[NSColor colorWithCalibratedWhite:0.3 alpha:0.8] set];
+                NSBezierPath *placeholderPath = [NSBezierPath bezierPathWithRoundedRect:posterRect xRadius:4 yRadius:4];
+                [placeholderPath fill];
+                
+                // Draw "No Image" text
+                NSMutableParagraphStyle *placeholderStyle = [[NSMutableParagraphStyle alloc] init];
+                [placeholderStyle setAlignment:NSTextAlignmentCenter];
+                
+                NSDictionary *placeholderAttrs = @{
+                    NSFontAttributeName: [NSFont systemFontOfSize:10],
+                    NSForegroundColorAttributeName: [NSColor lightGrayColor],
+                    NSParagraphStyleAttributeName: placeholderStyle
+                };
+                
+                [@"No Image" drawInRect:posterRect withAttributes:placeholderAttrs];
+                [placeholderStyle release];
+                
+                // Try to load the image if available and not already loading
+                if (movie.logo && !objc_getAssociatedObject(movie, "imageLoadingInProgress")) {
+                    [self loadImageAsynchronously:movie.logo forChannel:movie];
+                }
+            }
+        }
+        
+        // Draw movie details in the text area
+        CGFloat currentY = itemRect.origin.y + itemRect.size.height - 40;
+        CGFloat lineHeight = 16;
+        
+        // Movie title (larger, bold)
+        NSString *movieTitle = movie.name ? movie.name : @"Unknown Movie";
+        NSMutableParagraphStyle *titleStyle = [[NSMutableParagraphStyle alloc] init];
+        [titleStyle setAlignment:NSTextAlignmentLeft];
+        [titleStyle setLineBreakMode:NSLineBreakByTruncatingTail];
+        
+        NSDictionary *titleAttrs = @{
+            NSFontAttributeName: [NSFont boldSystemFontOfSize:16],
+            NSForegroundColorAttributeName: self.textColor,
+            NSParagraphStyleAttributeName: titleStyle
+        };
+        
+        NSRect titleRect = NSMakeRect(textAreaX, currentY, textAreaWidth, lineHeight + 2);
+        // Only draw title if it's visible in the clipped area
+        if (NSIntersectsRect(titleRect, clippedRect)) {
+            [movieTitle drawInRect:titleRect withAttributes:titleAttrs];
+        }
+        [titleStyle release];
+        currentY -= (lineHeight + 5);
+        
+        // Show movie info if loaded
+        if (movie.hasLoadedMovieInfo) {
+            // Year and Genre on same line
+            NSMutableString *yearGenre = [NSMutableString string];
+            if (movie.movieYear && movie.movieYear.length > 0) {
+                [yearGenre appendString:movie.movieYear];
+            }
+            if (movie.movieGenre && movie.movieGenre.length > 0) {
+                if (yearGenre.length > 0) [yearGenre appendString:@" • "];
+                [yearGenre appendString:movie.movieGenre];
+            }
+            
+            if (yearGenre.length > 0) {
+                NSRect yearGenreRect = NSMakeRect(textAreaX, currentY, textAreaWidth, lineHeight);
+                if (NSIntersectsRect(yearGenreRect, clippedRect)) {
+                    [self drawCompactText:yearGenre inRect:yearGenreRect];
+                }
+                currentY -= lineHeight;
+            }
+            
+            // Director
+            if (movie.movieDirector && movie.movieDirector.length > 0) {
+                NSString *directorText = [NSString stringWithFormat:@"Director: %@", movie.movieDirector];
+                NSRect directorRect = NSMakeRect(textAreaX, currentY, textAreaWidth, lineHeight);
+                if (NSIntersectsRect(directorRect, clippedRect)) {
+                    [self drawCompactText:directorText inRect:directorRect];
+                }
+                currentY -= lineHeight;
+            }
+            
+            // Rating and Duration on same line with stars
+            NSMutableString *ratingDuration = [NSMutableString string];
+            if (movie.movieRating && movie.movieRating.length > 0) {
+                // Convert rating to stars (assuming rating is out of 10)
+                NSString *stars = [self convertRatingToStars:movie.movieRating];
+                [ratingDuration appendString:[NSString stringWithFormat:@"★ %@ %@", movie.movieRating, stars]];
+            }
+            if (movie.movieDuration && movie.movieDuration.length > 0) {
+                if (ratingDuration.length > 0) [ratingDuration appendString:@" • "];
+                [ratingDuration appendString:[NSString stringWithFormat:@"⏱ %@", movie.movieDuration]];
+            }
+            
+            if (ratingDuration.length > 0) {
+                NSRect ratingDurationRect = NSMakeRect(textAreaX, currentY, textAreaWidth, lineHeight);
+                if (NSIntersectsRect(ratingDurationRect, clippedRect)) {
+                    [self drawHighlightedText:ratingDuration inRect:ratingDurationRect];
+                }
+                currentY -= lineHeight;
+            }
+            
+            // Short description if space allows - with improved styling
+            if (movie.movieDescription && movie.movieDescription.length > 0 && currentY > itemRect.origin.y + 5) {
+                NSString *shortDescription = movie.movieDescription;
+                // Truncate description to fit in remaining space
+                if (shortDescription.length > 150) {
+                    shortDescription = [[shortDescription substringToIndex:147] stringByAppendingString:@"..."];
+                }
+                
+                NSMutableParagraphStyle *descStyle = [[NSMutableParagraphStyle alloc] init];
+                [descStyle setAlignment:NSTextAlignmentLeft];
+                [descStyle setLineBreakMode:NSLineBreakByWordWrapping];
+                [descStyle setLineSpacing:2.0]; // Add line spacing for better readability
+                
+                NSDictionary *descAttrs = @{
+                    NSFontAttributeName: [NSFont systemFontOfSize:14],
+                    NSForegroundColorAttributeName: [NSColor colorWithCalibratedWhite:0.9 alpha:1.0], // Brighter text
+                    NSParagraphStyleAttributeName: descStyle,
+                    NSShadowAttributeName: ({
+                        NSShadow *shadow = [[NSShadow alloc] init];
+                        shadow.shadowColor = [NSColor colorWithCalibratedWhite:0.0 alpha:0.6];
+                        shadow.shadowOffset = NSMakeSize(0, -1);
+                        shadow.shadowBlurRadius = 1;
+                        shadow;
+                    })
+                };
+                
+                NSRect descRect = NSMakeRect(textAreaX, itemRect.origin.y + 10, textAreaWidth, currentY - itemRect.origin.y - 15);
+                if (NSIntersectsRect(descRect, clippedRect)) {
+                    [shortDescription drawInRect:descRect withAttributes:descAttrs];
+                }
+                [descStyle release];
+                [descAttrs[NSShadowAttributeName] release];
+            }
+        } else {
+            // Movie info not loaded yet
+            NSRect loadingRect = NSMakeRect(textAreaX, currentY, textAreaWidth, lineHeight);
+            if (NSIntersectsRect(loadingRect, clippedRect)) {
+                [self drawCompactText:@"Loading movie information..." 
+                               inRect:loadingRect];
+            }
+            
+            // Movie info loading is now handled by the preloading system
+            // which uses accurate visibility detection and improved caching logic
+        }
+    }
+    
+    // Draw scroll indicator if content is scrollable
+    if (totalContentHeight > stackedRect.size.height) {
+        [self drawScrollBar:stackedRect contentHeight:totalContentHeight scrollPosition:scrollPosition];
+    }
+    
+    // Draw navigation hint at bottom
+    NSString *navigationHint = @"Use ↑↓ keys to browse movies, Press Enter to play";
+    NSMutableParagraphStyle *hintStyle = [[NSMutableParagraphStyle alloc] init];
+    [hintStyle setAlignment:NSTextAlignmentCenter];
+    
+    NSDictionary *hintAttrs = @{
+        NSFontAttributeName: [NSFont systemFontOfSize:12],
+        NSForegroundColorAttributeName: [NSColor darkGrayColor],
+        NSParagraphStyleAttributeName: hintStyle
+    };
+    
+    NSRect hintRect = NSMakeRect(stackedViewX, 5, stackedViewWidth, 15);
+    [navigationHint drawInRect:hintRect withAttributes:hintAttrs];
+    [hintStyle release];
+}
+
+- (void)drawSearchMovieResults:(NSRect)rect {
+    if (!self.searchMovieResults || [self.searchMovieResults count] == 0) {
+        return;
+    }
+    
+    CGFloat rowHeight = 120; // Smaller rows for search results
+    
+    // Draw background using theme colors with proper alpha handling
+    NSColor *searchBackgroundStartColor, *searchBackgroundEndColor;
+    if (self.themeChannelStartColor && self.themeChannelEndColor) {
+        // Use theme colors with proper alpha adjustment for search results
+        CGFloat searchAlpha = self.themeAlpha * 0.9; // Slightly more opaque for search results
+        searchBackgroundStartColor = [self.themeChannelStartColor colorWithAlphaComponent:searchAlpha];
+        searchBackgroundEndColor = [self.themeChannelEndColor colorWithAlphaComponent:searchAlpha];
+    } else {
+        // Fallback colors consistent with theme system defaults
+        searchBackgroundStartColor = [NSColor colorWithCalibratedRed:0.08 green:0.10 blue:0.14 alpha:0.9];
+        searchBackgroundEndColor = [NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.8];
+    }
+    
+    NSGradient *backgroundGradient = [[NSGradient alloc] initWithStartingColor:searchBackgroundStartColor
+                                                                   endingColor:searchBackgroundEndColor];
+    [backgroundGradient drawInRect:rect angle:90];
+    [backgroundGradient release];
+
+    /*
+    // Draw section header
+    NSString *headerText = [NSString stringWithFormat:@"Movies/Series Found (%lu)", (unsigned long)[self.searchMovieResults count]];
+    NSMutableParagraphStyle *headerStyle = [[NSMutableParagraphStyle alloc] init];
+    [headerStyle setAlignment:NSTextAlignmentLeft];
+    
+    NSDictionary *headerAttrs = @{
+        NSFontAttributeName: [NSFont boldSystemFontOfSize:14],
+        NSForegroundColorAttributeName: self.textColor,
+        NSParagraphStyleAttributeName: headerStyle
+    };
+    
+    NSRect headerRect = NSMakeRect(rect.origin.x + 10, rect.origin.y + rect.size.height - 25, rect.size.width - 20, 20);
+    [headerText drawInRect:headerRect withAttributes:headerAttrs];
+    [headerStyle release];
+    */
+    // Calculate scrollable content area
+    NSRect contentRect = NSMakeRect(rect.origin.x, rect.origin.y, rect.size.width, rect.size.height - 30);
+    CGFloat totalContentHeight = [self.searchMovieResults count] * rowHeight;
+    
+    // Use dedicated scroll position for movie results
+    CGFloat maxScroll = MAX(0, totalContentHeight - contentRect.size.height);
+    CGFloat scrollPosition = MIN(self.searchMovieScrollPosition, maxScroll);
+    
+    // Draw each movie result
+    for (NSInteger i = 0; i < [self.searchMovieResults count]; i++) {
+        VLCChannel *movie = [self.searchMovieResults objectAtIndex:i];
+        
+        // Calculate position with scroll offset
+        CGFloat movieYPosition = contentRect.origin.y + contentRect.size.height - ((i + 1) * rowHeight) + scrollPosition;
+        
+        NSRect itemRect = NSMakeRect(contentRect.origin.x, movieYPosition, contentRect.size.width, rowHeight);
+        
+        // Skip drawing if completely outside visible area
+        if (itemRect.origin.y + itemRect.size.height < contentRect.origin.y || 
+            itemRect.origin.y > contentRect.origin.y + contentRect.size.height) {
+            continue;
+        }
+        
+        // Clip to visible area
+        NSRect clippedRect = NSIntersectionRect(itemRect, contentRect);
+        if (NSIsEmptyRect(clippedRect)) {
+            continue;
+        }
+        
+        // Draw row background using theme-appropriate colors
+        NSColor *rowBackgroundColor;
+        if (self.themeChannelStartColor) {
+            // Use a lighter version of the theme color for individual rows
+            CGFloat rowAlpha = self.themeAlpha * 0.6;
+            rowBackgroundColor = [self.themeChannelStartColor colorWithAlphaComponent:rowAlpha];
+        } else {
+            // Fallback to default
+            rowBackgroundColor = [NSColor colorWithCalibratedWhite:0.15 alpha:0.6];
+        }
+        [rowBackgroundColor set];
+        NSRectFill(clippedRect);
+        
+        // Draw border using theme-appropriate colors
+        NSColor *borderColor;
+        if (self.themeChannelEndColor) {
+            // Use theme end color with reduced alpha for borders
+            CGFloat borderAlpha = self.themeAlpha * 0.4;
+            borderColor = [self.themeChannelEndColor colorWithAlphaComponent:borderAlpha];
+        } else {
+            // Fallback to default
+            borderColor = [NSColor colorWithCalibratedWhite:0.4 alpha:0.4];
+        }
+        [borderColor set];
+        NSBezierPath *borderPath = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(clippedRect, 1, 1) xRadius:3 yRadius:3];
+        [borderPath setLineWidth:0.5];
+        [borderPath stroke];
+        
+        // Calculate layout dimensions
+        CGFloat posterHeight = rowHeight - 10;
+        CGFloat posterWidth = posterHeight * (2.0 / 3.0); // Movie poster aspect ratio
+        CGFloat posterX = itemRect.origin.x + 8;
+        CGFloat posterY = itemRect.origin.y + 5;
+        
+        CGFloat textAreaX = posterX + posterWidth + 10;
+        CGFloat textAreaWidth = itemRect.size.width - posterWidth - 25;
+        
+        // Draw movie poster
+        NSRect posterRect = NSMakeRect(posterX, posterY, posterWidth, posterHeight);
+        
+        if (NSIntersectsRect(posterRect, clippedRect)) {
+            if (movie.cachedPosterImage) {
+                // Use theme-appropriate background for poster area
+                NSColor *posterBgColor;
+                if (self.themeChannelStartColor) {
+                    CGFloat posterBgAlpha = self.themeAlpha * 0.8;
+                    posterBgColor = [self.themeChannelStartColor colorWithAlphaComponent:posterBgAlpha];
+                } else {
+                    posterBgColor = [NSColor colorWithCalibratedWhite:0.2 alpha:0.8];
+                }
+                [posterBgColor set];
+                NSBezierPath *posterBg = [NSBezierPath bezierPathWithRoundedRect:posterRect xRadius:3 yRadius:3];
+                [posterBg fill];
+                
+                NSRect imageRect = NSInsetRect(posterRect, 1, 1);
+                [movie.cachedPosterImage drawInRect:imageRect 
+                                           fromRect:NSZeroRect 
+                                          operation:NSCompositeSourceOver 
+                                           fraction:1.0 
+                                    respectFlipped:YES 
+                                             hints:nil];
+            } else {
+                // Draw placeholder with theme-appropriate color
+                NSColor *placeholderColor;
+                if (self.themeChannelStartColor) {
+                    CGFloat placeholderAlpha = self.themeAlpha * 0.25;
+                    placeholderColor = [self.themeChannelStartColor colorWithAlphaComponent:placeholderAlpha];
+                } else {
+                    placeholderColor = [NSColor colorWithCalibratedWhite:0.25 alpha:0.8];
+                }
+                [placeholderColor set];
+                NSBezierPath *placeholderPath = [NSBezierPath bezierPathWithRoundedRect:posterRect xRadius:3 yRadius:3];
+                [placeholderPath fill];
+                
+                // Load image if available
+                if (movie.logo && !objc_getAssociatedObject(movie, "imageLoadingInProgress")) {
+                    [self loadImageAsynchronously:movie.logo forChannel:movie];
+                }
+            }
+        }
+        
+        // Draw movie information in text area
+        CGFloat currentY = itemRect.origin.y + itemRect.size.height - 20;
+        CGFloat lineHeight = 14;
+        
+        // Movie title
+        NSString *movieTitle = movie.name ? movie.name : @"Unknown Movie";
+        NSMutableParagraphStyle *titleStyle = [[NSMutableParagraphStyle alloc] init];
+        [titleStyle setAlignment:NSTextAlignmentLeft];
+        [titleStyle setLineBreakMode:NSLineBreakByTruncatingTail];
+        
+        NSDictionary *titleAttrs = @{
+            NSFontAttributeName: [NSFont boldSystemFontOfSize:13],
+            NSForegroundColorAttributeName: self.textColor,
+            NSParagraphStyleAttributeName: titleStyle
+        };
+        
+        NSRect titleRect = NSMakeRect(textAreaX, currentY, textAreaWidth, lineHeight);
+        if (NSIntersectsRect(titleRect, clippedRect)) {
+            [movieTitle drawInRect:titleRect withAttributes:titleAttrs];
+        }
+        [titleStyle release];
+        currentY -= (lineHeight + 2);
+        
+        // Group name (where it was found)
+        if (movie.group && [movie.group length] > 0) {
+            NSString *groupText = [NSString stringWithFormat:@"From: %@", movie.group];
+            NSRect groupRect = NSMakeRect(textAreaX, currentY, textAreaWidth, lineHeight);
+            if (NSIntersectsRect(groupRect, clippedRect)) {
+                [self drawCompactText:groupText inRect:groupRect];
+            }
+            currentY -= lineHeight;
+        }
+        
+        // Movie details if loaded
+        if (movie.hasLoadedMovieInfo) {
+            // Year and Genre
+            NSMutableString *yearGenre = [NSMutableString string];
+            if (movie.movieYear && movie.movieYear.length > 0) {
+                [yearGenre appendString:movie.movieYear];
+            }
+            if (movie.movieGenre && movie.movieGenre.length > 0) {
+                if (yearGenre.length > 0) [yearGenre appendString:@" • "];
+                [yearGenre appendString:movie.movieGenre];
+            }
+            
+            if (yearGenre.length > 0) {
+                NSRect yearGenreRect = NSMakeRect(textAreaX, currentY, textAreaWidth, lineHeight);
+                if (NSIntersectsRect(yearGenreRect, clippedRect)) {
+                    [self drawCompactText:yearGenre inRect:yearGenreRect];
+                }
+                currentY -= lineHeight;
+            }
+            
+            // Rating if available
+            if (movie.movieRating && movie.movieRating.length > 0) {
+                NSString *ratingText = [NSString stringWithFormat:@"★ %@", movie.movieRating];
+                NSRect ratingRect = NSMakeRect(textAreaX, currentY, textAreaWidth, lineHeight);
+                if (NSIntersectsRect(ratingRect, clippedRect)) {
+                    [self drawHighlightedText:ratingText inRect:ratingRect];
+                }
+            }
+        }
+    }
+    
+    // Draw scroll indicator if content is scrollable
+    if (totalContentHeight > contentRect.size.height) {
+        [self drawScrollBar:contentRect contentHeight:totalContentHeight scrollPosition:scrollPosition];
+    }
+}
+
+- (void)drawCompactText:(NSString *)text inRect:(NSRect)rect {
+    NSMutableParagraphStyle *style = [[NSMutableParagraphStyle alloc] init];
+    [style setAlignment:NSTextAlignmentLeft];
+    [style setLineBreakMode:NSLineBreakByTruncatingTail];
+    
+    NSDictionary *attrs = @{
+        NSFontAttributeName: [NSFont systemFontOfSize:12],
+        NSForegroundColorAttributeName: [NSColor lightGrayColor],
+        NSParagraphStyleAttributeName: style
+    };
+    
+    [text drawInRect:rect withAttributes:attrs];
+    [style release];
+}
+
+- (void)drawHighlightedText:(NSString *)text inRect:(NSRect)rect {
+    NSMutableParagraphStyle *style = [[NSMutableParagraphStyle alloc] init];
+    [style setAlignment:NSTextAlignmentLeft];
+    [style setLineBreakMode:NSLineBreakByTruncatingTail];
+    
+    NSDictionary *attrs = @{
+        NSFontAttributeName: [NSFont systemFontOfSize:12],
+        NSForegroundColorAttributeName: [NSColor colorWithCalibratedWhite:0.9 alpha:1.0],
+        NSParagraphStyleAttributeName: style
+    };
+    
+    [text drawInRect:rect withAttributes:attrs];
+    [style release];
+}
+
+- (NSString *)convertRatingToStars:(NSString *)rating {
+    // Convert rating to stars (assuming rating is out of 10)
+    CGFloat ratingValue = [rating floatValue];
+    NSInteger starCount = (NSInteger)ratingValue; // Direct conversion for 10-star scale
+    starCount = MAX(0, MIN(10, starCount)); // Clamp between 0 and 10
+    
+    NSMutableString *stars = [NSMutableString string];
+    for (NSInteger i = 0; i < 10; i++) {
+        if (i < starCount) {
+            [stars appendString:@"★"];
+        } else {
+            [stars appendString:@"☆"];
+        }
+    }
+    return stars;
+}
+
+#pragma mark - View Mode Preferences
+
+- (void)saveViewModePreference {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    [defaults setInteger:currentViewMode forKey:@"VLCOverlayViewMode"];
+    [defaults synchronize];
+    NSLog(@"Saved view mode preference: %ld", (long)currentViewMode);
+}
+
+- (void)loadViewModePreference {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    
+    // Load saved view mode (default to 0 = Stacked)
+    NSInteger savedViewMode = [defaults integerForKey:@"VLCOverlayViewMode"];
+    
+    // Validate the loaded value
+    if (savedViewMode < 0 || savedViewMode > 2) {
+        savedViewMode = 0; // Default to Stacked
+    }
+    
+    currentViewMode = savedViewMode;
+    
+    // Apply the loaded view mode
+    [self applyViewMode:currentViewMode];
+    
+    NSLog(@"Loaded view mode preference: %ld", (long)currentViewMode);
+}
+
+- (void)applyViewMode:(NSInteger)viewMode {
+    // Apply the view mode settings
+    switch (viewMode) {
+        case 0: // Stacked
+            isGridViewActive = NO;
+            isStackedViewActive = YES;
+            break;
+        case 1: // Grid
+            isGridViewActive = YES;
+            isStackedViewActive = NO;
+            break;
+        case 2: // List
+            isGridViewActive = NO;
+            isStackedViewActive = NO;
+            break;
+    }
+    
+    // Reset hover state and scroll position when changing view modes
+    self.hoveredChannelIndex = -1;
+    channelScrollPosition = 0;
+    
+    NSLog(@"Applied view mode: %ld (Stacked: %@, Grid: %@)", (long)viewMode, 
+          isStackedViewActive ? @"YES" : @"NO", 
+          isGridViewActive ? @"YES" : @"NO");
+}
+
+// Memory management: Clear cached images for channels that are not currently visible
+- (void)clearOffscreenCachedImages {
+    NSArray *channelsInCurrentGroup = [self getChannelsForCurrentGroup];
+    if (!channelsInCurrentGroup || channelsInCurrentGroup.count == 0) {
+        return;
+    }
+    
+    // Calculate visible range based on current view mode
+    NSRange visibleRange = [self calculateVisibleChannelRange];
+    
+    NSInteger clearedCount = 0;
+    NSInteger memoryBufferSize = 8; // Larger buffer - keep more items in memory
+    
+    // Clear images for channels well outside the visible range
+    for (NSInteger i = 0; i < channelsInCurrentGroup.count; i++) {
+        VLCChannel *channel = [channelsInCurrentGroup objectAtIndex:i];
+        
+        // Keep images for visible channels plus a larger buffer for smooth scrolling
+        BOOL shouldKeepInMemory = (i >= visibleRange.location - memoryBufferSize) && 
+                                 (i <= visibleRange.location + visibleRange.length + memoryBufferSize);
+        
+        if (!shouldKeepInMemory && channel.cachedPosterImage) {
+            channel.cachedPosterImage = nil; // Release from memory (but keep on disk)
+            clearedCount++;
+        }
+    }
+    
+    if (clearedCount > 0) {
+        NSLog(@"Cleared %ld cached images from memory (buffer: %ld items)", (long)clearedCount, (long)memoryBufferSize);
+    }
+}
+
+// Preload content for channels that are about to become visible
+- (void)preloadContentWithMargin {
+    NSArray *channelsInCurrentGroup = [self getChannelsForCurrentGroup];
+    if (!channelsInCurrentGroup || channelsInCurrentGroup.count == 0) {
+        return;
+    }
+    
+    // Calculate visible range based on current view mode
+    NSRange visibleRange = [self calculateVisibleChannelRange];
+    
+    // Validate visible range
+    if (visibleRange.location >= channelsInCurrentGroup.count || visibleRange.length == 0) {
+        NSLog(@"Invalid visible range for preloading");
+        return;
+    }
+    
+    // MODIFIED: Only process exactly visible items, no buffer margin to prevent bulk downloading
+    NSInteger totalChannels = (NSInteger)channelsInCurrentGroup.count;
+    NSInteger visibleStart = (NSInteger)visibleRange.location;
+    NSInteger visibleEnd = visibleStart + (NSInteger)visibleRange.length - 1;
+    
+    // NO BUFFER: Only process exactly what's visible
+    NSInteger startIndex = visibleStart;
+    NSInteger endIndex = MIN(totalChannels - 1, visibleEnd);
+    
+    NSLog(@"Processing ONLY visible movies (no buffer): indices %ld-%ld", (long)startIndex, (long)endIndex);
+    
+    // Process channels in the visible range only
+    for (NSInteger i = startIndex; i <= endIndex; i++) {
+        VLCChannel *channel = [channelsInCurrentGroup objectAtIndex:i];
+        if (![channel.category isEqualToString:@"MOVIES"]) {
+            continue;
+        }
+        
+        // Only process if not already loaded and not already fetching
+        if (!channel.hasLoadedMovieInfo && !channel.hasStartedFetchingMovieInfo) {
+            // First try to load from cache
+            BOOL loadedFromCache = [self loadMovieInfoFromCacheForChannel:channel];
+            
+            if (!loadedFromCache) {
+                // Mark as started and fetch asynchronously
+                channel.hasStartedFetchingMovieInfo = YES;
+                
+                dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                    [self fetchMovieInfoForChannelAsync:channel];
+                });
+                
+                NSLog(@"🔄 Started fetching movie info for visible item: %@", channel.name);
+            } else {
+                NSLog(@"📋 Loaded movie info from cache for visible item: %@", channel.name);
+            }
+        }
+    }
+}
+
+// Enhanced method to manage memory and preload
+- (void)optimizeMemoryAndPreload {
+    // First clear offscreen cached images to free memory
+    [self clearOffscreenCachedImages];
+    
+    // Then preload content that's about to become visible
+    [self preloadContentWithMargin];
+    
+    // Also validate movie info for currently visible items
+    [self validateMovieInfoForVisibleItems];
+    
+    // Clean up any incomplete cached movie info files (run occasionally)
+    static NSTimeInterval lastCleanupTime = 0;
+    NSTimeInterval currentTime = [NSDate timeIntervalSinceReferenceDate];
+    
+    // Clean up once every hour to avoid performance impact
+    if (currentTime - lastCleanupTime > 3600) {
+        [self cleanupIncompleteMovieInfoCache];
+        lastCleanupTime = currentTime;
+    }
+}
+
+// Add method to clean up incomplete cached movie info
+- (void)cleanupIncompleteMovieInfoCache {
+    NSString *appSupportDir = [self applicationSupportDirectory];
+    NSString *movieInfoCacheDir = [appSupportDir stringByAppendingPathComponent:@"MovieInfo"];
+    
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    if (![fileManager fileExistsAtPath:movieInfoCacheDir]) {
+        return; // No cache directory exists
+    }
+    
+    NSError *error = nil;
+    NSArray *cacheFiles = [fileManager contentsOfDirectoryAtPath:movieInfoCacheDir error:&error];
+    if (error || !cacheFiles) {
+        return;
+    }
+    
+    NSInteger cleanedCount = 0;
+    
+    for (NSString *filename in cacheFiles) {
+        if (![filename hasSuffix:@".plist"]) continue;
+        
+        NSString *cacheFilePath = [movieInfoCacheDir stringByAppendingPathComponent:filename];
+        NSDictionary *movieInfo = [NSDictionary dictionaryWithContentsOfFile:cacheFilePath];
+        
+        if (movieInfo) {
+            NSString *cachedDescription = [movieInfo objectForKey:@"description"];
+            NSString *cachedYear = [movieInfo objectForKey:@"year"];
+            NSString *cachedGenre = [movieInfo objectForKey:@"genre"];
+            NSString *cachedDirector = [movieInfo objectForKey:@"director"];
+            NSString *cachedRating = [movieInfo objectForKey:@"rating"];
+            
+            // Check if this cached data is incomplete
+            BOOL hasUsefulDescription = (cachedDescription && [cachedDescription length] > 10);
+            BOOL hasUsefulMetadata = ((cachedYear && [cachedYear length] > 0) || 
+                                     (cachedGenre && [cachedGenre length] > 0) || 
+                                     (cachedDirector && [cachedDirector length] > 0) || 
+                                     (cachedRating && [cachedRating length] > 0));
+            
+            if (!hasUsefulDescription && !hasUsefulMetadata) {
+                // Remove incomplete cache file
+                [fileManager removeItemAtPath:cacheFilePath error:nil];
+                cleanedCount++;
+            }
+        }
+    }
+    
+    if (cleanedCount > 0) {
+        NSLog(@"🧹 Cleaned up %ld incomplete movie info cache files", (long)cleanedCount);
+    }
+}
+
+
+
+// Calculate the range of currently visible channels based on view mode
+- (NSRange)calculateVisibleChannelRange {
+    NSArray *channelsInCurrentGroup = [self getChannelsForCurrentGroup];
+    if (!channelsInCurrentGroup || channelsInCurrentGroup.count == 0) {
+        return NSMakeRange(0, 0);
+    }
+    
+    // Check current view mode
+    if (isGridViewActive && ((self.selectedCategoryIndex == CATEGORY_MOVIES) || 
+                           (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]))) {
+        // Grid view calculation - improved to match actual visible items
+        CGFloat catWidth = 200;
+        CGFloat groupWidth = 250;
+        CGFloat gridX = catWidth + groupWidth;
+        CGFloat gridWidth = self.bounds.size.width - gridX;
+        CGFloat itemPadding = 10;
+        CGFloat itemWidth = MIN(180, (gridWidth / 2) - (itemPadding * 2));
+        CGFloat itemHeight = itemWidth * 1.5;
+        CGFloat contentHeight = self.bounds.size.height - 40; // Account for header
+        
+        NSInteger maxColumns = MAX(1, (NSInteger)((gridWidth - itemPadding) / (itemWidth + itemPadding)));
+        
+        // Calculate scroll offset like in drawGridView
+        CGFloat totalGridHeight = ((NSInteger)ceilf((float)channelsInCurrentGroup.count / (float)maxColumns)) * (itemHeight + itemPadding) + itemPadding + itemHeight;
+        CGFloat maxScroll = MAX(0, totalGridHeight - contentHeight);
+        CGFloat scrollOffset = MAX(0, MIN(channelScrollPosition, maxScroll));
+        
+        // Calculate which items are actually visible using the same positioning logic as drawing
+        NSMutableIndexSet *visibleIndices = [NSMutableIndexSet indexSet];
+        
+        for (NSInteger i = 0; i < channelsInCurrentGroup.count; i++) {
+            NSInteger row = i / maxColumns;
+            NSInteger col = i % maxColumns;
+            
+            // Calculate position using exact same formula as drawGridView
+            CGFloat totalGridItemWidth = maxColumns * (itemWidth + itemPadding) + itemPadding;
+            CGFloat leftMargin = gridX + (gridWidth - totalGridItemWidth) / 2;
+            
+            CGFloat x = leftMargin + itemPadding + col * (itemWidth + itemPadding);
+            CGFloat y = self.bounds.size.height - 60 - itemHeight - (row * (itemHeight + itemPadding)) + scrollOffset;
+            
+            // Check if item intersects with visible area (same logic as drawing skip check)
+            if (!(y + itemHeight < 0 || y > self.bounds.size.height)) {
+                [visibleIndices addIndex:i];
+            }
+        }
+        
+        // Convert to NSRange - find the contiguous range or use first and last indices
+        if (visibleIndices.count == 0) {
+            return NSMakeRange(0, 0);
+        }
+        
+        NSUInteger firstIndex = [visibleIndices firstIndex];
+        NSUInteger lastIndex = [visibleIndices lastIndex];
+        NSUInteger length = lastIndex - firstIndex + 1;
+        
+        return NSMakeRange(firstIndex, length);
+        
+    } else if (isStackedViewActive && ((self.selectedCategoryIndex == CATEGORY_MOVIES) || 
+                                     (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]))) {
+        // Stacked view calculation - use EXACT same logic as drawStackedView and scroll calculations
+        CGFloat catWidth = 200;
+        CGFloat groupWidth = 250;
+        CGFloat stackedViewX = catWidth + groupWidth;
+        CGFloat stackedViewWidth = self.bounds.size.width - stackedViewX;
+        NSRect stackedRect = NSMakeRect(stackedViewX, 0, stackedViewWidth, self.bounds.size.height);
+        
+        CGFloat rowHeight = 400; // Start with base row height
+        
+        // Account for potential rowHeight adjustment (matches drawStackedView logic)
+        NSInteger minVisibleRows = 4;
+        CGFloat requiredHeight = minVisibleRows * rowHeight;
+        if (stackedRect.size.height < requiredHeight) {
+            // Adjust row height if window is too small (matches drawStackedView)
+            rowHeight = MAX(80, stackedRect.size.height / minVisibleRows);
+        }
+        
+        // Calculate total content height for proper scroll position
+        CGFloat totalContentHeight = channelsInCurrentGroup.count * rowHeight;
+        totalContentHeight += rowHeight; // Add extra space
+        CGFloat maxScroll = MAX(0, totalContentHeight - stackedRect.size.height);
+        CGFloat scrollPosition = MIN(channelScrollPosition, maxScroll);
+        
+        // Calculate which items are visible using the same positioning logic as drawing
+        NSMutableIndexSet *visibleIndices = [NSMutableIndexSet indexSet];
+        
+        for (NSInteger i = 0; i < channelsInCurrentGroup.count; i++) {
+            // Calculate item position using exact same formula as drawStackedView
+            CGFloat movieYPosition = stackedRect.size.height - ((i + 1) * rowHeight) + scrollPosition;
+            NSRect itemRect = NSMakeRect(stackedViewX, movieYPosition, stackedViewWidth, rowHeight);
+            
+            // Check if item intersects with visible area (same logic as drawing)
+            if (!(itemRect.origin.y + itemRect.size.height < 0 || 
+                  itemRect.origin.y > stackedRect.size.height)) {
+                [visibleIndices addIndex:i];
+            }
+        }
+        
+        // Convert to NSRange - find the contiguous range or use first and last indices
+        if (visibleIndices.count == 0) {
+            return NSMakeRange(0, 0);
+        }
+        
+        NSUInteger firstIndex = [visibleIndices firstIndex];
+        NSUInteger lastIndex = [visibleIndices lastIndex];
+        NSUInteger length = lastIndex - firstIndex + 1;
+        
+        return NSMakeRange(firstIndex, length);
+        
+    } else {
+        // Regular list view calculation
+        CGFloat rowHeight = 40;
+        NSInteger visibleCount = (NSInteger)(self.bounds.size.height / rowHeight) + 2;
+        NSInteger startIndex = (NSInteger)(channelScrollPosition / rowHeight);
+        
+        startIndex = MAX(0, MIN(startIndex, (NSInteger)channelsInCurrentGroup.count - 1));
+        visibleCount = MIN(visibleCount, (NSInteger)channelsInCurrentGroup.count - startIndex);
+        
+        return NSMakeRange(startIndex, visibleCount);
+    }
 }
 
 @end

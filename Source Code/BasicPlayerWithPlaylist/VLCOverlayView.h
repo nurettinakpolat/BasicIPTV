@@ -55,6 +55,16 @@
 @property (nonatomic, retain) NSColor *textColor;
 @property (nonatomic, retain) NSColor *groupColor;
 
+// Selection color customization
+@property (nonatomic, assign) CGFloat customSelectionRed;
+@property (nonatomic, assign) CGFloat customSelectionGreen;
+@property (nonatomic, assign) CGFloat customSelectionBlue;
+
+// Selection color slider rects for interaction
+@property (nonatomic, assign) NSRect selectionRedSliderRect;
+@property (nonatomic, assign) NSRect selectionGreenSliderRect;
+@property (nonatomic, assign) NSRect selectionBlueSliderRect;
+
 // URL input
 @property (nonatomic, retain) NSString *inputUrlString;
 @property (nonatomic, assign) BOOL isTextFieldActive;

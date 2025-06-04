@@ -2,14 +2,21 @@
 
 @interface VLCOverlayView (UI)
 
-
 // UI setup
 - (void)setupTrackingArea;
+
+// Icon helpers
+- (NSImage *)iconForCategory:(NSString *)category;
+- (NSImage *)createFallbackIconForCategory:(NSString *)category;
+
+// Selection color customization
+- (void)updateSelectionColors;
 
 // Drawing methods
 - (void)drawChannelList:(NSRect)rect;
 - (void)drawCategories:(NSRect)rect;
 - (void)drawGroups:(NSRect)rect;
+- (void)drawSearchInterface:(NSRect)rect menuRect:(NSRect)menuRect;
 - (void)drawLoadingIndicator:(NSRect)rect;
 - (void)drawEpgPanel:(NSRect)rect;
 - (void)drawSettingsPanel:(NSRect)rect;
@@ -23,6 +30,8 @@
 - (void)drawGeneralSettings:(NSRect)rect x:(CGFloat)x width:(CGFloat)width;
 - (void)drawMovieInfoSettings:(NSRect)rect x:(CGFloat)x width:(CGFloat)width;
 - (void)drawSubtitleSettings:(NSRect)rect x:(CGFloat)x width:(CGFloat)width;
+- (void)drawThemeSettings:(NSRect)rect x:(CGFloat)x width:(CGFloat)width;
+- (void)drawStackedView:(NSRect)rect;
 
 // Mouse handling
 - (void)mouseDown:(NSEvent *)event;
@@ -69,5 +78,10 @@
 // New timeshift methods
 - (void)showTimeshiftOptionsForChannel:(NSMenuItem *)sender;
 - (void)playTimeshiftFromMenu:(NSMenuItem *)sender;
+
+// Search methods
+- (void)performSearch:(NSString *)searchText;
+- (void)performDelayedSearch:(NSTimer *)timer;
+- (BOOL)channel:(VLCChannel *)channel matchesSearchText:(NSString *)searchText;
 
 @end

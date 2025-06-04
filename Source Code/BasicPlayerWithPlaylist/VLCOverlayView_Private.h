@@ -12,11 +12,30 @@ extern NSLock *gProgressMessageLock;
 
 // Menu category indexes as a readable enum
 typedef NS_ENUM(NSInteger, VLCMenuCategory) {
-    CATEGORY_FAVORITES = 0,
-    CATEGORY_TV = 1,
-    CATEGORY_MOVIES = 2,
-    CATEGORY_SERIES = 3,
-    CATEGORY_SETTINGS = 4
+    CATEGORY_SEARCH = 0,
+    CATEGORY_FAVORITES = 1,
+    CATEGORY_TV = 2,
+    CATEGORY_MOVIES = 3,
+    CATEGORY_SERIES = 4,
+    CATEGORY_SETTINGS = 5
+};
+
+// Theme system enums
+typedef NS_ENUM(NSInteger, VLCColorTheme) {
+    VLC_THEME_DARK = 0,         // Default dark theme
+    VLC_THEME_DARKER = 1,       // Even darker theme
+    VLC_THEME_BLUE = 2,         // Blue accent theme
+    VLC_THEME_GREEN = 3,        // Green accent theme
+    VLC_THEME_PURPLE = 4,       // Purple accent theme
+    VLC_THEME_CUSTOM = 5        // User custom colors
+};
+
+typedef NS_ENUM(NSInteger, VLCTransparencyLevel) {
+    VLC_TRANSPARENCY_OPAQUE = 0,     // 0.95 alpha
+    VLC_TRANSPARENCY_LIGHT = 1,      // 0.85 alpha
+    VLC_TRANSPARENCY_MEDIUM = 2,     // 0.75 alpha
+    VLC_TRANSPARENCY_HIGH = 3,       // 0.65 alpha
+    VLC_TRANSPARENCY_VERY_HIGH = 4   // 0.5 alpha
 };
 
 // For debugging - add this helper function 
@@ -79,6 +98,10 @@ extern int totalProgramCount;
     NSTimeInterval lastHoverTime;
     NSInteger lastHoveredChannelIndex;
     
+    // Performance optimization timers
+    NSTimer *movieInfoDebounceTimer;
+    NSTimer *displayUpdateTimer;
+    
     // Cursor hiding tracking
     NSTimeInterval lastMouseMoveTime;
     BOOL isCursorHidden;
@@ -90,6 +113,9 @@ extern int totalProgramCount;
     // EPG program context menu tracking
     VLCProgram *rightClickedProgram;
     VLCChannel *rightClickedProgramChannel;
+    
+    // Theme initialization flag to prevent recursion
+    BOOL isInitializingTheme;
 }
 
 // Properly redeclare readonly properties as readwrite
@@ -141,31 +167,47 @@ extern int totalProgramCount;
 
 // New UI Components
 @property (nonatomic, retain) VLCReusableTextField *m3uTextField;
+@property (nonatomic, retain) VLCReusableTextField *searchTextField;
 @property (nonatomic, retain) VLCClickableLabel *epgLabel;
+@property (nonatomic, retain) NSMutableArray *searchResults;
+@property (nonatomic, assign) BOOL isSearchActive;
+@property (nonatomic, retain) NSTimer *searchTimer;
+@property (nonatomic, retain) dispatch_queue_t searchQueue;
+@property (nonatomic, retain) NSMutableArray *searchChannelResults;
+@property (nonatomic, retain) NSMutableArray *searchMovieResults;
+@property (nonatomic, assign) CGFloat searchChannelScrollPosition;
+@property (nonatomic, assign) CGFloat searchMovieScrollPosition;
 
-// Internal utility methods
-- (NSArray *)safeGroupsForCategory:(NSString *)category;
-- (NSArray *)safeTVGroups;
-- (NSArray *)safeValueForKey:(NSString *)key fromDictionary:(NSDictionary *)dict;
-- (NSString *)channelCacheFilePath:(NSString *)sourcePath;
-- (NSString *)epgCacheFilePath;
-- (void)ensureFavoritesCategory;
-- (void)ensureSettingsGroups;
-- (void)prepareSimpleChannelLists;
-- (void)markUserInteraction;
-- (void)scheduleInteractionCheck;
-- (BOOL)safeAddGroupToCategory:(NSString *)group category:(NSString *)category;
-- (void)startProgressRedrawTimer;
-- (void)stopProgressRedrawTimer;
-- (void)setupTrackingArea;
-- (void)ensureCursorVisible;
-- (void)refreshCurrentEPGInfo;
+// Theme Settings UI Components - using dropdown manager
+@property (nonatomic, assign) NSRect themeDropdownRect;
+@property (nonatomic, assign) NSRect transparencyDropdownRect;
+@property (nonatomic, assign) NSRect themeSettingsRect;
+@property (nonatomic, assign) NSRect transparencySliderRect;
+@property (nonatomic, assign) NSRect redSliderRect;
+@property (nonatomic, assign) NSRect greenSliderRect;
+@property (nonatomic, assign) NSRect blueSliderRect;
 
-// Hover state
-@property (nonatomic, assign) NSInteger hoveredCategoryIndex;
-@property (nonatomic, assign) NSInteger hoveredGroupIndex;
-@property (nonatomic, assign) BOOL isPendingMovieInfoFetch;
-@property (nonatomic, assign) BOOL isHoveringMovieInfoPanel;
+// Add property to track which slider is currently being dragged
+@property (nonatomic, assign) NSInteger activeSliderType; // 0=none, 1=transparency, 2=red, 3=green, 4=blue, 5=subtitle
+
+// Add property to track stacked view mode for movies
+@property (nonatomic, assign) BOOL isStackedViewActive; // For horizontal layout with cover on left, details on right
+
+// Custom theme RGB values (0.0 to 1.0)
+@property (nonatomic, assign) CGFloat customThemeRed;
+@property (nonatomic, assign) CGFloat customThemeGreen;
+@property (nonatomic, assign) CGFloat customThemeBlue;
+
+// Theme system properties
+@property (nonatomic, assign) VLCColorTheme currentTheme;
+@property (nonatomic, assign) VLCTransparencyLevel transparencyLevel;
+@property (nonatomic, retain) NSColor *themeCategoryStartColor;
+@property (nonatomic, retain) NSColor *themeCategoryEndColor;
+@property (nonatomic, retain) NSColor *themeGroupStartColor;
+@property (nonatomic, retain) NSColor *themeGroupEndColor;
+@property (nonatomic, retain) NSColor *themeChannelStartColor;
+@property (nonatomic, retain) NSColor *themeChannelEndColor;
+@property (nonatomic, assign) CGFloat themeAlpha;
 
 // Catch-up detection methods
 - (NSString *)constructLiveStreamsApiUrl;
@@ -193,5 +235,38 @@ extern int totalProgramCount;
 - (void)clearCachedTimeshiftChannel;
 - (void)clearCachedTimeshiftProgramInfo;
 - (void)clearFrozenTimeValues;
+
+// Theme system methods
+//- (void)initializeThemeSystem;
+- (void)applyTheme:(VLCColorTheme)theme;
+- (void)setTransparencyLevel:(VLCTransparencyLevel)level;
+- (void)updateThemeColors;
+- (void)saveThemeSettings;
+- (void)loadThemeSettings;
+- (CGFloat)alphaForTransparencyLevel:(VLCTransparencyLevel)level;
+
+// Internal utility methods
+- (NSArray *)safeGroupsForCategory:(NSString *)category;
+- (NSArray *)safeTVGroups;
+- (NSArray *)safeValueForKey:(NSString *)key fromDictionary:(NSDictionary *)dict;
+- (NSString *)channelCacheFilePath:(NSString *)sourcePath;
+- (NSString *)epgCacheFilePath;
+- (void)ensureFavoritesCategory;
+- (void)ensureSettingsGroups;
+- (void)prepareSimpleChannelLists;
+- (void)markUserInteraction;
+- (void)scheduleInteractionCheck;
+- (BOOL)safeAddGroupToCategory:(NSString *)group category:(NSString *)category;
+- (void)startProgressRedrawTimer;
+- (void)stopProgressRedrawTimer;
+- (void)setupTrackingArea;
+- (void)ensureCursorVisible;
+- (void)refreshCurrentEPGInfo;
+
+// Hover state
+@property (nonatomic, assign) NSInteger hoveredCategoryIndex;
+@property (nonatomic, assign) NSInteger hoveredGroupIndex;
+@property (nonatomic, assign) BOOL isPendingMovieInfoFetch;
+@property (nonatomic, assign) BOOL isHoveringMovieInfoPanel;
 
 @end 

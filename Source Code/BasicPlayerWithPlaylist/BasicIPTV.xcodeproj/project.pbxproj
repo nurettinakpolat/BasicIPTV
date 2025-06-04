@@ -11,6 +11,8 @@
 		8D11072B0486CEB800E47090 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C165CFE840E0CC02AAC07 /* InfoPlist.strings */; };
 		8D11072D0486CEB800E47090 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 29B97316FDCFA39411CA2CEA /* main.m */; settings = {ATTRIBUTES = (); }; };
 		8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */; };
+		CF5EDBC92DEDC0AB00C14C04 /* VLCOverlayView+Theming.m in Sources */ = {isa = PBXBuildFile; fileRef = CF5EDBC82DEDC0AB00C14C04 /* VLCOverlayView+Theming.m */; };
+		CF5EDBD22DEE01D700C14C04 /* VLCSliderControl.m in Sources */ = {isa = PBXBuildFile; fileRef = CF5EDBD12DEE01D700C14C04 /* VLCSliderControl.m */; };
 		CF87D27B2DEC3A8900D27E30 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = CF87D27A2DEC3A8900D27E30 /* main.m */; };
 		CFA399A32DDB740A007E36FA /* VLCProgram.m in Sources */ = {isa = PBXBuildFile; fileRef = CFA399A22DDB740A007E36FA /* VLCProgram.m */; };
 		CFA399AA2DDB7424007E36FA /* VLCOverlayView+Utilities.m in Sources */ = {isa = PBXBuildFile; fileRef = CFA399A82DDB7424007E36FA /* VLCOverlayView+Utilities.m */; };
@@ -57,6 +59,10 @@
 		29B97325FDCFA39411CA2CEA /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = /System/Library/Frameworks/Foundation.framework; sourceTree = "<absolute>"; };
 		32CA4F630368D1EE00C91783 /* test_Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = test_Prefix.pch; sourceTree = "<group>"; };
 		8D1107310486CEB800E47090 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		CF5EDBC72DEDC0AB00C14C04 /* VLCOverlayView+Theming.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+Theming.h"; sourceTree = "<group>"; };
+		CF5EDBC82DEDC0AB00C14C04 /* VLCOverlayView+Theming.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+Theming.m"; sourceTree = "<group>"; };
+		CF5EDBD02DEE01D700C14C04 /* VLCSliderControl.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VLCSliderControl.h; sourceTree = "<group>"; };
+		CF5EDBD12DEE01D700C14C04 /* VLCSliderControl.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VLCSliderControl.m; sourceTree = "<group>"; };
 		CF87D27A2DEC3A8900D27E30 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		CFA3999A2DD46F3D007E36FA /* BasicIPTV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BasicIPTV.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CFA3999B2DDB740A007E36FA /* VLCOverlayView+Caching.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+Caching.h"; sourceTree = "<group>"; };
@@ -115,6 +121,10 @@
 		080E96DDFE201D6D7F000001 /* Classes */ = {
 			isa = PBXGroup;
 			children = (
+				CF5EDBD02DEE01D700C14C04 /* VLCSliderControl.h */,
+				CF5EDBD12DEE01D700C14C04 /* VLCSliderControl.m */,
+				CF5EDBC72DEDC0AB00C14C04 /* VLCOverlayView+Theming.h */,
+				CF5EDBC82DEDC0AB00C14C04 /* VLCOverlayView+Theming.m */,
 				CF87D27A2DEC3A8900D27E30 /* main.m */,
 				CFA399DD2DE68DCE007E36FA /* VLCClickableLabel.h */,
 				CFA399DE2DE68DCE007E36FA /* VLCClickableLabel.m */,
@@ -287,6 +297,8 @@
 			files = (
 				CFA399AA2DDB7424007E36FA /* VLCOverlayView+Utilities.m in Sources */,
 				CFA399AB2DDB7424007E36FA /* VLCChannel.m in Sources */,
+				CF5EDBD22DEE01D700C14C04 /* VLCSliderControl.m in Sources */,
+				CF5EDBC92DEDC0AB00C14C04 /* VLCOverlayView+Theming.m in Sources */,
 				CFA399D32DE00228007E36FA /* VLCOverlayView+PlayerControls.m in Sources */,
 				CFA399DC2DE2897C007E36FA /* VLCSubtitleSettings.m in Sources */,
 				CFA399A32DDB740A007E36FA /* VLCProgram.m in Sources */,

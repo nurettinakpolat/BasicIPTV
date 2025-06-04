@@ -1038,7 +1038,9 @@ static char tempEarlyPlaybackChannelKey;
         // with a short delay to let the UI update first
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), 
                       dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-            [self preloadAllMovieInfoAndCovers];
+            // DISABLED: Don't preload all movie info - only load for visible items
+            // [self preloadAllMovieInfoAndCovers];
+            NSLog(@"📱 Movie info loading optimized: Will load only for visible items on demand");
         });
     });
 }
@@ -1678,22 +1680,77 @@ static char tempEarlyPlaybackChannelKey;
     
     NSLog(@"Fetching movie info from: %@", apiUrl);
     
-    // Create the URL request
+    // Create the URL request with more robust timeout handling
     NSURL *url = [NSURL URLWithString:apiUrl];
-    NSURLRequest *request = [NSURLRequest requestWithURL:url 
-                                             cachePolicy:NSURLRequestUseProtocolCachePolicy 
-                                         timeoutInterval:10.0];
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url 
+                                                           cachePolicy:NSURLRequestReloadIgnoringLocalCacheData 
+                                                       timeoutInterval:15.0]; // Increased timeout
+    
+    // Set user agent to avoid potential blocking
+    [request setValue:@"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36" forHTTPHeaderField:@"User-Agent"];
     
     // Create and begin an asynchronous data task
     NSURLSession *session = [NSURLSession sharedSession];
     NSURLSessionDataTask *dataTask = [session dataTaskWithRequest:request 
                                                completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         if (error || !data) {
-            NSLog(@"Error fetching movie info for %@: %@", channel.name, error);
+            // Categorize the error for better handling
+            BOOL isNetworkError = NO;
+            BOOL shouldRetry = NO;
+            NSString *errorCategory = @"Unknown";
             
-            // Even on error, mark that we completed the fetch attempt so we don't keep retrying
+            if (error) {
+                NSInteger errorCode = [error code];
+                switch (errorCode) {
+                    case NSURLErrorTimedOut:
+                        errorCategory = @"Timeout";
+                        shouldRetry = YES;
+                        isNetworkError = YES;
+                        break;
+                    case NSURLErrorNetworkConnectionLost:
+                    case NSURLErrorNotConnectedToInternet:
+                        errorCategory = @"Network Connection Lost";
+                        shouldRetry = YES;
+                        isNetworkError = YES;
+                        break;
+                    case NSURLErrorCannotConnectToHost:
+                    case NSURLErrorCannotFindHost:
+                        errorCategory = @"Cannot Connect to Server";
+                        shouldRetry = YES;
+                        isNetworkError = YES;
+                        break;
+                    case NSURLErrorHTTPTooManyRedirects:
+                        errorCategory = @"Too Many Redirects";
+                        shouldRetry = NO;
+                        break;
+                    case NSURLErrorBadURL:
+                        errorCategory = @"Invalid URL";
+                        shouldRetry = NO;
+                        break;
+                    default:
+                        errorCategory = [NSString stringWithFormat:@"Network Error %ld", (long)errorCode];
+                        shouldRetry = (errorCode >= -1099 && errorCode <= -1000); // Most network errors
+                        isNetworkError = YES;
+                        break;
+                }
+            }
+            
+            NSLog(@"🔴 Movie info fetch failed for '%@' - %@: %@", 
+                  channel.name, errorCategory, error.localizedDescription);
+            
             dispatch_async(dispatch_get_main_queue(), ^{
-                channel.hasStartedFetchingMovieInfo = NO; // Reset so we can try again later
+                // Always reset the fetching flag to allow retry
+                channel.hasStartedFetchingMovieInfo = NO;
+                
+                // For network errors, we'll allow automatic retry later
+                // For other errors (like bad URL), we won't retry automatically
+                if (isNetworkError && shouldRetry) {
+                    // Don't mark as loaded, allowing the system to retry later
+                    NSLog(@"📡 Network error for '%@' - will retry automatically later", channel.name);
+                } else {
+                    NSLog(@"❌ Permanent error for '%@' - manual retry required", channel.name);
+                }
+                
                 // Trigger UI update
                 [self setNeedsDisplay:YES];
             });
@@ -1701,7 +1758,22 @@ static char tempEarlyPlaybackChannelKey;
             return;
         }
         
-        NSLog(@"Received movie data (%lu bytes)", (unsigned long)[data length]);
+        NSLog(@"📥 Received movie data for '%@' (%lu bytes)", channel.name, (unsigned long)[data length]);
+        
+        // Validate HTTP response code
+        if ([response isKindOfClass:[NSHTTPURLResponse class]]) {
+            NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
+            NSInteger statusCode = [httpResponse statusCode];
+            
+            if (statusCode < 200 || statusCode >= 300) {
+                NSLog(@"🔴 HTTP error %ld for movie info fetch: %@", (long)statusCode, channel.name);
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    channel.hasStartedFetchingMovieInfo = NO; // Reset for retry
+                    [self setNeedsDisplay:YES];
+                });
+                return;
+            }
+        }
         
         // Parse the JSON response
         NSError *jsonError = nil;
@@ -1710,8 +1782,8 @@ static char tempEarlyPlaybackChannelKey;
                                                                       error:&jsonError];
         
         if (jsonError || !jsonResponse) {
-            NSLog(@"Error parsing movie info JSON for %@: %@", channel.name, jsonError);
-            // Reset fetch status on error
+            NSLog(@"🔴 JSON parsing error for '%@': %@", channel.name, jsonError.localizedDescription);
+            // Reset fetch status on JSON error
             dispatch_async(dispatch_get_main_queue(), ^{
                 channel.hasStartedFetchingMovieInfo = NO; // Reset so we can try again later
                 [self setNeedsDisplay:YES];
@@ -1722,12 +1794,16 @@ static char tempEarlyPlaybackChannelKey;
         // Extract info from response
         NSDictionary *info = [jsonResponse objectForKey:@"info"];
         if (!info || ![info isKindOfClass:[NSDictionary class]]) {
-            NSLog(@"Invalid movie info response format for %@", channel.name);
+            NSLog(@"🔴 Invalid movie info response format for '%@' - no 'info' object", channel.name);
             
-            // Print the response for debugging
-            NSLog(@"Response received: %@", jsonResponse);
+            // Print the response for debugging (first 500 chars only to avoid spam)
+            NSString *responseStr = [jsonResponse description];
+            if (responseStr.length > 500) {
+                responseStr = [[responseStr substringToIndex:500] stringByAppendingString:@"..."];
+            }
+            NSLog(@"📋 Response received for '%@': %@", channel.name, responseStr);
             
-            // Reset fetch status on error
+            // Reset fetch status on format error
             dispatch_async(dispatch_get_main_queue(), ^{
                 channel.hasStartedFetchingMovieInfo = NO; // Reset so we can try again later
                 [self setNeedsDisplay:YES];

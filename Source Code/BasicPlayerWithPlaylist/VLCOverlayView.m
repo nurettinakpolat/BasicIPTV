@@ -19,6 +19,7 @@
 #import "VLCOverlayView+Favorites.h"
 #import "VLCOverlayView+Caching.h"
 #import "VLCOverlayView+PlayerControls.h"
+#import "VLCOverlayView+Theming.h"
 
 
 // Implementation of global progress message
@@ -111,6 +112,15 @@ NSLock *gProgressMessageLock = nil;
         // Initialize threading resources
         serialAccessQueue = dispatch_queue_create("com.vlckit.overlayview.serialqueue", NULL);
         
+        // Initialize search resources
+        self.searchQueue = dispatch_queue_create("com.vlc.search", DISPATCH_QUEUE_SERIAL);
+        self.searchResults = [NSMutableArray array];
+        self.searchChannelResults = [NSMutableArray array];
+        self.searchMovieResults = [NSMutableArray array];
+        self.isSearchActive = NO;
+        self.searchChannelScrollPosition = 0;
+        self.searchMovieScrollPosition = 0;
+        
         // Initialize input state
         self.inputUrlString = @"";
         
@@ -123,6 +133,15 @@ NSLock *gProgressMessageLock = nil;
         // Initialize new UI components
         self.m3uTextField = nil; // Will be created when needed
         self.epgLabel = nil; // Will be created when needed
+        
+        // Initialize theme system
+        // TEMPORARILY DISABLED due to infinite recursion
+       [self initializeThemeSystem];
+        
+        // Load view mode preferences (must be after UI initialization)
+        if ([self respondsToSelector:@selector(loadViewModePreference)]) {
+            [self loadViewModePreference];
+        }
         
         // Initialize player controls if available
         if ([self respondsToSelector:@selector(setupPlayerControls)]) {
@@ -197,6 +216,17 @@ NSLock *gProgressMessageLock = nil;
         movieInfoHoverTimer = nil;
     }
     
+    // Invalidate performance optimization timers
+    if (movieInfoDebounceTimer) {
+        [movieInfoDebounceTimer invalidate];
+        movieInfoDebounceTimer = nil;
+    }
+    
+    if (displayUpdateTimer) {
+        [displayUpdateTimer invalidate];
+        displayUpdateTimer = nil;
+    }
+    
     // Release retained objects
     [channelsLock release];
     [epgDataLock release];
@@ -229,6 +259,18 @@ NSLock *gProgressMessageLock = nil;
     // Release new UI components
     self.m3uTextField = nil;
     self.epgLabel = nil;
+    
+    // Release search components
+    if (self.searchTimer) {
+        [self.searchTimer invalidate];
+        self.searchTimer = nil;
+    }
+    self.searchTextField = nil;
+    self.searchResults = nil;
+    if (self.searchQueue) {
+        dispatch_release(self.searchQueue);
+        self.searchQueue = nil;
+    }
     
     // Release tracking area
     if (trackingArea) {
@@ -479,6 +521,10 @@ NSLock *gProgressMessageLock = nil;
     self.selectedCategoryIndex = categoryIndex;
     self.selectedGroupIndex = -1;
     self.selectedChannelIndex = -1;
+    
+    // Update UI components visibility based on new category
+    [self updateUIComponentsVisibility];
+    
     [self updateViewBasedOnSelection];
 }
 

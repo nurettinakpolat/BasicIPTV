@@ -113,6 +113,11 @@
             // Add the options to the channelsByGroup
             [self.channelsByGroup setObject:movieInfoOptions forKey:@"Movie Info"];
         }
+
+        // Add Themes settings group
+        if (![settingsGroups containsObject:@"Themes"]) {
+            [settingsGroups addObject:@"Themes"];
+        }
     }
 }
 
@@ -163,7 +168,7 @@
                 [existingSettingsGroups release]; // Release our copy
             }
             
-            self.categories = @[@"FAVORITES", @"TV", @"MOVIES", @"SERIES", @"SETTINGS"];
+            self.categories = @[@"SEARCH", @"FAVORITES", @"TV", @"MOVIES", @"SERIES", @"SETTINGS"];
             
             // Initialize empty arrays for categories (only if not already set)
             for (NSString *category in self.categories) {
@@ -199,8 +204,8 @@
             self.groups = [NSMutableArray array];
             self.channelsByGroup = [NSMutableDictionary dictionary];
             self.groupsByCategory = [NSMutableDictionary dictionary];
-            self.categories = @[@"FAVORITES", @"TV", @"MOVIES", @"SERIES", @"SETTINGS"];
-            self.selectedCategoryIndex = 0;
+            self.categories = @[@"SEARCH", @"FAVORITES", @"TV", @"MOVIES", @"SERIES", @"SETTINGS"];
+            self.selectedCategoryIndex = CATEGORY_FAVORITES;
             self.selectedGroupIndex = -1;
             self.simpleChannelNames = [NSArray array];
             self.simpleChannelUrls = [NSArray array];

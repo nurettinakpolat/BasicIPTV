@@ -312,7 +312,7 @@
         
         // Make sure we have the categories array
         if (!self.categories || [self.categories count] == 0) {
-            self.categories = @[@"FAVORITES", @"TV", @"MOVIES", @"SERIES", @"SETTINGS"];
+            self.categories = @[@"SEARCH", @"FAVORITES", @"TV", @"MOVIES", @"SERIES", @"SETTINGS"];
         }
         
         // Initialize empty arrays for all categories except SETTINGS (which is preserved)
@@ -564,17 +564,46 @@
         return;
     }
     
-    // Create a thread-safe copy of the EPG data on the main thread
+    // Create a thread-safe copy of the EPG data on the main thread with better error handling
     __block NSDictionary *epgDataCopy = nil;
     
-    // If we're already on the main thread, copy directly
+    // Always copy on the main thread to ensure thread safety
     if ([NSThread isMainThread]) {
-        epgDataCopy = [[NSDictionary alloc] initWithDictionary:self.epgData copyItems:YES];
+        @try {
+            // Use synchronized access to prevent corruption during copy
+            @synchronized(self.epgData) {
+                if (self.epgData && [self.epgData isKindOfClass:[NSDictionary class]]) {
+                    epgDataCopy = [[NSDictionary alloc] initWithDictionary:self.epgData copyItems:YES];
+                } else {
+                    NSLog(@"ERROR: self.epgData is not a valid NSDictionary: %@", [self.epgData class]);
+                    return;
+                }
+            }
+        } @catch (NSException *exception) {
+            NSLog(@"ERROR: Exception while copying EPG data: %@", exception);
+            return;
+        }
     } else {
         // If we're on a background thread, dispatch to main thread to copy safely
         dispatch_sync(dispatch_get_main_queue(), ^{
-            epgDataCopy = [[NSDictionary alloc] initWithDictionary:self.epgData copyItems:YES];
+            @try {
+                @synchronized(self.epgData) {
+                    if (self.epgData && [self.epgData isKindOfClass:[NSDictionary class]]) {
+                        epgDataCopy = [[NSDictionary alloc] initWithDictionary:self.epgData copyItems:YES];
+                    } else {
+                        NSLog(@"ERROR: self.epgData is not a valid NSDictionary: %@", [self.epgData class]);
+                    }
+                }
+            } @catch (NSException *exception) {
+                NSLog(@"ERROR: Exception while copying EPG data: %@", exception);
+            }
         });
+    }
+    
+    // Validate the copy before proceeding
+    if (!epgDataCopy || ![epgDataCopy isKindOfClass:[NSDictionary class]]) {
+        NSLog(@"ERROR: Failed to create valid EPG data copy");
+        return;
     }
     
     // Update UI to show we're saving
@@ -608,7 +637,13 @@
         // Count total programs for progress tracking using our safe copy
         NSInteger totalPrograms = 0;
         for (NSString *channelId in [epgDataCopy allKeys]) {
-            totalPrograms += [[epgDataCopy objectForKey:channelId] count];
+            id channelPrograms = [epgDataCopy objectForKey:channelId];
+            // SAFETY CHECK: Ensure the object is actually an NSArray before calling count
+            if ([channelPrograms isKindOfClass:[NSArray class]]) {
+                totalPrograms += [(NSArray *)channelPrograms count];
+            } else {
+                NSLog(@"WARNING: Invalid object type for channel %@: %@", channelId, [channelPrograms class]);
+            }
         }
         
         NSLog(@"Preparing EPG cache data with %ld programs across %lu channels", 
@@ -620,10 +655,25 @@
         NSTimeInterval lastUpdateTime = [NSDate timeIntervalSinceReferenceDate];
         
         for (NSString *channelId in [epgDataCopy allKeys]) {
-            NSArray *programs = [epgDataCopy objectForKey:channelId];
+            id programsObject = [epgDataCopy objectForKey:channelId];
+            
+            // SAFETY CHECK: Ensure the object is actually an NSArray before processing
+            if (![programsObject isKindOfClass:[NSArray class]]) {
+                NSLog(@"WARNING: Skipping invalid programs object for channel %@: %@", channelId, [programsObject class]);
+                continue;
+            }
+            
+            NSArray *programs = (NSArray *)programsObject;
             NSMutableArray *programDicts = [NSMutableArray array];
             
-            for (VLCProgram *program in programs) {
+            for (id programObject in programs) {
+                // SAFETY CHECK: Ensure each program is actually a VLCProgram before processing
+                if (![programObject isKindOfClass:[VLCProgram class]]) {
+                    NSLog(@"WARNING: Skipping invalid program object in channel %@: %@", channelId, [programObject class]);
+                    continue;
+                }
+                
+                VLCProgram *program = (VLCProgram *)programObject;
                 NSMutableDictionary *programDict = [NSMutableDictionary dictionary];
                 
                 if (program.title) [programDict setObject:program.title forKey:@"title"];
