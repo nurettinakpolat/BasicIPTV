@@ -22,9 +22,8 @@ VLCKit 4.0: https://download.videolan.org/cocoapods/unstable/VLCKit-4.0.0a10-d96
 
 ## 🚀 Getting Started
 
-Keyboard:
-G: Gridview 
-L: ListView
+Keyboard 'V':
+cycle Gridview | StackView | ListView 
 
 ### Prerequisites
 - macOS 10.15 or later
@@ -32,16 +31,9 @@ L: ListView
 - VLCKit framework (included)
 
 
-## 🎯 Key Components
-
-- **EPG Time Offset**: Adjust EPG display times for different time zones
-- **Cache Management**: Configure caching behavior for logos and posters
-- **Playback Settings**: Configure buffering, quality preferences, and audio/subtitle defaults
-
-
 ## 📄 License
 
-use it, don't sell it, must be always free.
+use it, don't sell it, must be free.
 
 ## 🙏 Acknowledgments
 
