@@ -46,6 +46,14 @@ int main(int argc, const char * argv[]) {
             [NSApplication sharedApplication];
             [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
             
+            // Disable automatic window restoration to prevent restoration warnings
+            [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"NSQuitAlwaysKeepsWindows"];
+            
+            // Set environment variables to suppress FFmpeg/VLC debug output
+            setenv("VLC_VERBOSE", "-1", 1);
+            setenv("AVUTIL_LOGLEVEL", "quiet", 1);
+            setenv("AV_LOG_FORCE_NOCOLOR", "1", 1);
+            
             // Create app delegate
             AppDelegate *appDelegate = [[AppDelegate alloc] init];
             
@@ -62,12 +70,19 @@ int main(int argc, const char * argv[]) {
             NSRect bounds = [contentView bounds];
             
             // Configure VLC logging BEFORE creating any VLC objects
-            VLCLibrary *vlcLibrary = [VLCLibrary sharedLibrary];
+            // Create VLC instance with minimal safe arguments to suppress debug output
+            NSArray *vlcArguments = @[
+                @"--intf=dummy",           // Use dummy interface
+                @"--verbose=-1",          // Minimum verbosity
+                @"--quiet"                // Suppress output
+            ];
             
-            // Try to completely disable VLC logging by setting an empty loggers array
-            vlcLibrary.loggers = @[];
+            VLCLibrary *vlcLibrary = [[VLCLibrary alloc] initWithOptions:vlcArguments];
             
-            //NSLog(@"VLC logging disabled by setting empty loggers array");
+            // Disable VLC logging while preserving NSLog output
+            vlcLibrary.loggers = @[];  // Remove all VLC loggers
+            
+            NSLog(@"VLC logging disabled with command line arguments - NSLog still works!");
             
             // Create the video view for VLC
             VLCGLVideoView *videoView = [[VLCGLVideoView alloc] initWithFrame:bounds];
@@ -113,21 +128,10 @@ int main(int argc, const char * argv[]) {
                 // Set visibility
                 overlayView.isChannelListVisible = NO; // Don't show channel list
                 [overlayView setNeedsDisplay:YES];
-                //NSLog(@"Added simple overlay view");
                 
                 // Load channels and settings (including EPG) FIRST - before early playback
-                //NSLog(@"Starting loading of channels and EPG...");
                 [overlayView loadChannelsFile];
                 [overlayView startEarlyPlaybackIfAvailable];
-                // START EARLY PLAYBACK AFTER CHANNELS ARE LOADED
-                /*dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                    NSLog(@"Starting early playback check after channels loaded...");
-                    if ([overlayView respondsToSelector:@selector(startEarlyPlaybackIfAvailable)]) {
-                        [overlayView startEarlyPlaybackIfAvailable];
-                    } else {
-                        NSLog(@"Early playback method not available");
-                    }
-                });*/
                  
                 
                 // After more time, try to sync the selection with what's currently playing
@@ -135,14 +139,12 @@ int main(int argc, const char * argv[]) {
                     // Try to sync the selection with what's currently playing
                     NSString *lastChannelUrl = [overlayView getLastPlayedChannelUrl];
                     if (lastChannelUrl && [lastChannelUrl length] > 0) {
-                        //NSLog(@"Syncing selection with currently playing content: %@", lastChannelUrl);
                         
                         // Try to find and select the currently playing channel in the UI
                         if (overlayView.simpleChannelUrls) {
                             NSInteger urlIndex = [overlayView.simpleChannelUrls indexOfObject:lastChannelUrl];
                             if (urlIndex != NSNotFound) {
                                 overlayView.selectedChannelIndex = urlIndex;
-                                //NSLog(@"Synced selection to channel index: %ld", (long)urlIndex);
                                 [overlayView setNeedsDisplay:YES];
                                 
                                 // Clear the temporary cached channel since we now have real data

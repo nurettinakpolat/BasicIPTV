@@ -192,7 +192,7 @@ static VLCDropdownManager *sharedInstance = nil;
     //NSLog(@"VLCDropdownManager showDropdown called for '%@'", identifier);
     VLCDropdown *dropdown = [self.activeDropdowns objectForKey:identifier];
     if (dropdown) {
-        NSLog(@"Found dropdown, setting isOpen to YES");
+        //NSLog(@"Found dropdown, setting isOpen to YES");
         dropdown.isOpen = YES;
         
         // Scroll to selected item if there is one

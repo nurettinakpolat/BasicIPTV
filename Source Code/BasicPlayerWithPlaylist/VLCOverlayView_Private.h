@@ -41,9 +41,9 @@ typedef NS_ENUM(NSInteger, VLCTransparencyLevel) {
 // For debugging - add this helper function 
 static void LogObjectType(NSString *label, id obj) {
     if (obj == nil) {
-        NSLog(@"%@: nil", label);
+        //NSLog(@"%@: nil", label);
     } else {
-        NSLog(@"%@: %@ (%@)", label, [obj class], obj);
+        //NSLog(@"%@: %@ (%@)", label, [obj class], obj);
     }
 }
 

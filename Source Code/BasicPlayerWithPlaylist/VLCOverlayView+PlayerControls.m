@@ -476,20 +476,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
                         // Get current program for this channel based on current time
                         if (currentChannel.programs && currentChannel.programs.count > 0) {
                             currentProgram = [currentChannel currentProgramWithTimeOffset:self.epgTimeOffsetHours];
-                            /*
-                            // Enhanced debug logging to understand program selection
-                            if (currentProgram) {
-                                NSLog(@"🎯 DIRECT EPG: Found current program: %@ (%@ - %@)", 
-                                      currentProgram.title, currentProgram.startTime, currentProgram.endTime);
-                                NSLog(@"🎯 DIRECT EPG: Channel: %@, Programs count: %ld", 
-                                      currentChannel.name, (long)currentChannel.programs.count);
-                                NSLog(@"🎯 DIRECT EPG: Using EPG offset: %ld hours", (long)self.epgTimeOffsetHours);
-                            } else {
-                                NSLog(@"🎯 DIRECT EPG: No current program found for channel: %@", currentChannel.name);
-                                NSLog(@"🎯 DIRECT EPG: Channel has %ld programs, EPG offset: %ld hours", 
-                                      (long)currentChannel.programs.count, (long)self.epgTimeOffsetHours);
-                            }
-                            */
+                            
                         } else {
                             //NSLog(@"🎯 DIRECT EPG: Channel %@ has no EPG programs loaded", 
                             //      currentChannel.name ? currentChannel.name : @"nil");
@@ -1602,37 +1589,37 @@ static NSTimeInterval lastMouseMoveTime = 0;
 
 // Method to handle clicks on the player controls
 - (BOOL)handlePlayerControlsClickAtPoint:(NSPoint)point {
-    NSLog(@"handlePlayerControlsClickAtPoint called with point: (%.1f, %.1f)", point.x, point.y);
+    //NSLog(@"handlePlayerControlsClickAtPoint called with point: (%.1f, %.1f)", point.x, point.y);
     
     // FIRST: Check if any dropdown is open and would handle this click
     // This prevents clicks from falling through to the progress bar
     if (self.dropdownManager && [self.dropdownManager isPointInAnyDropdown:point]) {
-        NSLog(@"Click blocked by dropdown - not processing player controls");
+        //NSLog(@"Click blocked by dropdown - not processing player controls");
         // Let the dropdown manager handle it in the main mouseDown method
         return NO; // Return NO so the main mouseDown continues to process it
     }
     
     // Only process clicks if player controls are visible
     if (!playerControlsVisible || !self.player) {
-        NSLog(@"Controls not visible (%@) or no player (%@)", 
-              playerControlsVisible ? @"YES" : @"NO", 
-              self.player ? @"YES" : @"NO");
+        //NSLog(@"Controls not visible (%@) or no player (%@)", 
+        //      playerControlsVisible ? @"YES" : @"NO", 
+        //      self.player ? @"YES" : @"NO");
         return NO;
     }
     
     // First check if the click is within the overall player controls area
     if (!NSPointInRect(point, self.playerControlsRect)) {
-        NSLog(@"Click outside player controls rect: %@", NSStringFromRect(self.playerControlsRect));
+        //NSLog(@"Click outside player controls rect: %@", NSStringFromRect(self.playerControlsRect));
         return NO;
     }
     
-    NSLog(@"Click is within player controls area");
-    NSLog(@"Subtitle button rect: %@", NSStringFromRect(self.subtitlesButtonRect));
-    NSLog(@"Audio button rect: %@", NSStringFromRect(self.audioButtonRect));
+    //NSLog(@"Click is within player controls area");
+    //NSLog(@"Subtitle button rect: %@", NSStringFromRect(self.subtitlesButtonRect));
+    //NSLog(@"Audio button rect: %@", NSStringFromRect(self.audioButtonRect));
     
     // Check if click is on subtitle button FIRST (before other checks)
     if (NSPointInRect(point, self.subtitlesButtonRect)) {
-        NSLog(@"SUBTITLE BUTTON CLICKED!");
+        //NSLog(@"SUBTITLE BUTTON CLICKED!");
         [self showSubtitleDropdown];
         [self resetPlayerControlsTimer]; // Keep controls visible
         return YES; // Don't toggle controls
@@ -1640,7 +1627,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
     
     // Check if click is on audio button FIRST (before other checks)
     if (NSPointInRect(point, self.audioButtonRect)) {
-        NSLog(@"AUDIO BUTTON CLICKED!");
+        //NSLog(@"AUDIO BUTTON CLICKED!");
         [self showAudioDropdown];
         [self resetPlayerControlsTimer]; // Keep controls visible
         return YES; // Don't toggle controls
@@ -1655,14 +1642,14 @@ static NSTimeInterval lastMouseMoveTime = 0;
         CGFloat relativePosition = relativeX / self.progressBarRect.size.width;
         relativePosition = MIN(1.0, MAX(0.0, relativePosition)); // Clamp between 0 and 1
         
-        NSLog(@"DEBUG CLICK: Progress bar clicked at relativePosition=%.3f", relativePosition);
+        //NSLog(@"DEBUG CLICK: Progress bar clicked at relativePosition=%.3f", relativePosition);
         
         // Check if we're playing timeshift content
         BOOL isTimeshiftPlaying = [self isCurrentlyPlayingTimeshift];
-        NSLog(@"DEBUG CLICK: isTimeshiftPlaying=%@", isTimeshiftPlaying ? @"YES" : @"NO");
+        //NSLog(@"DEBUG CLICK: isTimeshiftPlaying=%@", isTimeshiftPlaying ? @"YES" : @"NO");
         
         if (isTimeshiftPlaying) {
-            NSLog(@"DEBUG CLICK: Calling handleTimeshiftSeek with relativePosition=%.3f", relativePosition);
+            //NSLog(@"DEBUG CLICK: Calling handleTimeshiftSeek with relativePosition=%.3f", relativePosition);
             // Handle timeshift seeking
             [self handleTimeshiftSeek:relativePosition];
         } else {
@@ -1833,12 +1820,12 @@ static NSTimeInterval lastMouseMoveTime = 0;
 #pragma mark - Setup Methods
 
 - (void)setupPlayerControls {
-    NSLog(@"Setting up player controls");
+    //NSLog(@"Setting up player controls");
     
     // Initialize player controls visibility
     playerControlsVisible = NO;
     
-    NSLog(@"Player controls setup complete");
+    //NSLog(@"Player controls setup complete");
 }
 
 // Start the refresh timer to update controls while visible
@@ -1888,7 +1875,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
     // this means we just switched from timeshift to live (e.g., on startup), so clear the cached data
     VLCChannel *cachedTimeshiftChannel = [self getCachedTimeshiftChannel];
     if (!isActuallyTimeshift && cachedTimeshiftChannel) {
-        NSLog(@"🔄 TRANSITION DETECTION: Playing live content but have cached timeshift data - clearing cache");
+        //NSLog(@"🔄 TRANSITION DETECTION: Playing live content but have cached timeshift data - clearing cache");
         [self clearCachedTimeshiftChannel];
         [self clearCachedTimeshiftProgramInfo];
         [self clearFrozenTimeValues];
@@ -2061,8 +2048,8 @@ static NSTimeInterval lastMouseMoveTime = 0;
                 
                 // Only log once per program to avoid spam
                 if (![notifiedPrograms containsObject:programKey]) {
-                    NSLog(@"RUNTIME CATCH-UP: Program '%@' on '%@' is now available for catch-up (ended %.1f minutes ago)", 
-                          program.title, channel.name, timeSinceEnd / 60.0);
+                    //NSLog(@"RUNTIME CATCH-UP: Program '%@' on '%@' is now available for catch-up (ended %.1f minutes ago)", 
+                    //      program.title, channel.name, timeSinceEnd / 60.0);
                     [notifiedPrograms addObject:programKey];
                 }
             }
@@ -2076,8 +2063,8 @@ static NSTimeInterval lastMouseMoveTime = 0;
                                    channel.name, program.title, program.startTime];
             [notifiedPrograms removeObject:programKey];
             
-            NSLog(@"RUNTIME CATCH-UP: Program '%@' on '%@' is no longer available for catch-up (too old)", 
-                  program.title, channel.name);
+            //NSLog(@"RUNTIME CATCH-UP: Program '%@' on '%@' is no longer available for catch-up (too old)", 
+            //      program.title, channel.name);
         }
     }
     
@@ -2103,20 +2090,20 @@ static NSTimeInterval lastMouseMoveTime = 0;
 #pragma mark - Subtitle and Audio Track Methods
 
 - (void)showSubtitleDropdown {
-    NSLog(@"showSubtitleDropdown called!");
+    //NSLog(@"showSubtitleDropdown called!");
     
     if (!self.player) {
-        NSLog(@"No player - cannot show subtitle dropdown");
+        //NSLog(@"No player - cannot show subtitle dropdown");
         return;
     }
     
     // Ensure dropdown manager exists
     if (!self.dropdownManager) {
-        NSLog(@"No dropdown manager - cannot show subtitle dropdown");
+        //NSLog(@"No dropdown manager - cannot show subtitle dropdown");
         return;
     }
     
-    NSLog(@"Creating subtitle dropdown...");
+    //NSLog(@"Creating subtitle dropdown...");
     
     // Get available subtitle tracks (refresh from player)
     NSArray<VLCMediaPlayerTrack *> *textTracks = [self.player textTracks];
@@ -2128,19 +2115,19 @@ static NSTimeInterval lastMouseMoveTime = 0;
         }
     }
     
-    NSLog(@"=== SUBTITLE TRACKS DEBUG ===");
-    NSLog(@"Found %ld subtitle tracks:", (long)textTracks.count);
+    //NSLog(@"=== SUBTITLE TRACKS DEBUG ===");
+    //NSLog(@"Found %ld subtitle tracks:", (long)textTracks.count);
     for (NSInteger i = 0; i < textTracks.count; i++) {
         VLCMediaPlayerTrack *track = [textTracks objectAtIndex:i];
-        NSLog(@"  Track %ld: [%@] '%@'%@", i, track.trackId, track.trackName, track.selected ? @" (CURRENT)" : @"");
+        //NSLog(@"  Track %ld: [%@] '%@'%@", i, track.trackId, track.trackName, track.selected ? @" (CURRENT)" : @"");
     }
-    NSLog(@"Current subtitle track: %@", currentSubtitleTrack ? currentSubtitleTrack.trackName : @"None");
+    //NSLog(@"Current subtitle track: %@", currentSubtitleTrack ? currentSubtitleTrack.trackName : @"None");
     
     // Also check VLC's subtitle support
-    NSLog(@"VLC subtitle support - hasVideoOut: %@", [self.player hasVideoOut] ? @"YES" : @"NO");
-    NSLog(@"Media duration: %@", [self.player.media length]);
-    NSLog(@"Player state: %ld", (long)[self.player state]);
-    NSLog(@"==============================");
+    //  NSLog(@"VLC subtitle support - hasVideoOut: %@", [self.player hasVideoOut] ? @"YES" : @"NO");
+    //NSLog(@"Media duration: %@", [self.player.media length]);
+    //NSLog(@"Player state: %ld", (long)[self.player state]);
+    //NSLog(@"==============================");
     
     // Create dropdown with identifier using a wider frame
     NSString *identifier = @"subtitles";
@@ -2215,12 +2202,12 @@ static NSTimeInterval lastMouseMoveTime = 0;
     
     // Set selection callback
     dropdown.onSelectionChanged = ^(VLCDropdown *sender, VLCDropdownItem *selectedItem, NSInteger selectedIndex) {
-        NSLog(@"Subtitle track selected: %@", selectedItem.displayText);
+        //NSLog(@"Subtitle track selected: %@", selectedItem.displayText);
         
         if (selectedItem.value && [selectedItem.value isKindOfClass:[VLCMediaPlayerTrack class]]) {
             // Enable subtitles and set the track
             VLCMediaPlayerTrack *selectedTrack = (VLCMediaPlayerTrack *)selectedItem.value;
-            NSLog(@"Setting subtitle track to: %@ (ID: %@)", selectedTrack.trackName, selectedTrack.trackId);
+            //NSLog(@"Setting subtitle track to: %@ (ID: %@)", selectedTrack.trackName, selectedTrack.trackId);
             
             // First deselect all text tracks
             [self.player deselectAllTextTracks];
@@ -2231,10 +2218,10 @@ static NSTimeInterval lastMouseMoveTime = 0;
             // Force a redraw to update button state
             [self setNeedsDisplay:YES];
             
-            NSLog(@"Subtitle track set successfully");
+            //NSLog(@"Subtitle track set successfully");
         } else {
             // Disable subtitles (OFF selected)
-            NSLog(@"Disabling subtitles (OFF selected)");
+            //NSLog(@"Disabling subtitles (OFF selected)");
             
             // Deselect all text tracks
             [self.player deselectAllTextTracks];
@@ -2249,26 +2236,26 @@ static NSTimeInterval lastMouseMoveTime = 0;
     };
     
     // Show dropdown using the dropdown manager
-    NSLog(@"About to show subtitle dropdown with identifier: %@", identifier);
+    //NSLog(@"About to show subtitle dropdown with identifier: %@", identifier);
     [self.dropdownManager showDropdown:identifier];
-    NSLog(@"Subtitle dropdown show command completed");
+    //NSLog(@"Subtitle dropdown show command completed");
 }
 
 - (void)showAudioDropdown {
-    NSLog(@"showAudioDropdown called!");
+    //NSLog(@"showAudioDropdown called!");
     
     if (!self.player) {
-        NSLog(@"No player - cannot show audio dropdown");
+        //NSLog(@"No player - cannot show audio dropdown");
         return;
     }
     
     // Ensure dropdown manager exists
     if (!self.dropdownManager) {
-        NSLog(@"No dropdown manager - cannot show audio dropdown");
+        //NSLog(@"No dropdown manager - cannot show audio dropdown");
         return;
     }
     
-    NSLog(@"Creating audio dropdown...");
+    //NSLog(@"Creating audio dropdown...");
     
     // Get available audio tracks (refresh from player)
     NSArray<VLCMediaPlayerTrack *> *audioTracks = [self.player audioTracks];
@@ -2280,12 +2267,12 @@ static NSTimeInterval lastMouseMoveTime = 0;
         }
     }
     
-    NSLog(@"Found %ld audio tracks:", (long)audioTracks.count);
+    //NSLog(@"Found %ld audio tracks:", (long)audioTracks.count);
     for (NSInteger i = 0; i < audioTracks.count; i++) {
         VLCMediaPlayerTrack *track = [audioTracks objectAtIndex:i];
-        NSLog(@"  Track %ld: [%@] %@%@", i, track.trackId, track.trackName, track.selected ? @" (CURRENT)" : @"");
+        //NSLog(@"  Track %ld: [%@] %@%@", i, track.trackId, track.trackName, track.selected ? @" (CURRENT)" : @"");
     }
-    NSLog(@"Current audio track: %@", currentAudioTrack ? currentAudioTrack.trackName : @"None");
+    //NSLog(@"Current audio track: %@", currentAudioTrack ? currentAudioTrack.trackName : @"None");
     
     // Create dropdown with identifier using a wider frame
     NSString *identifier = @"audio";
@@ -2341,7 +2328,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
             trackToSelect = [audioTracks objectAtIndex:0];
             // Set the player to use the first track
             trackToSelect.selectedExclusively = YES;
-            NSLog(@"No audio track selected, defaulting to first track: %@", trackToSelect.trackName);
+            //NSLog(@"No audio track selected, defaulting to first track: %@", trackToSelect.trackName);
         }
         
         for (VLCMediaPlayerTrack *track in audioTracks) {
@@ -2357,12 +2344,12 @@ static NSTimeInterval lastMouseMoveTime = 0;
     
     // Set selection callback
     dropdown.onSelectionChanged = ^(VLCDropdown *sender, VLCDropdownItem *selectedItem, NSInteger selectedIndex) {
-        NSLog(@"Audio track selected: %@", selectedItem.displayText);
+        //NSLog(@"Audio track selected: %@", selectedItem.displayText);
         
         if (selectedItem.value && [selectedItem.value isKindOfClass:[VLCMediaPlayerTrack class]]) {
             // Set the audio track
             VLCMediaPlayerTrack *selectedTrack = (VLCMediaPlayerTrack *)selectedItem.value;
-            NSLog(@"Setting audio track to: %@ (ID: %@)", selectedTrack.trackName, selectedTrack.trackId);
+            //NSLog(@"Setting audio track to: %@ (ID: %@)", selectedTrack.trackName, selectedTrack.trackId);
             
             // Select the chosen track exclusively
             selectedTrack.selectedExclusively = YES;
@@ -2370,9 +2357,9 @@ static NSTimeInterval lastMouseMoveTime = 0;
             // Force a redraw to update button state
             [self setNeedsDisplay:YES];
             
-            NSLog(@"Audio track set successfully");
+            //NSLog(@"Audio track set successfully");
         } else {
-            NSLog(@"Invalid audio track selection");
+            //NSLog(@"Invalid audio track selection");
         }
     };
     
@@ -2381,9 +2368,9 @@ static NSTimeInterval lastMouseMoveTime = 0;
     };
     
     // Show dropdown using the dropdown manager
-    NSLog(@"About to show audio dropdown with identifier: %@", identifier);
+    //NSLog(@"About to show audio dropdown with identifier: %@", identifier);
     [self.dropdownManager showDropdown:identifier];
-    NSLog(@"Audio dropdown show command completed");
+    //NSLog(@"Audio dropdown show command completed");
 }
 
 #pragma mark - Catch-up Methods
@@ -2400,7 +2387,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
     // Extract server info from channel URL (not M3U URL)
     NSURL *channelURL = [NSURL URLWithString:channel.url];
     if (!channelURL) {
-        NSLog(@"Cannot generate catchup URL: invalid channel URL: %@", channel.url);
+        //NSLog(@"Cannot generate catchup URL: invalid channel URL: %@", channel.url);
         return nil;
     }
     
@@ -2450,14 +2437,14 @@ static NSTimeInterval lastMouseMoveTime = 0;
     }
     
     if (username.length == 0 || password.length == 0) {
-        NSLog(@"Cannot generate catchup URL: failed to extract username/password from channel URL: %@", channel.url);
+        //NSLog(@"Cannot generate catchup URL: failed to extract username/password from channel URL: %@", channel.url);
         return nil;
     }
     
     // Extract stream_id from channel URL
     NSString *streamId = [self extractStreamIdFromChannelUrl:channel.url];
     if (!streamId) {
-        NSLog(@"Cannot generate catchup URL: failed to extract stream ID from channel URL: %@", channel.url);
+        //NSLog(@"Cannot generate catchup URL: failed to extract stream ID from channel URL: %@", channel.url);
         return nil;
     }
     
@@ -2471,27 +2458,27 @@ static NSTimeInterval lastMouseMoveTime = 0;
     NSString *startTimeString = [formatter stringFromDate:program.startTime];
     [formatter release];
     
-    NSLog(@"Catchup URL generation: Using original program start time = %@", program.startTime);
+    //NSLog(@"Catchup URL generation: Using original program start time = %@", program.startTime);
     
     // Generate catchup URL using PHP-based format
     NSString *catchupUrl = [NSString stringWithFormat:@"%@/streaming/timeshift.php?username=%@&password=%@&stream=%@&start=%@&duration=%ld",
                            baseUrl, username, password, streamId, startTimeString, (long)durationMinutes];
     
-    NSLog(@"Generated catchup URL for program '%@': %@", program.title, catchupUrl);
+    //NSLog(@"Generated catchup URL for program '%@': %@", program.title, catchupUrl);
     return catchupUrl;
 }
 
 - (NSString *)generateChannelCatchupUrlForChannel:(VLCChannel *)channel timeOffset:(NSTimeInterval)timeOffset {
     if (!channel.supportsCatchup) {
-        NSLog(@"Channel '%@' does not support catch-up", channel.name);
+        //NSLog(@"Channel '%@' does not support catch-up", channel.name);
         return nil;
     }
     
     // Check if the time offset is within the supported range
     NSTimeInterval maxOffset = channel.catchupDays * 24 * 3600; // Convert days to seconds
     if (timeOffset > maxOffset) {
-        NSLog(@"Time offset %.0f seconds exceeds maximum catch-up period of %ld days for channel '%@'", 
-              timeOffset, (long)channel.catchupDays, channel.name);
+        //NSLog(@"Time offset %.0f seconds exceeds maximum catch-up period of %ld days for channel '%@'", 
+        //      timeOffset, (long)channel.catchupDays, channel.name);
         return nil;
     }
     
@@ -2520,7 +2507,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
         // Generate standard catch-up URL based on the channel's catch-up source type
         NSURL *channelURL = [NSURL URLWithString:channel.url];
         if (!channelURL) {
-            NSLog(@"Cannot generate catchup URL: invalid channel URL: %@", channel.url);
+            //NSLog(@"Cannot generate catchup URL: invalid channel URL: %@", channel.url);
             return nil;
         }
         
@@ -2570,14 +2557,14 @@ static NSTimeInterval lastMouseMoveTime = 0;
         }
         
         if (username.length == 0 || password.length == 0) {
-            NSLog(@"Cannot generate catchup URL: failed to extract username/password from channel URL: %@", channel.url);
+            //NSLog(@"Cannot generate catchup URL: failed to extract username/password from channel URL: %@", channel.url);
             return nil;
         }
         
         // Extract stream_id from channel URL
         NSString *streamId = [self extractStreamIdFromChannelUrl:channel.url];
         if (!streamId) {
-            NSLog(@"Cannot generate catchup URL: failed to extract stream ID from channel URL: %@", channel.url);
+            //NSLog(@"Cannot generate catchup URL: failed to extract stream ID from channel URL: %@", channel.url);
             return nil;
         }
         
@@ -2601,21 +2588,21 @@ static NSTimeInterval lastMouseMoveTime = 0;
         NSString *startTimeString = [formatter stringFromDate:adjustedTargetTime];
         [formatter release];
         
-        NSLog(@"Channel catchup URL generation: Original target time = %@", targetTime);
-        NSLog(@"Channel catchup URL generation: EPG offset = %ld hours, compensation = %.0f seconds", 
-              (long)self.epgTimeOffsetHours, offsetCompensation);
-        NSLog(@"Channel catchup URL generation: Adjusted target time for server = %@", adjustedTargetTime);
+        //NSLog(@"Channel catchup URL generation: Original target time = %@", targetTime);
+        //NSLog(@"Channel catchup URL generation: EPG offset = %ld hours, compensation = %.0f seconds", 
+        //      (long)self.epgTimeOffsetHours, offsetCompensation);
+        //NSLog(@"Channel catchup URL generation: Adjusted target time for server = %@", adjustedTargetTime);
         
         // Generate catchup URL using PHP-based format
         NSString *catchupUrl = [NSString stringWithFormat:@"%@/streaming/timeshift.php?username=%@&password=%@&stream=%@&start=%@&duration=%ld",
                                baseUrl, username, password, streamId, startTimeString, (long)durationMinutes];
         
-        NSLog(@"Generated channel catchup URL: %@", catchupUrl);
+        //NSLog(@"Generated channel catchup URL: %@", catchupUrl);
         return catchupUrl;
     }
     
-    NSLog(@"Generated channel catch-up URL for '%@' (offset: %.0fs): %@", 
-          channel.name, timeOffset, catchupUrl);
+    //NSLog(@"Generated channel catch-up URL for '%@' (offset: %.0fs): %@", 
+    //      channel.name, timeOffset, catchupUrl);
     return catchupUrl;
 }
 
@@ -2624,14 +2611,14 @@ static NSTimeInterval lastMouseMoveTime = 0;
 }
 
 - (void)playCatchupUrl:(NSString *)catchupUrl seekToTime:(NSTimeInterval)seekTime channel:(VLCChannel *)channel {
-    NSLog(@"Playing catch-up content: %@", catchupUrl);
+    //NSLog(@"Playing catch-up content: %@", catchupUrl);
     
     // Cache the channel for timeshift EPG tracking
     if (channel) {
         [self cacheTimeshiftChannel:channel];
-        NSLog(@"Cached channel for timeshift: %@ with %ld programs", channel.name, (long)channel.programs.count);
+        //NSLog(@"Cached channel for timeshift: %@ with %ld programs", channel.name, (long)channel.programs.count);
     } else {
-        NSLog(@"⚠️ No channel provided for timeshift caching");
+        //NSLog(@"⚠️ No channel provided for timeshift caching");
     }
     
     NSURL *url = [NSURL URLWithString:catchupUrl];
@@ -3060,7 +3047,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
     // IMPROVED: For timeshift seeking, prioritize getting channel from cached timeshift channel
     currentChannel = [self getCachedTimeshiftChannel];
     if (currentChannel && currentChannel.programs && currentChannel.programs.count > 0) {
-        NSLog(@"Using cached timeshift channel for seeking: %@ with %ld programs", currentChannel.name, (long)currentChannel.programs.count);
+        //NSLog(@"Using cached timeshift channel for seeking: %@ with %ld programs", currentChannel.name, (long)currentChannel.programs.count);
         currentProgram = [self getCurrentTimeshiftPlayingProgram];
     } else {
         // Fallback: Try to get from current selection
@@ -3092,7 +3079,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
                         
                         // Cache this channel for future use
                         [self cacheTimeshiftChannel:currentChannel];
-                        NSLog(@"Found channel from selection for seeking: %@ with %ld programs", currentChannel.name, (long)currentChannel.programs.count);
+                        //NSLog(@"Found channel from selection for seeking: %@ with %ld programs", currentChannel.name, (long)currentChannel.programs.count);
                     }
                 }
             }
@@ -3121,7 +3108,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
                         
                         // Cache this channel for future use
                         [self cacheTimeshiftChannel:currentChannel];
-                        NSLog(@"Found original channel from cached info for seeking: %@ with %ld programs", channel.name, (long)channel.programs.count);
+                        //NSLog(@"Found original channel from cached info for seeking: %@ with %ld programs", channel.name, (long)channel.programs.count);
                         break;
                     }
                 }
@@ -3189,7 +3176,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
         // The stored hover time is in display time (EPG offset applied), convert back to server time
         NSTimeInterval epgOffsetForConversion = self.epgTimeOffsetHours * -3600.0; // Convert display time back to server time
         targetTime = [storedHoverTime dateByAddingTimeInterval:epgOffsetForConversion];
-        NSLog(@"DEBUG SEEKING: Using stored hover target time=%@ (display) -> %@ (server)", [debugFormatter stringFromDate:storedHoverTime], [debugFormatter stringFromDate:targetTime]);
+        //NSLog(@"DEBUG SEEKING: Using stored hover target time=%@ (display) -> %@ (server)", [debugFormatter stringFromDate:storedHoverTime], [debugFormatter stringFromDate:targetTime]);
     } else {
         // Fallback to recalculation for non-hover clicks
         // FIXED: Use the EXACT same sliding window logic as the progress display
@@ -3209,23 +3196,23 @@ static NSTimeInterval lastMouseMoveTime = 0;
         NSTimeInterval actualWindowDuration = [windowEndTime timeIntervalSinceDate:windowStartTime];
         NSTimeInterval targetOffsetFromWindowStart = relativePosition * actualWindowDuration;
         targetTime = [windowStartTime dateByAddingTimeInterval:targetOffsetFromWindowStart];
-        NSLog(@"DEBUG SEEKING: Calculated target time from relative position=%@", [debugFormatter stringFromDate:targetTime]);
+        //NSLog(@"DEBUG SEEKING: Calculated target time from relative position=%@", [debugFormatter stringFromDate:targetTime]);
         
-        NSLog(@"DEBUG SEEKING: windowStart=%@, windowEnd=%@", [debugFormatter stringFromDate:windowStartTime], [debugFormatter stringFromDate:windowEndTime]);
+        //NSLog(@"DEBUG SEEKING: windowStart=%@, windowEnd=%@", [debugFormatter stringFromDate:windowStartTime], [debugFormatter stringFromDate:windowEndTime]);
     }
     
-    NSLog(@"DEBUG SEEKING: relativePosition=%.3f", relativePosition);
-    NSLog(@"DEBUG SEEKING: currentPlayTime=%@, currentRealTime=%@", [debugFormatter stringFromDate:currentPlayTime], [debugFormatter stringFromDate:currentRealTime]);
-    NSLog(@"DEBUG SEEKING: final targetTime=%@", [debugFormatter stringFromDate:targetTime]);
+    //NSLog(@"DEBUG SEEKING: relativePosition=%.3f", relativePosition);
+    //NSLog(@"DEBUG SEEKING: currentPlayTime=%@, currentRealTime=%@", [debugFormatter stringFromDate:currentPlayTime], [debugFormatter stringFromDate:currentRealTime]);
+    //NSLog(@"DEBUG SEEKING: final targetTime=%@", [debugFormatter stringFromDate:targetTime]);
     
     [debugFormatter release];
     
     // Don't seek if we're already very close to the target time (within 30 seconds)
     NSTimeInterval timeDifference = ABS([targetTime timeIntervalSinceDate:currentPlayTime]);
-    NSLog(@"DEBUG SEEKING: timeDifference=%.1f seconds", timeDifference);
+    //NSLog(@"DEBUG SEEKING: timeDifference=%.1f seconds", timeDifference);
     
     if (timeDifference < 30) {
-        NSLog(@"DEBUG SEEKING: timeDifference < 30s, not seeking");
+        //NSLog(@"DEBUG SEEKING: timeDifference < 30s, not seeking");
         [self clearFrozenTimeValues]; // Clear frozen values when not seeking
         return;
     }
@@ -3239,7 +3226,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
     NSString *newTimeshiftUrl = [self generateNewTimeshiftUrlFromCurrentUrl:currentUrl newStartTime:timeshiftUrlTime];
     
     if (newTimeshiftUrl) {
-        NSLog(@"SEEKING TO URL: %@", newTimeshiftUrl);
+        //NSLog(@"SEEKING TO URL: %@", newTimeshiftUrl);
         
         NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
         [formatter setDateFormat:@"EEE HH:mm:ss"];
@@ -3479,7 +3466,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
             safeCurrentTimeStr = [NSString stringWithString:currentTimeStr];
         }
     } @catch (NSException *exception) {
-        NSLog(@"Exception accessing currentTimeStr: %@", exception);
+        //NSLog(@"Exception accessing currentTimeStr: %@", exception);
         safeCurrentTimeStr = @"--:--";
     }
     
@@ -3490,7 +3477,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
             safeTotalTimeStr = [NSString stringWithString:totalTimeStr];
         }
     } @catch (NSException *exception) {
-        NSLog(@"Exception accessing totalTimeStr: %@", exception);
+        //NSLog(@"Exception accessing totalTimeStr: %@", exception);
         safeTotalTimeStr = @"--:--";
     }
     
@@ -3501,7 +3488,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
             safeProgramStatusStr = [NSString stringWithString:programStatusStr];
         }
     } @catch (NSException *exception) {
-        NSLog(@"Exception accessing programStatusStr: %@", exception);
+        //NSLog(@"Exception accessing programStatusStr: %@", exception);
         safeProgramStatusStr = @"Seeking...";
     }
     
@@ -3512,7 +3499,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
     };
     
     objc_setAssociatedObject(self, &frozenTimeValuesKey, frozenValues, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    NSLog(@"Frozen time values: current=%@, total=%@, status=%@", safeCurrentTimeStr, safeTotalTimeStr, safeProgramStatusStr);
+    //NSLog(@"Frozen time values: current=%@, total=%@, status=%@", safeCurrentTimeStr, safeTotalTimeStr, safeProgramStatusStr);
 }
 
 // Method to freeze time values with hover text during seeking
@@ -3532,7 +3519,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
             safeCurrentTimeStr = [NSString stringWithString:currentTimeStr];
         }
     } @catch (NSException *exception) {
-        NSLog(@"Exception accessing currentTimeStr: %@", exception);
+        //NSLog(@"Exception accessing currentTimeStr: %@", exception);
         safeCurrentTimeStr = @"--:--";
     }
     
@@ -3543,7 +3530,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
             safeTotalTimeStr = [NSString stringWithString:totalTimeStr];
         }
     } @catch (NSException *exception) {
-        NSLog(@"Exception accessing totalTimeStr: %@", exception);
+        //NSLog(@"Exception accessing totalTimeStr: %@", exception);
         safeTotalTimeStr = @"--:--";
     }
     
@@ -3554,7 +3541,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
             safeProgramStatusStr = [NSString stringWithString:programStatusStr];
         }
     } @catch (NSException *exception) {
-        NSLog(@"Exception accessing programStatusStr: %@", exception);
+        //NSLog(@"Exception accessing programStatusStr: %@", exception);
         safeProgramStatusStr = @"Seeking...";
     }
     
@@ -3565,7 +3552,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
             safeHoverText = [NSString stringWithString:hoverText];
         }
     } @catch (NSException *exception) {
-        NSLog(@"Exception accessing hoverText: %@", exception);
+        //NSLog(@"Exception accessing hoverText: %@", exception);
         safeHoverText = nil;
     }
     
@@ -3580,7 +3567,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
     };
     
     objc_setAssociatedObject(self, &frozenTimeValuesKey, frozenValues, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    NSLog(@"Frozen time values with hover: current=%@, total=%@, hover=%@", safeCurrentTimeStr, safeTotalTimeStr, safeHoverText);
+    //NSLog(@"Frozen time values with hover: current=%@, total=%@, hover=%@", safeCurrentTimeStr, safeTotalTimeStr, safeHoverText);
 }
 
 // Method to get frozen time values
@@ -3609,7 +3596,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
             return [NSString stringWithString:hoverText];
         }
     } @catch (NSException *exception) {
-        NSLog(@"Exception accessing last hover text: %@", exception);
+        //NSLog(@"Exception accessing last hover text: %@", exception);
     }
     
     // Return nil if no valid hover text is available
@@ -3628,7 +3615,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
             return hoverTime;
         }
     } @catch (NSException *exception) {
-        NSLog(@"Exception accessing stored hover target time: %@", exception);
+        //NSLog(@"Exception accessing stored hover target time: %@", exception);
     }
     
     // Return nil if no valid hover time is available

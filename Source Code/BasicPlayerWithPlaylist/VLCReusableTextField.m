@@ -59,7 +59,7 @@
 - (void)setTextValue:(NSString *)text {
     // Don't update the text value if the field is currently being edited
     if (self.isActive) {
-        NSLog(@"setTextValue called while field is active - ignoring to prevent interference with editing");
+        //NSLog(@"setTextValue called while field is active - ignoring to prevent interference with editing");
         return;
     }
     
@@ -68,7 +68,7 @@
 }
 
 - (void)activateField {
-    NSLog(@"Activating text field: %@ with current value: '%@'", self.identifier, [self stringValue]);
+    //NSLog(@"Activating text field: %@ with current value: '%@'", self.identifier, [self stringValue]);
     
     // Store the original value before editing starts
     self.originalValue = [self stringValue];
@@ -94,7 +94,7 @@
 }
 
 - (void)deactivateField {
-    NSLog(@"VLCReusableTextField deactivateField called for identifier: %@", self.identifier);
+    //NSLog(@"VLCReusableTextField deactivateField called for identifier: %@", self.identifier);
     self.isActive = NO;
     
     // Update appearance for inactive state
@@ -133,7 +133,7 @@
     unichar key = [[event charactersIgnoringModifiers] characterAtIndex:0];
     
     if (key == 13) { // Enter
-        NSLog(@"Enter key pressed in text field: %@", self.identifier);
+        //NSLog(@"Enter key pressed in text field: %@", self.identifier);
         [self deactivateField];
     } else if (key == 27) { // Escape
         // Restore original value and deactivate
@@ -195,7 +195,7 @@
     
     if (selectedText && [selectedText length] > 0) {
         [pasteboard setString:selectedText forType:NSPasteboardTypeString];
-        NSLog(@"Copied text: %@", selectedText);
+        //NSLog(@"Copied text: %@", selectedText);
     }
 }
 
@@ -229,7 +229,7 @@
             [self setStringValue:pastedText];
         }
         
-        NSLog(@"Pasted text: %@", pastedText);
+        //NSLog(@"Pasted text: %@", pastedText);
         
         // Notify delegate of the change
         if (self.textFieldDelegate && [self.textFieldDelegate respondsToSelector:@selector(textFieldDidChange:forIdentifier:)]) {

@@ -8,7 +8,7 @@
 
 - (void)addChannelToFavorites:(VLCChannel *)channel {
     if (!channel) {
-        NSLog(@"Invalid channel passed to addChannelToFavorites");
+        //NSLog(@"Invalid channel passed to addChannelToFavorites");
         return;
     }
     
@@ -76,7 +76,7 @@
 
 - (void)removeChannelFromFavorites:(VLCChannel *)channel {
     if (!channel) {
-        NSLog(@"Invalid channel passed to removeChannelFromFavorites");
+        //NSLog(@"Invalid channel passed to removeChannelFromFavorites");
         return;
     }
     
@@ -127,7 +127,7 @@
     if (![favoritesGroups containsObject:groupName]) {
         [favoritesGroups addObject:groupName];
         
-        NSLog(@"Added group %@ to favorites", groupName);
+        //NSLog(@"Added group %@ to favorites", groupName);
         
         // Get all channels from this group in the original category
         NSArray *channelsInGroup = [self.channelsByGroup objectForKey:groupName];
@@ -162,7 +162,7 @@
         }
         
         // Save settings to persist favorites
-        [self saveSettings];
+        [self saveSettingsState];
         
         // Rebuild UI to show the updated favorites
         [self prepareSimpleChannelLists];
@@ -179,7 +179,7 @@
     NSMutableArray *favoritesGroups = [self.groupsByCategory objectForKey:@"FAVORITES"];
     if ([favoritesGroups containsObject:groupName]) {
         [favoritesGroups removeObject:groupName];
-        NSLog(@"Removed group %@ from favorites", groupName);
+        //NSLog(@"Removed group %@ from favorites", groupName);
     }
     
     // Refresh the display
@@ -221,13 +221,13 @@
         NSArray *favoritesGroups = [self safeGroupsForCategory:@"FAVORITES"];
         
         // Add debugging log
-        NSLog(@"Checking if group '%@' is in favorites. Favorites groups: %@", 
-             groupName, 
-             favoritesGroups);
+        //NSLog(@"Checking if group '%@' is in favorites. Favorites groups: %@", 
+        //     groupName, 
+       //      favoritesGroups);
         
         // Check if the group is in favorites
         BOOL result = [favoritesGroups containsObject:groupName];
-        NSLog(@"Group '%@' is %@ favorites", groupName, result ? @"in" : @"NOT in");
+        //NSLog(@"Group '%@' is %@ favorites", groupName, result ? @"in" : @"NOT in");
         return result;
     }
 }

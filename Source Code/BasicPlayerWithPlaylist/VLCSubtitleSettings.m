@@ -1,6 +1,5 @@
 //
 //  VLCSubtitleSettings.m
-//  BasicPlayerWithPlaylist
 //
 //  Subtitle settings manager implementation
 //
@@ -50,11 +49,11 @@ static VLCSubtitleSettings *sharedInstance = nil;
 
 - (void)applyToPlayer:(VLCMediaPlayer *)player {
     if (!player) {
-        NSLog(@"Cannot apply subtitle settings - no player provided");
+        //NSLog(@"Cannot apply subtitle settings - no player provided");
         return;
     }
     
-    NSLog(@"Applying subtitle settings - Font size: %ld", (long)self.fontSize);
+    //NSLog(@"Applying subtitle settings - Font size: %ld", (long)self.fontSize);
     
     // Use the modern VLCKit API for subtitle font scaling
     // Convert fontSize (which ranges from 1-20) to a scale factor
@@ -64,16 +63,16 @@ static VLCSubtitleSettings *sharedInstance = nil;
     // Clamp the scale to reasonable bounds (0.5x to 3.0x)
     fontScale = MAX(0.5f, MIN(3.0f, fontScale));
     
-    NSLog(@"Setting subtitle font scale to: %.2f (from fontSize: %ld)", fontScale, (long)self.fontSize);
+    //NSLog(@"Setting subtitle font scale to: %.2f (from fontSize: %ld)", fontScale, (long)self.fontSize);
     
     // Apply the font scale using the modern VLCKit API
     [player setCurrentSubTitleFontScale:fontScale];
     
     // Verify the setting was applied
     float currentScale = [player currentSubTitleFontScale];
-    NSLog(@"Current subtitle font scale after setting: %.2f", currentScale);
+    //NSLog(@"Current subtitle font scale after setting: %.2f", currentScale);
     
-    NSLog(@"Subtitle settings applied successfully using modern VLCKit API");
+    //NSLog(@"Subtitle settings applied successfully using modern VLCKit API");
 }
 
 // Note: Other subtitle appearance settings (color, outline, shadow) are not currently
@@ -109,7 +108,7 @@ static VLCSubtitleSettings *sharedInstance = nil;
     self.shadowEnabled = [defaults boolForKey:kSubtitleShadowEnabledKey];
     self.backgroundEnabled = [defaults boolForKey:kSubtitleBackgroundEnabledKey];
     
-    NSLog(@"Subtitle settings loaded - Font size: %ld", (long)self.fontSize);
+    //NSLog(@"Subtitle settings loaded - Font size: %ld", (long)self.fontSize);
 }
 
 - (void)saveSettings {
@@ -131,7 +130,7 @@ static VLCSubtitleSettings *sharedInstance = nil;
     
     [defaults synchronize];
     
-    NSLog(@"Subtitle settings saved - Font size: %ld", (long)self.fontSize);
+    //NSLog(@"Subtitle settings saved - Font size: %ld", (long)self.fontSize);
 }
 
 - (void)dealloc {

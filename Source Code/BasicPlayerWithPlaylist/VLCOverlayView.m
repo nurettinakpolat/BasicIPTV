@@ -1,6 +1,5 @@
 //
 //  VLCOverlayView.m
-//  BasicPlayerWithPlaylist
 //
 //  Created by Nurettin Akpolat on 13/05/2025.
 //
@@ -174,10 +173,10 @@ NSLock *gProgressMessageLock = nil;
         
         // Initialize player controls if available
         if ([self respondsToSelector:@selector(setupPlayerControls)]) {
-            NSLog(@"Setting up player controls during initialization");
+            //NSLog(@"Setting up player controls during initialization");
             [self setupPlayerControls];
         } else {
-            NSLog(@"Player controls methods not available");
+            //NSLog(@"Player controls methods not available");
         }
         
         // Start the auto-hide timer
@@ -205,7 +204,7 @@ NSLock *gProgressMessageLock = nil;
     
     // Make this view the first responder to receive keyboard events
     if (self.window) {
-        NSLog(@"Making overlay view first responder for keyboard events");
+        //NSLog(@"Making overlay view first responder for keyboard events");
         [self.window makeFirstResponder:self];
         
         // Add window notifications for fullscreen changes
@@ -332,11 +331,11 @@ NSLock *gProgressMessageLock = nil;
         
         // Handle ESC key (keycode 27)
         if (keyChar == 27) { // ESC key
-            NSLog(@"ESC key pressed");
+            //NSLog(@"ESC key pressed");
             
             // Priority 1: Hide channel list menu if it's visible
             if (self.isChannelListVisible) {
-                NSLog(@"ESC: Hiding channel list menu");
+                //NSLog(@"ESC: Hiding channel list menu");
                 // Hide all controls before hiding the menu
                 [self hideControls];
                 self.isChannelListVisible = NO;
@@ -347,12 +346,12 @@ NSLock *gProgressMessageLock = nil;
             // Priority 2: Hide player controls if they're visible (only if menu is already hidden)
             extern BOOL playerControlsVisible;
             if (playerControlsVisible) {
-                NSLog(@"ESC: Hiding player controls");
+                //NSLog(@"ESC: Hiding player controls");
                 [self hidePlayerControls:nil];
                 return; // Don't pass to super
             }
             
-            NSLog(@"ESC: Nothing to hide");
+            //NSLog(@"ESC: Nothing to hide");
         }
     }
     
@@ -363,19 +362,19 @@ NSLock *gProgressMessageLock = nil;
 #pragma mark - Window Notifications
 
 - (void)windowDidEnterFullScreen:(NSNotification *)notification {
-    NSLog(@"Entered fullscreen - cursor hiding will be active");
+    //NSLog(@"Entered fullscreen - cursor hiding will be active");
     // Reset mouse movement time when entering fullscreen
     lastMouseMoveTime = [NSDate timeIntervalSinceReferenceDate];
 }
 
 - (void)windowDidExitFullScreen:(NSNotification *)notification {
-    NSLog(@"Exited fullscreen - ensuring cursor is visible");
+    //NSLog(@"Exited fullscreen - ensuring cursor is visible");
     // Always show cursor when exiting fullscreen
     [self ensureCursorVisible];
 }
 
 - (void)applicationDidBecomeActive:(NSNotification *)notification {
-    NSLog(@"Application became active - ensuring cursor is visible");
+    //NSLog(@"Application became active - ensuring cursor is visible");
     // Always show cursor when app becomes active
     [self ensureCursorVisible];
 }
@@ -410,10 +409,10 @@ NSLock *gProgressMessageLock = nil;
     if (!self.isChannelListVisible && !self.showEpgPanel) {
         // Draw player controls if player exists (NO background drawing here)
         if (self.player && playerControlsVisible) {
-            NSLog(@"Will draw player controls");
+            //NSLog(@"Will draw player controls");
             [self drawPlayerControls:dirtyRect];
         } else if (self.player) {
-            NSLog(@"Player exists but controls not visible");
+            //NSLog(@"Player exists but controls not visible");
         }
         
         // Even if we're returning early, still draw the loading indicator if needed

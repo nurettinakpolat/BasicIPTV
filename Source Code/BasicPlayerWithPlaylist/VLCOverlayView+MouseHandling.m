@@ -55,11 +55,17 @@ static BOOL isScrolling = NO;
         // Group menu
         [self handleGroupClick:point];
     } else {
-        // If in grid view and clicking in the grid area
-        if (isGridViewActive) {
+        // CRITICAL FIX: Use the same rendering decision logic as drawRect
+        // Check what's ACTUALLY being rendered, not just the view mode flags
+        BOOL isGridActuallyRendered = isGridViewActive && 
+                                     ((self.selectedCategoryIndex == CATEGORY_MOVIES) ||
+                                      (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]));
+        
+        if (isGridActuallyRendered) {
+            // Grid view is actually being rendered - use grid click handling
             [self handleGridViewClick:point];
         } else {
-            // Normal channel list
+            // List view or stacked view is actually being rendered - use list click handling
             BOOL handled = [self handleClickAtPoint:point];
             if (handled) {
                 return;
@@ -100,6 +106,15 @@ static BOOL isScrolling = NO;
         
         self.selectedCategoryIndex = index;
         self.selectedChannelIndex = -1; // Reset channel selection
+        
+        // CRITICAL FIX: Reset hover indices like the 'V' key does
+        // Don't reset hover index if we're preserving state for EPG
+        extern BOOL isPersistingHoverState;
+        if (!isPersistingHoverState) {
+            self.hoveredChannelIndex = -1;
+            self.hoveredGroupIndex = -1;
+            self.hoveredCategoryIndex = -1;
+        }
         
         // FIXED: Clear previous channel lists and prepare new ones for the selected category
         [self prepareSimpleChannelLists];
@@ -223,7 +238,7 @@ static BOOL isScrolling = NO;
     // Check if we're in the settings panel FIRST (before movie info panel check)
     // because settings uses the same area as movie info panel
     if (self.selectedCategoryIndex == CATEGORY_SETTINGS) {
-        NSLog(@"Click in settings panel - handling with settings handler");
+        //NSLog(@"Click in settings panel - handling with settings handler");
         return [self handleSettingsClickAtPoint:point];
     }
     
@@ -235,20 +250,42 @@ static BOOL isScrolling = NO;
     // Don't process clicks in the movie info panel area (only if NOT in settings or search)
     if (point.x >= channelListEndX) {
         // This is a click in the movie info panel, just update display
-        NSLog(@"Click in movie info panel area - ignoring for channel selection");
+        //NSLog(@"Click in movie info panel area - ignoring for channel selection");
         [self setNeedsDisplay:YES];
         return YES;  // Return YES to indicate we handled it (by ignoring it for channel selection)
     }
     
     // Don't process clicks in the categories or groups area
     if (point.x < channelListStartX) {
-        NSLog(@"Click in categories/groups area - not handling as channel click");
+        //NSLog(@"Click in categories/groups area - not handling as channel click");
         return NO;
     }
     
-    // Use simpleChannelIndexAtPoint which now has improved boundary checking
-    NSInteger channelIndex = [self simpleChannelIndexAtPoint:point];
-    //NSLog(@"Channel index at click point: %ld", (long)channelIndex);
+    // CRITICAL FIX: Match the exact same rendering decision logic used in drawRect
+    // Check what's ACTUALLY being rendered, not just the view mode flags
+    BOOL isGridActuallyRendered = isGridViewActive && 
+                                 ((self.selectedCategoryIndex == CATEGORY_MOVIES) ||
+                                  (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]));
+    
+    BOOL isStackedActuallyRendered = isStackedViewActive && 
+                                    ((self.selectedCategoryIndex == CATEGORY_MOVIES) ||
+                                     (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]));
+    
+    // For all other cases (TV channels, series, etc.), list view is actually rendered
+    BOOL isListActuallyRendered = !isGridActuallyRendered && !isStackedActuallyRendered;
+    
+    NSInteger channelIndex = -1;
+    
+    if (isGridActuallyRendered) {
+        // Grid view is actually being rendered - use grid calculations
+        channelIndex = [self gridItemIndexAtPoint:point];
+        //NSLog(@"Using grid calculation (grid actually rendered) - index: %ld", (long)channelIndex);
+    } else if (isListActuallyRendered || isStackedActuallyRendered) {
+        // List view or stacked view is actually being rendered - use list calculations
+        // (simpleChannelIndexAtPoint handles both list and stacked view properly)
+        channelIndex = [self simpleChannelIndexAtPoint:point];
+        //NSLog(@"Using list calculation (list/stacked actually rendered) - index: %ld", (long)channelIndex);
+    }
     
     if (channelIndex >= 0) {
         //NSLog(@"Valid channel clicked - playing channel %ld", (long)channelIndex);
@@ -275,20 +312,20 @@ static BOOL isScrolling = NO;
     if ([selectedGroup isEqualToString:@"Playlist"]) {
         // Don't handle button clicks if we're already loading
         if (self.isLoading) {
-            NSLog(@"Ignoring button click - operation in progress");
+            //NSLog(@"Ignoring button click - operation in progress");
             return YES; // Return YES to indicate we handled the click (even though we ignored it)
         }
         
         // Handle Load From URL button click
         if (NSPointInRect(point, self.loadButtonRect)) {
-            NSLog(@"Load From URL button clicked");
+            //NSLog(@"Load From URL button clicked");
             [self loadFromUrlButtonClicked];
             return YES;
         }
         
         // Handle Update EPG button click
         if (NSPointInRect(point, self.epgButtonRect)) {
-            NSLog(@"Update EPG button clicked");
+            //NSLog(@"Update EPG button clicked");
             [self updateEpgButtonClicked];
             return YES;
         }
@@ -339,7 +376,7 @@ static BOOL isScrolling = NO;
         }
         
         // Handle transparency slider interaction
-        if ([VLCSliderControl isPoint:point inSliderRect:self.transparencySliderRect]) {
+        if ([VLCSliderControl handleMouseDown:point sliderRect:self.transparencySliderRect sliderHandle:@"transparency"]) {
             CGFloat value = [VLCSliderControl valueForPoint:point
                                                sliderRect:self.transparencySliderRect
                                                 minValue:0.0
@@ -359,7 +396,7 @@ static BOOL isScrolling = NO;
         // Handle RGB sliders interactions (only when Custom theme is selected)
         if (self.currentTheme == VLC_THEME_CUSTOM) {
             // Red slider interaction
-            if ([VLCSliderControl isPoint:point inSliderRect:self.redSliderRect]) {
+            if (!NSIsEmptyRect(self.redSliderRect) && [VLCSliderControl handleMouseDown:point sliderRect:self.redSliderRect sliderHandle:@"red"]) {
                 CGFloat value = [VLCSliderControl valueForPoint:point
                                                    sliderRect:self.redSliderRect
                                                     minValue:0.0
@@ -375,7 +412,7 @@ static BOOL isScrolling = NO;
             }
             
             // Green slider interaction
-            if ([VLCSliderControl isPoint:point inSliderRect:self.greenSliderRect]) {
+            if (!NSIsEmptyRect(self.greenSliderRect) && [VLCSliderControl handleMouseDown:point sliderRect:self.greenSliderRect sliderHandle:@"green"]) {
                 CGFloat value = [VLCSliderControl valueForPoint:point
                                                    sliderRect:self.greenSliderRect
                                                     minValue:0.0
@@ -391,7 +428,7 @@ static BOOL isScrolling = NO;
             }
             
             // Blue slider interaction
-            if ([VLCSliderControl isPoint:point inSliderRect:self.blueSliderRect]) {
+            if (!NSIsEmptyRect(self.blueSliderRect) && [VLCSliderControl handleMouseDown:point sliderRect:self.blueSliderRect sliderHandle:@"blue"]) {
                 CGFloat value = [VLCSliderControl valueForPoint:point
                                                    sliderRect:self.blueSliderRect
                                                     minValue:0.0
@@ -406,16 +443,48 @@ static BOOL isScrolling = NO;
                 return YES;
             }
         }
+    } else if ([selectedGroup isEqualToString:@"Subtitles"]) {
+        // Handle subtitle slider interaction
+        NSValue *sliderRectValue = objc_getAssociatedObject(self, "subtitleFontSizeSliderRect");
+        if (sliderRectValue) {
+            NSRect sliderRect = [sliderRectValue rectValue];
+            
+            if ([VLCSliderControl handleMouseDown:point sliderRect:sliderRect sliderHandle:@"subtitle"]) {
+                // Calculate new font size based on click position
+                NSRect actualSliderRect = NSMakeRect(sliderRect.origin.x + 10, sliderRect.origin.y + 10, 
+                                                    sliderRect.size.width - 20, sliderRect.size.height - 20);
+                
+                CGFloat clickProgress = (point.x - actualSliderRect.origin.x) / actualSliderRect.size.width;
+                clickProgress = MAX(0.0, MIN(1.0, clickProgress)); // Clamp to 0-1
+                
+                // Convert to font scale factor (5-30 range, where 10 = 1.0x scale)
+                NSInteger newFontSize = (NSInteger)(5 + (clickProgress * (30 - 5)));
+                
+                // Update settings and apply to player immediately
+                VLCSubtitleSettings *settings = [VLCSubtitleSettings sharedInstance];
+                if (settings.fontSize != newFontSize) {
+                    settings.fontSize = newFontSize;
+                    [settings saveSettings];
+                    
+                    // Apply to VLC player in real-time
+                    if (self.player) {
+                        [settings applyToPlayer:self.player];
+                    }
+                    
+                    //NSLog(@"Subtitle font scale clicked to: %ld (%.2fx)", (long)newFontSize, (float)newFontSize / 10.0f);
+                    
+                    // Redraw to show updated slider position
+                    [self setNeedsDisplay:YES];
+                }
+                return YES;
+            }
+        }
     }
     
-    // Handle Selection Color RGB sliders dragging (always available)
-    // Selection Red slider dragging
-    NSRect expandedSelectionRedRect = NSMakeRect(self.selectionRedSliderRect.origin.x - 20, 
-                                                 self.selectionRedSliderRect.origin.y - 20, 
-                                                 self.selectionRedSliderRect.size.width + 40, 
-                                                 self.selectionRedSliderRect.size.height + 40);
-    
-    if (NSPointInRect(point, expandedSelectionRedRect)) {
+    // Handle Selection Color RGB sliders (only when Custom theme is selected)
+    if (self.currentTheme == VLC_THEME_CUSTOM) {
+        // Selection Red slider
+        if ([VLCSliderControl handleMouseDown:point sliderRect:self.selectionRedSliderRect sliderHandle:@"selectionRed"]) {
         CGFloat value = [VLCSliderControl valueForPoint:point
                                            sliderRect:self.selectionRedSliderRect
                                             minValue:0.0
@@ -430,13 +499,8 @@ static BOOL isScrolling = NO;
         return YES;
     }
     
-    // Selection Green slider dragging
-    NSRect expandedSelectionGreenRect = NSMakeRect(self.selectionGreenSliderRect.origin.x - 20, 
-                                                   self.selectionGreenSliderRect.origin.y - 20, 
-                                                   self.selectionGreenSliderRect.size.width + 40, 
-                                                   self.selectionGreenSliderRect.size.height + 40);
-    
-    if (NSPointInRect(point, expandedSelectionGreenRect)) {
+        // Selection Green slider
+        if ([VLCSliderControl handleMouseDown:point sliderRect:self.selectionGreenSliderRect sliderHandle:@"selectionGreen"]) {
         CGFloat value = [VLCSliderControl valueForPoint:point
                                            sliderRect:self.selectionGreenSliderRect
                                             minValue:0.0
@@ -451,13 +515,8 @@ static BOOL isScrolling = NO;
         return YES;
     }
     
-    // Selection Blue slider dragging
-    NSRect expandedSelectionBlueRect = NSMakeRect(self.selectionBlueSliderRect.origin.x - 20, 
-                                                  self.selectionBlueSliderRect.origin.y - 20, 
-                                                  self.selectionBlueSliderRect.size.width + 40, 
-                                                  self.selectionBlueSliderRect.size.height + 40);
-    
-    if (NSPointInRect(point, expandedSelectionBlueRect)) {
+        // Selection Blue slider
+        if ([VLCSliderControl handleMouseDown:point sliderRect:self.selectionBlueSliderRect sliderHandle:@"selectionBlue"]) {
         CGFloat value = [VLCSliderControl valueForPoint:point
                                            sliderRect:self.selectionBlueSliderRect
                                             minValue:0.0
@@ -470,6 +529,7 @@ static BOOL isScrolling = NO;
             [self setNeedsDisplay:YES];
         }
         return YES;
+        }
     }
     
     return NO;
@@ -508,7 +568,7 @@ static BOOL isScrolling = NO;
     
     if (channelIndex >= 0 && channelIndex < [self.searchChannelResults count]) {
         VLCChannel *selectedChannel = [self.searchChannelResults objectAtIndex:channelIndex];
-        NSLog(@"Search channel clicked: %@", selectedChannel.name);
+        //NSLog(@"Search channel clicked: %@", selectedChannel.name);
         
         // SMART SELECTION: Switch to SEARCH and remember original location
         [self selectSearchAndRememberOriginalLocation:selectedChannel];
@@ -568,7 +628,7 @@ static BOOL isScrolling = NO;
     
     if (movieIndex >= 0 && movieIndex < [self.searchMovieResults count]) {
         VLCChannel *selectedMovie = [self.searchMovieResults objectAtIndex:movieIndex];
-        NSLog(@"Search movie clicked: %@", selectedMovie.name);
+        //NSLog(@"Search movie clicked: %@", selectedMovie.name);
         
         // SMART SELECTION: Switch to SEARCH and remember original location
         [self selectSearchAndRememberOriginalLocation:selectedMovie];
@@ -668,7 +728,7 @@ static BOOL isScrolling = NO;
 }
 
 - (void)loadFromUrlButtonClicked {
-    NSLog(@"loadFromUrlButtonClicked method called");
+    //NSLog(@"loadFromUrlButtonClicked method called");
     
     // Set loading state and start the progress timer immediately
     self.isLoading = YES;
@@ -753,7 +813,7 @@ static BOOL isScrolling = NO;
         }
         
         // Save settings to user defaults
-        [self saveSettings];
+        [self saveSettingsState];
         
         // Save EPG URL but don't load EPG data yet - wait for channels to load first
         if (epgUrlToLoad && [epgUrlToLoad length] > 0) {
@@ -802,7 +862,7 @@ static BOOL isScrolling = NO;
 }
 
 - (void)updateEpgButtonClicked {
-    NSLog(@"updateEpgButtonClicked method called");
+    //NSLog(@"updateEpgButtonClicked method called");
     
     // Set loading state and start the progress timer immediately
     self.isLoading = YES;
@@ -861,7 +921,7 @@ static BOOL isScrolling = NO;
         
         // Save the EPG URL
         self.epgUrl = epgUrlToLoad;
-        [self saveSettings];
+        [self saveSettingsState];
         
         // Force reload EPG data
         if ([self respondsToSelector:@selector(forceReloadEpgData)]) {
@@ -1170,7 +1230,7 @@ static BOOL isScrolling = NO;
     
     // Check if we're in the channel list area
     BOOL isInChannelListArea = (point.x >= channelListStartX && point.x < channelListEndX);
-   // NSLog(@"Mouse is %s channel list area", isInChannelListArea ? "in" : "outside");
+    //NSLog(@"Mouse is %s channel list area", isInChannelListArea ? "in" : "outside");
     
     // IMPORTANT: Don't process any channel hover changes if we're in EPG area
     // This prevents the hover state from being reset when moving to EPG area
@@ -1196,7 +1256,7 @@ static BOOL isScrolling = NO;
                                 (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]);
         
         if (!isInMovieCategory) {
-            NSLog(@"BLOCKED: Grid view active but not in movie category (category: %ld) - skipping grid logic", (long)self.selectedCategoryIndex);
+            //NSLog(@"BLOCKED: Grid view active but not in movie category (category: %ld) - skipping grid logic", (long)self.selectedCategoryIndex);
             // Don't run grid logic if we're not in a movie category
             // Fall through to regular list logic instead
         } else {
@@ -1338,7 +1398,7 @@ static BOOL isScrolling = NO;
     if (self.hoveredChannelIndex == lastHoveredChannelIndex && self.isPendingMovieInfoFetch) {
         VLCChannel *channel = [self getChannelAtHoveredIndex];
         if (channel && [channel.category isEqualToString:@"MOVIES"] && !channel.hasLoadedMovieInfo) {
-            NSLog(@"Hover timer elapsed - fetching movie info for: %@", channel.name);
+            //NSLog(@"Hover timer elapsed - fetching movie info for: %@", channel.name);
             
             // Check if movie info is already cached in user defaults first
             BOOL loadedFromCache = [self loadMovieInfoFromCacheForChannel:channel];
@@ -1375,8 +1435,8 @@ static BOOL isScrolling = NO;
                              (channel.movieRating && [channel.movieRating length] > 0));
     
     if (!hasUsefulDescription && !hasUsefulMetadata) {
-        NSLog(@"🚫 NOT saving incomplete movie info to cache for '%@' (desc: %ld chars, has metadata: %@)", 
-              channel.name, (long)[channel.movieDescription length], hasUsefulMetadata ? @"YES" : @"NO");
+       //NSLog(@"🚫 NOT saving incomplete movie info to cache for '%@' (desc: %ld chars, has metadata: %@)", 
+       //       channel.name, (long)[channel.movieDescription length], hasUsefulMetadata ? @"YES" : @"NO");
         return;
     }
     
@@ -1436,8 +1496,8 @@ static BOOL isScrolling = NO;
             BOOL moveSuccess = [fileManager moveItemAtPath:tempPath toPath:cacheFilePath error:&moveError];
             
             if (moveSuccess) {
-                NSLog(@"💾 Saved USEFUL movie info for '%@' to cache - desc: %ld chars, metadata: %@", 
-                      channel.name, (long)[channel.movieDescription length], hasUsefulMetadata ? @"YES" : @"NO");
+                //NSLog(@"💾 Saved USEFUL movie info for '%@' to cache - desc: %ld chars, metadata: %@", 
+                //      channel.name, (long)[channel.movieDescription length], hasUsefulMetadata ? @"YES" : @"NO");
             } else {
                 //NSLog(@"Failed to move temp file to cache path: %@, error: %@", cacheFilePath, moveError);
             }
@@ -1463,7 +1523,7 @@ static BOOL isScrolling = NO;
     // Check if cache file exists
     NSFileManager *fileManager = [NSFileManager defaultManager];
     if (![fileManager fileExistsAtPath:cacheFilePath]) {
-        NSLog(@"No cache file found for channel: %@ at path: %@", channel.name, cacheFilePath);
+        //(@"No cache file found for channel: %@ at path: %@", channel.name, cacheFilePath);
         return NO;
     }
     
@@ -1492,8 +1552,8 @@ static BOOL isScrolling = NO;
                                          (cachedRating && [cachedRating length] > 0));
                 
                 if (!hasUsefulDescription && !hasUsefulMetadata) {
-                    NSLog(@"❌ Cached data for '%@' is incomplete (desc: %ld chars, has metadata: %@) - removing cache and allowing fresh fetch", 
-                          channel.name, (long)[cachedDescription length], hasUsefulMetadata ? @"YES" : @"NO");
+                    //NSLog(@"❌ Cached data for '%@' is incomplete (desc: %ld chars, has metadata: %@) - removing cache and allowing fresh fetch", 
+                    //      channel.name, (long)[cachedDescription length], hasUsefulMetadata ? @"YES" : @"NO");
                     
                     // Remove the incomplete cache file
                     [fileManager removeItemAtPath:cacheFilePath error:nil];
@@ -1517,19 +1577,19 @@ static BOOL isScrolling = NO;
                 // Also try to load cached poster image from disk
                 [self loadCachedPosterImageForChannel:channel];
                 
-                NSLog(@"✅ Successfully loaded USEFUL movie info from cache for '%@': %ld chars description, metadata: %@", 
-                      channel.name, (long)[channel.movieDescription length], hasUsefulMetadata ? @"YES" : @"NO");
+                //NSLog(@"✅ Successfully loaded USEFUL movie info from cache for '%@': %ld chars description, metadata: %@", 
+                //      channel.name, (long)[channel.movieDescription length], hasUsefulMetadata ? @"YES" : @"NO");
                 return YES;
             } else {
-                NSLog(@"Cache file too old for channel: %@ (%.1f days old)", channel.name, cacheAge / (24 * 60 * 60));
+                //NSLog(@"Cache file too old for channel: %@ (%.1f days old)", channel.name, cacheAge / (24 * 60 * 60));
                 // Remove old cache file
                 [fileManager removeItemAtPath:cacheFilePath error:nil];
             }
         } else {
-            NSLog(@"No timestamp in cache file for channel: %@", channel.name);
+            //NSLog(@"No timestamp in cache file for channel: %@", channel.name);
         }
     } else {
-        NSLog(@"Failed to load plist data from cache file for channel: %@", channel.name);
+        //NSLog(@"Failed to load plist data from cache file for channel: %@", channel.name);
     }
     
     return NO;
@@ -1681,7 +1741,7 @@ static BOOL isScrolling = NO;
                 
                 // Cache expires after 30 days (2592000 seconds)
                 if (age > 2592000) {
-                    NSLog(@"Cache file expired for %@, removing", channel.name);
+                    //NSLog(@"Cache file expired for %@, removing", channel.name);
                     [fileManager removeItemAtPath:cachePath error:nil];
                     return;
                 }
@@ -1712,7 +1772,7 @@ static BOOL isScrolling = NO;
 - (void)fetchMovieInfoForChannelAsync:(VLCChannel *)channel {
     if (!channel) return;
     
-    NSLog(@"Starting async movie info fetch for: %@", channel.name);
+    //NSLog(@"Starting async movie info fetch for: %@", channel.name);
     
     // Fetch movie info synchronously on background thread
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
@@ -1744,14 +1804,14 @@ static BOOL isScrolling = NO;
                 // Save the info to cache after successful fetching
                 [self saveMovieInfoToCache:channel];
                 
-                NSLog(@"✅ Successfully fetched movie info for '%@' - Description: %ld chars, Year: %@, Genre: %@", 
-                      channel.name, (long)[channel.movieDescription length], channel.movieYear, channel.movieGenre);
+                //NSLog(@"✅ Successfully fetched movie info for '%@' - Description: %ld chars, Year: %@, Genre: %@", 
+                //      channel.name, (long)[channel.movieDescription length], channel.movieYear, channel.movieGenre);
             } else {
                 // No useful info found - reset flags to allow retry later
                 channel.hasLoadedMovieInfo = NO;
                 channel.hasStartedFetchingMovieInfo = NO;
                 
-                NSLog(@"❌ No useful movie info found for '%@' - flags reset for retry", channel.name);
+                //NSLog(@"❌ No useful movie info found for '%@' - flags reset for retry", channel.name);
             }
             
             // Trigger UI update to show the new information
@@ -1782,7 +1842,7 @@ static BOOL isScrolling = NO;
     
     // If mouse is moving to EPG area, preserve hover state instead of resetting
     if (localPoint.x >= channelListEndX) {
-        NSLog(@"mouseExited: Mouse moving to EPG area, preserving hover state");
+        //NSLog(@"mouseExited: Mouse moving to EPG area, preserving hover state");
         // Store the current hover state for EPG to use
         if (self.hoveredChannelIndex >= 0) {
             lastValidHoveredChannelIndex = self.hoveredChannelIndex;
@@ -1999,9 +2059,9 @@ static BOOL isScrolling = NO;
                 CGFloat oldScrollPos = self.movieInfoScrollPosition;
                 self.movieInfoScrollPosition = MIN(maxScroll, self.movieInfoScrollPosition);
                 
-                NSLog(@"Movie info scrolling: oldPos=%.1f, newPos=%.1f, delta=%.1f, maxScroll=%.1f", 
-                      oldScrollPos, self.movieInfoScrollPosition, 
-                      self.movieInfoScrollPosition - oldScrollPos, maxScroll);
+                //NSLog(@"Movie info scrolling: oldPos=%.1f, newPos=%.1f, delta=%.1f, maxScroll=%.1f", 
+                //      oldScrollPos, self.movieInfoScrollPosition, 
+                //      self.movieInfoScrollPosition - oldScrollPos, maxScroll);
                 
                 // Use throttled update instead of immediate redraw during scrolling
                 [self throttledDisplayUpdate];
@@ -2159,7 +2219,7 @@ static BOOL isScrolling = NO;
             // We're not in the channel list area, but should still allow scrolling 
             // in the movie info panel if it's active and the mouse is in that area
             if (point.x >= movieInfoX && self.selectedChannelIndex >= 0) {
-                NSLog(@"Handling scroll in movie info section");
+                //NSLog(@"Handling scroll in movie info section");
                 
                 // Calculate scroll amount (inverted for natural scroll direction)
                 CGFloat scrollAmount = -[event deltaY] * 20; // Doubled scroll speed for better responsiveness
@@ -2182,8 +2242,8 @@ static BOOL isScrolling = NO;
                         // Using a much higher scaling factor - this is key to making scrolling work
                         contentHeight = MAX(contentHeight, 1000 + (descriptionLength * 5.0)); // Very aggressive approximation
                         
-                        NSLog(@"SCROLL EVENT: Movie description length: %ld, calculated content height: %.1f, current scroll pos: %.1f", 
-                              (long)descriptionLength, contentHeight, self.movieInfoScrollPosition);
+                        //NSLog(@"SCROLL EVENT: Movie description length: %ld, calculated content height: %.1f, current scroll pos: %.1f", 
+                        //      (long)descriptionLength, contentHeight, self.movieInfoScrollPosition);
                     }
                     
                     // Calculate max scroll with extra buffer
@@ -2191,9 +2251,9 @@ static BOOL isScrolling = NO;
                     CGFloat oldScrollPos = self.movieInfoScrollPosition;
                     self.movieInfoScrollPosition = MIN(maxScroll, self.movieInfoScrollPosition);
                     
-                    NSLog(@"Movie info scrolling: oldPos=%.1f, newPos=%.1f, delta=%.1f, maxScroll=%.1f", 
-                          oldScrollPos, self.movieInfoScrollPosition, 
-                          self.movieInfoScrollPosition - oldScrollPos, maxScroll);
+                    //NSLog(@"Movie info scrolling: oldPos=%.1f, newPos=%.1f, delta=%.1f, maxScroll=%.1f", 
+                    //      oldScrollPos, self.movieInfoScrollPosition, 
+                    //      self.movieInfoScrollPosition - oldScrollPos, maxScroll);
                     
                     // Use throttled update instead of immediate redraw during scrolling
                     [self throttledDisplayUpdate];
@@ -2264,6 +2324,74 @@ static BOOL isScrolling = NO;
 - (NSRect)getDropdownOptionsRect:(NSRect)dropdownRect optionCount:(NSInteger)optionCount {
     // This method is no longer needed as VLCDropdownManager handles rect calculation
     return NSZeroRect;
+}
+
+- (void)mouseUp:(NSEvent *)event {
+    [self markUserInteraction];
+    
+    // Reset slider activation state
+    [VLCSliderControl handleMouseUp];
+    
+    // Call super for other mouse up handling
+    [super mouseUp:event];
+}
+
+// Add method to immediately load cached movie data for all channels in the current group
+- (void)immediatelyLoadCachedMovieDataForCurrentGroup {
+    // Only process if we have a valid selected group
+    if (self.selectedCategoryIndex < 0 || self.selectedGroupIndex < 0) {
+        return;
+    }
+    
+    // Get the current group name
+    NSString *currentGroupName = nil;
+    NSArray *groups = nil;
+    
+    if (self.selectedCategoryIndex == CATEGORY_FAVORITES) {
+        groups = [self safeGroupsForCategory:@"FAVORITES"];
+    } else if (self.selectedCategoryIndex == CATEGORY_MOVIES) {
+        groups = [self safeValueForKey:@"MOVIES" fromDictionary:self.groupsByCategory];
+    } else {
+        // Not a movie-related category
+        return;
+    }
+    
+    if (self.selectedGroupIndex >= 0 && self.selectedGroupIndex < [groups count]) {
+        currentGroupName = [groups objectAtIndex:self.selectedGroupIndex];
+    }
+    
+    if (!currentGroupName) {
+        return;
+    }
+    
+    // Get channels for the current group
+    NSArray *channelsInGroup = [self.channelsByGroup objectForKey:currentGroupName];
+    if (!channelsInGroup || [channelsInGroup count] == 0) {
+        return;
+    }
+    
+    //NSLog(@"Loading cached movie data for group '%@' with %lu channels", currentGroupName, (unsigned long)[channelsInGroup count]);
+    
+    NSInteger loadedCount = 0;
+    NSInteger totalCount = [channelsInGroup count];
+    
+    // Process each channel in the group
+    for (VLCChannel *channel in channelsInGroup) {
+        if (!channel.hasLoadedMovieInfo && !channel.hasStartedFetchingMovieInfo) {
+            // Try to load from cache
+            BOOL loaded = [self loadMovieInfoFromCacheForChannel:channel];
+            if (loaded) {
+                loadedCount++;
+            }
+        } else if (channel.hasLoadedMovieInfo) {
+            loadedCount++; // Already loaded
+        }
+    }
+    
+    //NSLog(@"Cached movie data loading complete: %ld/%ld channels loaded from cache", (long)loadedCount, (long)totalCount);
+    
+    // Update display to show any newly loaded information
+    [self setNeedsDisplay:YES];
 }
 
 @end 

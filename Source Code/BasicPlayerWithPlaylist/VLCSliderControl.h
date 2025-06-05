@@ -21,4 +21,19 @@
                minValue:(CGFloat)minValue 
                maxValue:(CGFloat)maxValue;
 
+// New methods for slider activation tracking
++ (BOOL)handleMouseDown:(NSPoint)point 
+             sliderRect:(NSRect)sliderRect 
+           sliderHandle:(NSString *)sliderHandle;
+
++ (BOOL)handleMouseDragged:(NSPoint)point 
+                sliderRect:(NSRect)sliderRect 
+              sliderHandle:(NSString *)sliderHandle;
+
++ (void)handleMouseUp;
+
++ (BOOL)isSliderActive:(NSString *)sliderHandle;
+
++ (NSString *)activeSliderHandle;
+
 @end 

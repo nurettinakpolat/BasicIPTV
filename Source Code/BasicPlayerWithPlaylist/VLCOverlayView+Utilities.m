@@ -30,7 +30,7 @@
         
         return emptyGroups;
     } @catch (NSException *exception) {
-        NSLog(@"Exception in safeGroupsForCategory: %@", exception);
+        //NSLog(@"Exception in safeGroupsForCategory: %@", exception);
         return emptyGroups;
     }
 }
@@ -49,7 +49,7 @@
             return [dict objectForKey:key];
         }
     } @catch (NSException *exception) {
-        NSLog(@"Exception getting value for key %@: %@", key, exception);
+        //NSLog(@"Exception getting value for key %@: %@", key, exception);
     }
     
     return nil;
@@ -194,10 +194,10 @@
             // Always ensure the Settings category structure
             [self ensureSettingsGroups];
             
-            NSLog(@"Initialized data structures while preserving Settings");
+            //NSLog(@"Initialized data structures while preserving Settings");
             
         } @catch (NSException *exception) {
-            NSLog(@"Exception in ensureDataStructuresInitialized: %@", exception);
+            //NSLog(@"Exception in ensureDataStructuresInitialized: %@", exception);
             
             // Last resort recovery - don't try to access old objects at all
             self.channels = [NSMutableArray array];
@@ -213,7 +213,7 @@
             // Even in emergency, ensure Settings exists
             [self ensureSettingsGroups];
             
-            NSLog(@"Emergency recreation of data structures");
+            //NSLog(@"Emergency recreation of data structures");
         }
     }
 }
@@ -222,7 +222,7 @@
 - (NSString *)applicationSupportDirectory {
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES);
     NSString *basePath = [paths firstObject];
-    NSString *appName = @"BasicPlayerWithPlaylist";
+    NSString *appName = @"BasicIPTV";
     NSString *appSupportDir = [basePath stringByAppendingPathComponent:appName];
     
     // Create directory if it doesn't exist
@@ -231,7 +231,7 @@
         NSError *error = nil;
         [fileManager createDirectoryAtPath:appSupportDir withIntermediateDirectories:YES attributes:nil error:&error];
         if (error) {
-            NSLog(@"Error creating application support directory: %@", error);
+            //NSLog(@"Error creating application support directory: %@", error);
         }
     }
     
@@ -295,7 +295,7 @@
         // Always schedule a new check when interaction is registered
         [self scheduleInteractionCheck];
     } @catch (NSException *exception) {
-        NSLog(@"Exception in markUserInteraction: %@", exception);
+        //NSLog(@"Exception in markUserInteraction: %@", exception);
     }
 }
 
@@ -327,7 +327,7 @@
             [[NSRunLoop currentRunLoop] addTimer:autoHideTimer forMode:NSRunLoopCommonModes];
         });
     } @catch (NSException *exception) {
-        NSLog(@"Exception in scheduleInteractionCheck: %@", exception);
+        //NSLog(@"Exception in scheduleInteractionCheck: %@", exception);
     }
 }
 
@@ -529,9 +529,9 @@
                     // Double-check that we still have valid data
                     if (self.categories && self.categories.count > 0 && self.channels && self.channels.count > 0) {
                         [self loadAndRestoreLastSelectedIndices];
-                        NSLog(@"Restored last selected indices after channel loading with delay");
+                        //NSLog(@"Restored last selected indices after channel loading with delay");
                     } else {
-                        NSLog(@"Skipped selection restoration - data not ready yet");
+                        //NSLog(@"Skipped selection restoration - data not ready yet");
                     }
                 });
                 hasRestoredSelection = YES;
@@ -543,7 +543,7 @@
                 
                 // If favorites were lost, restore them
                 if (!currentFavGroups || currentFavGroups.count == 0) {
-                    NSLog(@"Favorites were lost during prepareSimpleChannelLists - restoring them");
+                    //NSLog(@"Favorites were lost during prepareSimpleChannelLists - restoring them");
                     
                     // Ensure favorites category is initialized
                     [self ensureFavoritesCategory];
@@ -612,7 +612,7 @@
             }
             
         } @catch (NSException *exception) {
-            NSLog(@"Exception in prepareSimpleChannelLists: %@", exception);
+            //NSLog(@"Exception in prepareSimpleChannelLists: %@", exception);
         }
     }
 }
@@ -698,7 +698,7 @@
         @try {
             count = [self.simpleChannelNames count];
         } @catch (NSException *exception) {
-            NSLog(@"Exception getting channel names count: %@", exception);
+            //NSLog(@"Exception getting channel names count: %@", exception);
             return -1;
         }
         
@@ -709,7 +709,7 @@
         
         return index;
     } @catch (NSException *exception) {
-        NSLog(@"Exception in simpleChannelIndexAtPoint: %@", exception);
+        //NSLog(@"Exception in simpleChannelIndexAtPoint: %@", exception);
         return -1;
     }
 }
@@ -784,7 +784,7 @@
         }
         // Otherwise the repeating timer will continue checking
     } @catch (NSException *exception) {
-        NSLog(@"Exception in checkUserInteraction: %@", exception);
+        //NSLog(@"Exception in checkUserInteraction: %@", exception);
         
         // Ensure we reschedule in case of error
         [self scheduleInteractionCheck];
@@ -808,7 +808,7 @@
         // Clear timer reference
         autoHideTimer = nil;
     } @catch (NSException *exception) {
-        NSLog(@"Exception in hideChannelList: %@", exception);
+        //NSLog(@"Exception in hideChannelList: %@", exception);
     }
 }
 
@@ -817,19 +817,19 @@
     if (isCursorHidden) {
         [NSCursor unhide];
         isCursorHidden = NO;
-        NSLog(@"Cursor shown via ensureCursorVisible");
+        //NSLog(@"Cursor shown via ensureCursorVisible");
     }
 }
 
 // Auto-navigate to currently playing channel after 15 seconds of menu being hidden
 - (void)autoNavigateToCurrentlyPlayingChannel {
     @try {
-        NSLog(@"Auto-navigating to currently playing channel...");
+        //NSLog(@"Auto-navigating to currently playing channel...");
         
         // Get the currently playing channel URL
         NSString *currentChannelUrl = [self getLastPlayedChannelUrl];
         if (!currentChannelUrl || [currentChannelUrl length] == 0) {
-            NSLog(@"No currently playing channel found");
+            //NSLog(@"No currently playing channel found");
             return;
         }
         
@@ -864,8 +864,8 @@
                             foundGroupIndex = groupIndex;
                             foundChannelIndex = channelIndex;
                             
-                            NSLog(@"Found currently playing channel '%@' at Cat=%ld, Group=%ld, Channel=%ld", 
-                                  channel.name, (long)catIndex, (long)groupIndex, (long)channelIndex);
+                            //NSLog(@"Found currently playing channel '%@' at Cat=%ld, Group=%ld, Channel=%ld", 
+                            //      channel.name, (long)catIndex, (long)groupIndex, (long)channelIndex);
                             break;
                         }
                     }
@@ -894,14 +894,14 @@
             // Center the selection in the view and set hover indices
             [self centerSelectionInMenuAndSetHoverIndices];
             
-            NSLog(@"Auto-navigation completed: Cat=%ld, Group=%ld, Channel=%ld", 
-                  (long)self.selectedCategoryIndex, (long)self.selectedGroupIndex, (long)self.selectedChannelIndex);
+            //NSLog(@"Auto-navigation completed: Cat=%ld, Group=%ld, Channel=%ld", 
+            //      (long)self.selectedCategoryIndex, (long)self.selectedGroupIndex, (long)self.selectedChannelIndex);
         } else {
-            NSLog(@"Currently playing channel not found in menu structure");
+            //NSLog(@"Currently playing channel not found in menu structure");
         }
         
     } @catch (NSException *exception) {
-        NSLog(@"Exception in autoNavigateToCurrentlyPlayingChannel: %@", exception);
+        //NSLog(@"Exception in autoNavigateToCurrentlyPlayingChannel: %@", exception);
     }
 }
 
@@ -1003,8 +1003,8 @@
                 CGFloat centerOffset = (channelPanelHeight / 2) - (itemHeight / 2);
                 channelScrollPosition = MAX(0, MIN(targetRowY - centerOffset, maxScroll));
                 
-                NSLog(@"Grid view centering: selectedIndex=%ld, row=%ld, targetY=%.1f, scrollPos=%.1f", 
-                      (long)self.selectedChannelIndex, (long)selectedRow, targetRowY, channelScrollPosition);
+                //NSLog(@"Grid view centering: selectedIndex=%ld, row=%ld, targetY=%.1f, scrollPos=%.1f", 
+                //      (long)self.selectedChannelIndex, (long)selectedRow, targetRowY, channelScrollPosition);
                 
             } else {
                 // LIST VIEW - standard 40px row height
@@ -1019,52 +1019,58 @@
                 CGFloat centerOffset = (channelPanelHeight / 2) - (channelRowHeight / 2);
                 channelScrollPosition = MAX(0, MIN(targetChannelY - centerOffset, maxScroll));
                 
-                NSLog(@"Centering view mode: rowHeight=%.1f, targetY=%.1f, scrollPos=%.1f", 
-                      channelRowHeight, targetChannelY, channelScrollPosition);
+                //NSLog(@"Centering view mode: rowHeight=%.1f, targetY=%.1f, scrollPos=%.1f", 
+                //      channelRowHeight, targetChannelY, channelScrollPosition);
             }
             
             // Set hover index to match selection
             self.hoveredChannelIndex = self.selectedChannelIndex;
         }
         
-        NSLog(@"Centered selection and set hover indices: Cat=%ld, Group=%ld, Channel=%ld (ViewMode: Stacked=%@, Grid=%@)", 
-              (long)self.hoveredCategoryIndex, (long)self.hoveredGroupIndex, (long)self.hoveredChannelIndex,
-              isStackedViewActive ? @"YES" : @"NO", isGridViewActive ? @"YES" : @"NO");
+        //NSLog(@"Centered selection and set hover indices: Cat=%ld, Group=%ld, Channel=%ld (ViewMode: Stacked=%@, Grid=%@)", 
+        //      (long)self.hoveredCategoryIndex, (long)self.hoveredGroupIndex, (long)self.hoveredChannelIndex,
+        //      isStackedViewActive ? @"YES" : @"NO", isGridViewActive ? @"YES" : @"NO");
               
     } @catch (NSException *exception) {
-        NSLog(@"Exception in centerSelectionInMenuAndSetHoverIndices: %@", exception);
+        //NSLog(@"Exception in centerSelectionInMenuAndSetHoverIndices: %@", exception);
     }
 }
 
 #pragma mark - Settings Persistence
 
-- (void)saveSettings {
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+- (void)saveSettingsState {
+    // Store all settings in a single plist file in Application Support instead of UserDefaults
+    NSString *settingsPath = [self settingsFilePath];
+    NSMutableDictionary *settingsDict = [NSMutableDictionary dictionary];
     
-    // Save playlist URL
-    if (self.m3uFilePath) {
-        [defaults setObject:self.m3uFilePath forKey:@"PlaylistURL"];
-    }
+    // Store playlist and EPG URLs
+    if (self.m3uFilePath) [settingsDict setObject:self.m3uFilePath forKey:@"PlaylistURL"];
+    if (self.epgUrl) [settingsDict setObject:self.epgUrl forKey:@"EPGURL"];
     
-    // Save EPG URL
-    if (self.epgUrl) {
-        [defaults setObject:self.epgUrl forKey:@"EPGURL"];
-    }
+    // Store EPG time offset
+    [settingsDict setObject:@(self.epgTimeOffsetHours) forKey:@"EPGTimeOffsetHours"];
     
-    // Save EPG time offset
-    [defaults setInteger:self.epgTimeOffsetHours forKey:@"EPGTimeOffsetHours"];
-    
-    // Save last download timestamps
+    // Store last download timestamps
     NSDate *now = [NSDate date];
     
     // If we're downloading or updating M3U, save timestamp
     if (self.isLoading && !self.isLoadingEpg) {
-        [defaults setObject:now forKey:@"LastM3UDownloadDate"];
+        [settingsDict setObject:now forKey:@"LastM3UDownloadDate"];
+    } else {
+        // Preserve existing timestamp
+        NSDictionary *existingSettings = [NSDictionary dictionaryWithContentsOfFile:settingsPath];
+        NSDate *existingM3UDate = [existingSettings objectForKey:@"LastM3UDownloadDate"];
+        if (existingM3UDate) [settingsDict setObject:existingM3UDate forKey:@"LastM3UDownloadDate"];
     }
     
     // If we're downloading or updating EPG, save timestamp
     if (self.isLoadingEpg) {
-        [defaults setObject:now forKey:@"LastEPGDownloadDate"];
+        [settingsDict setObject:now forKey:@"LastEPGDownloadDate"];
+    } else {
+        // Preserve existing timestamp
+        NSDictionary *existingSettings = [NSDictionary dictionaryWithContentsOfFile:settingsPath];
+        NSDate *existingEPGDate = [existingSettings objectForKey:@"LastEPGDownloadDate"];
+        if (existingEPGDate) [settingsDict setObject:existingEPGDate forKey:@"LastEPGDownloadDate"];
     }
     
     // Save favorites data
@@ -1094,41 +1100,63 @@
             [favoritesData setObject:favoriteChannels forKey:@"channels"];
         }
         
-        // Save the favorites data
-        [defaults setObject:favoritesData forKey:@"FavoritesData"];
-        NSLog(@"Saved %lu favorite groups with %lu channels", 
-             (unsigned long)favoriteGroups.count, 
-             (unsigned long)favoriteChannels.count);
+        // Store the favorites data
+        [settingsDict setObject:favoritesData forKey:@"FavoritesData"];
+        //NSLog(@"Saved %lu favorite groups with %lu channels", 
+        //      (unsigned long)favoriteGroups.count, 
+        //      (unsigned long)favoriteChannels.count);
     }
     
-    // Force the settings to be written to disk
-    [defaults synchronize];
+    // Write to file
+    BOOL success = [settingsDict writeToFile:settingsPath atomically:YES];
+    if (success) {
+        //NSLog(@"Settings saved to Application Support: %@", settingsPath);
+    } else {
+        //NSLog(@"Failed to save settings to: %@", settingsPath);
+    }
     
-    NSLog(@"Settings saved - M3U URL: %@, EPG URL: %@", self.m3uFilePath, self.epgUrl);
+    //NSLog(@"Settings saved - M3U URL: %@, EPG URL: %@", self.m3uFilePath, self.epgUrl);
 }
 
 - (void)loadSettings {
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    // Load all settings from the Application Support file instead of UserDefaults
+    NSString *settingsPath = [self settingsFilePath];
+    NSDictionary *settingsDict = [NSDictionary dictionaryWithContentsOfFile:settingsPath];
+    
+    if (!settingsDict) {
+        // MIGRATION: Check if we have old UserDefaults data to migrate
+        [self migrateUserDefaultsToApplicationSupport];
+        // Try loading again after migration
+        settingsDict = [NSDictionary dictionaryWithContentsOfFile:settingsPath];
+    }
+    
+    if (!settingsDict) {
+        //NSLog(@"No settings file found, using defaults");
+        return;
+    }
     
     // Load playlist URL
-    NSString *savedM3uPath = [defaults objectForKey:@"PlaylistURL"];
+    NSString *savedM3uPath = [settingsDict objectForKey:@"PlaylistURL"];
     if (savedM3uPath && [savedM3uPath length] > 0) {
         self.m3uFilePath = savedM3uPath;
-        NSLog(@"Loaded M3U URL from settings: %@", self.m3uFilePath);
+        //NSLog(@"Loaded M3U URL from settings: %@", self.m3uFilePath);
     }
     
     // Load EPG URL
-    NSString *savedEpgUrl = [defaults objectForKey:@"EPGURL"];
+    NSString *savedEpgUrl = [settingsDict objectForKey:@"EPGURL"];
     if (savedEpgUrl && [savedEpgUrl length] > 0) {
         self.epgUrl = savedEpgUrl;
-        NSLog(@"Loaded EPG URL from settings: %@", self.epgUrl);
+       //NSLog(@"Loaded EPG URL from settings: %@", self.epgUrl);
     }
     
     // Load EPG time offset
-    self.epgTimeOffsetHours = [defaults integerForKey:@"EPGTimeOffsetHours"];
+    NSNumber *epgOffset = [settingsDict objectForKey:@"EPGTimeOffsetHours"];
+    if (epgOffset) {
+        self.epgTimeOffsetHours = [epgOffset integerValue];
+    }
     
     // Load favorites data
-    NSDictionary *favoritesData = [defaults objectForKey:@"FavoritesData"];
+    NSDictionary *favoritesData = [settingsDict objectForKey:@"FavoritesData"];
     if (favoritesData) {
         // Ensure favorites category exists
         [self ensureFavoritesCategory];
@@ -1193,18 +1221,96 @@
                 [channel release];
             }
             
-            NSLog(@"Loaded %lu favorite channels from settings", (unsigned long)favoriteChannels.count);
+            //NSLog(@"Loaded %lu favorite channels from settings", (unsigned long)favoriteChannels.count);
+        }
+    }
+}
+
+// Helper method to get the settings file path
+- (NSString *)settingsFilePath {
+    NSString *appSupportDir = [self applicationSupportDirectory];
+    return [appSupportDir stringByAppendingPathComponent:@"settings.plist"];
+}
+
+// Migration method to move UserDefaults data to Application Support
+- (void)migrateUserDefaultsToApplicationSupport {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSMutableDictionary *settingsDict = [NSMutableDictionary dictionary];
+    BOOL hasDataToMigrate = NO;
+    
+    // Migrate playlist URL
+    NSString *playlistURL = [defaults objectForKey:@"PlaylistURL"];
+    if (playlistURL) {
+        [settingsDict setObject:playlistURL forKey:@"PlaylistURL"];
+        hasDataToMigrate = YES;
+    }
+    
+    // Migrate EPG URL
+    NSString *epgURL = [defaults objectForKey:@"EPGURL"];
+    if (epgURL) {
+        [settingsDict setObject:epgURL forKey:@"EPGURL"];
+        hasDataToMigrate = YES;
+    }
+    
+    // Migrate EPG time offset
+    if ([defaults objectForKey:@"EPGTimeOffsetHours"]) {
+        [settingsDict setObject:@([defaults integerForKey:@"EPGTimeOffsetHours"]) forKey:@"EPGTimeOffsetHours"];
+        hasDataToMigrate = YES;
+    }
+    
+    // Migrate favorites data
+    NSDictionary *favoritesData = [defaults objectForKey:@"FavoritesData"];
+    if (favoritesData) {
+        [settingsDict setObject:favoritesData forKey:@"FavoritesData"];
+        hasDataToMigrate = YES;
+    }
+    
+    // Migrate download timestamps
+    NSDate *lastM3UDate = [defaults objectForKey:@"LastM3UDownloadDate"];
+    if (lastM3UDate) {
+        [settingsDict setObject:lastM3UDate forKey:@"LastM3UDownloadDate"];
+        hasDataToMigrate = YES;
+    }
+    
+    NSDate *lastEPGDate = [defaults objectForKey:@"LastEPGDownloadDate"];
+    if (lastEPGDate) {
+        [settingsDict setObject:lastEPGDate forKey:@"LastEPGDownloadDate"];
+        hasDataToMigrate = YES;
+    }
+    
+    if (hasDataToMigrate) {
+        // Save migrated data to Application Support
+        NSString *settingsPath = [self settingsFilePath];
+        BOOL success = [settingsDict writeToFile:settingsPath atomically:YES];
+        
+        if (success) {
+            //NSLog(@"Successfully migrated UserDefaults data to Application Support: %@", settingsPath);
+            
+            // Clear the old UserDefaults data after successful migration
+            [defaults removeObjectForKey:@"PlaylistURL"];
+            [defaults removeObjectForKey:@"EPGURL"];
+            [defaults removeObjectForKey:@"EPGTimeOffsetHours"];
+            [defaults removeObjectForKey:@"FavoritesData"];
+            [defaults removeObjectForKey:@"LastM3UDownloadDate"];
+            [defaults removeObjectForKey:@"LastEPGDownloadDate"];
+            [defaults synchronize];
+            
+            //NSLog(@"Cleared old UserDefaults data after migration");
+        } else {
+            //NSLog(@"Failed to migrate UserDefaults data to Application Support");
         }
     }
 }
 
 - (BOOL)shouldUpdateM3UAtStartup {
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    NSDate *lastDownload = [defaults objectForKey:@"LastM3UDownloadDate"];
+    // Load from Application Support file instead of UserDefaults
+    NSString *settingsPath = [self settingsFilePath];
+    NSDictionary *settingsDict = [NSDictionary dictionaryWithContentsOfFile:settingsPath];
+    NSDate *lastDownload = [settingsDict objectForKey:@"LastM3UDownloadDate"];
     
     if (!lastDownload) {
         // No previous download, should update
-        NSLog(@"No previous M3U download date found, will update");
+        //NSLog(@"No previous M3U download date found, will update");
         return YES;
     }
     
@@ -1212,20 +1318,22 @@
     NSTimeInterval oneDayInSeconds = 24 * 60 * 60; // 24 hours
     
     BOOL shouldUpdate = timeSinceDownload > oneDayInSeconds;
-    NSLog(@"Last M3U download was %.1f hours ago, %@", 
-          timeSinceDownload / 3600.0, 
-          shouldUpdate ? @"will update" : @"no update needed");
+    //NSLog(@"Last M3U download was %.1f hours ago, %@", 
+    //      timeSinceDownload / 3600.0, 
+    //      shouldUpdate ? @"will update" : @"no update needed");
     
     return shouldUpdate;
 }
 
 - (BOOL)shouldUpdateEPGAtStartup {
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    NSDate *lastDownload = [defaults objectForKey:@"LastEPGDownloadDate"];
+    // Load from Application Support file instead of UserDefaults
+    NSString *settingsPath = [self settingsFilePath];
+    NSDictionary *settingsDict = [NSDictionary dictionaryWithContentsOfFile:settingsPath];
+    NSDate *lastDownload = [settingsDict objectForKey:@"LastEPGDownloadDate"];
     
     if (!lastDownload) {
         // No previous download, should update
-        NSLog(@"No previous EPG download date found, will update");
+        //NSLog(@"No previous EPG download date found, will update");
         return YES;
     }
     
@@ -1233,9 +1341,9 @@
     NSTimeInterval sixHoursInSeconds = 6 * 60 * 60; // 6 hours
     
     BOOL shouldUpdate = timeSinceDownload > sixHoursInSeconds;
-    NSLog(@"Last EPG download was %.1f hours ago, %@", 
-          timeSinceDownload / 3600.0, 
-          shouldUpdate ? @"will update" : @"no update needed");
+    //NSLog(@"Last EPG download was %.1f hours ago, %@", 
+    //      timeSinceDownload / 3600.0, 
+    //      shouldUpdate ? @"will update" : @"no update needed");
     
     return shouldUpdate;
 }

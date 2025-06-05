@@ -4,7 +4,6 @@
 #import "VLCOverlayView+ContextMenu.h"
 #import "VLCOverlayView+TextFields.h"
 #import "VLCOverlayView+Search.h"
-#import "VLCOverlayView+ViewModes.h"
 #import "VLCOverlayView+Globals.h"
 
 @interface VLCOverlayView (UI)

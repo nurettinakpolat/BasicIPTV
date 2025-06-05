@@ -284,7 +284,7 @@
             [addItem release];
             
             // Add debugging log to verify menu item creation
-            NSLog(@"Added 'Add to Favorites' menu item for group: %@", groupName);
+            //NSLog(@"Added 'Add to Favorites' menu item for group: %@", groupName);
         }
     } else {
         // If in favorites category, only show remove option
@@ -390,7 +390,7 @@
     NSString *timeshiftUrl = [self generateTimeshiftUrlForChannel:channel atTime:targetTime];
     
     if (timeshiftUrl) {
-        NSLog(@"Playing timeshift for channel '%@' going back %@ hours", channel.name, hoursBack);
+        //NSLog(@"Playing timeshift for channel '%@' going back %@ hours", channel.name, hoursBack);
         
         // Stop current playback
         if (self.player) {
@@ -415,7 +415,7 @@
             // Start playing
             [self.player play];
             
-            NSLog(@"Started timeshift playback for URL: %@", timeshiftUrl);
+            //NSLog(@"Started timeshift playback for URL: %@", timeshiftUrl);
             
             // Force UI update
             [self setNeedsDisplay:YES];
@@ -427,7 +427,7 @@
         // Hide the channel list after starting playback
         [self hideChannelListWithFade];
     } else {
-        NSLog(@"Failed to generate timeshift URL for channel: %@", channel.name);
+        //NSLog(@"Failed to generate timeshift URL for channel: %@", channel.name);
     }
 }
 
@@ -509,7 +509,7 @@
         }
         
         // If both are hidden, log that there's nothing to hide
-        NSLog(@"Nothing to hide");
+        //NSLog(@"Nothing to hide");
     }
     
     // Handle 'V' key to cycle through views
@@ -537,10 +537,10 @@
             // CRITICAL FIX: Don't reset hover index if we're preserving state for EPG
             extern BOOL isPersistingHoverState;
             if (!isPersistingHoverState) {
-                NSLog(@"ContextMenu: Resetting hover index from %ld to -1", (long)self.hoveredChannelIndex);
+                //NSLog(@"ContextMenu: Resetting hover index from %ld to -1", (long)self.hoveredChannelIndex);
                 self.hoveredChannelIndex = -1;
             } else {
-                NSLog(@"ContextMenu: Preserving hover index %ld (EPG persistence mode)", (long)self.hoveredChannelIndex);
+                //NSLog(@"ContextMenu: Preserving hover index %ld (EPG persistence mode)", (long)self.hoveredChannelIndex);
             }
             channelScrollPosition = 0;
         
@@ -688,7 +688,7 @@
                     }
                     
                     // Save settings
-                    [self saveSettings];
+                    [self saveSettingsState];
                 }
             } else if (self.epgFieldActive) {
                 self.epgFieldActive = NO;
@@ -703,7 +703,7 @@
                     self.epgUrl = epgUrl;
                     
                     // Save settings
-                    [self saveSettings];
+                    [self saveSettingsState];
                     
                     // Load EPG data
                     [self loadEpgData];
@@ -901,12 +901,7 @@
             // Handle RGB sliders dragging (only when Custom theme is selected)
             if (self.currentTheme == VLC_THEME_CUSTOM) {
                 // Red slider dragging
-                NSRect expandedRedRect = NSMakeRect(self.redSliderRect.origin.x - 20, 
-                                                   self.redSliderRect.origin.y - 20, 
-                                                   self.redSliderRect.size.width + 40, 
-                                                   self.redSliderRect.size.height + 40);
-                
-                if (NSPointInRect(point, expandedRedRect)) {
+                if (!NSIsEmptyRect(self.redSliderRect) && [VLCSliderControl handleMouseDragged:point sliderRect:self.redSliderRect sliderHandle:@"red"]) {
                     CGFloat value = [VLCSliderControl valueForPoint:point
                                                        sliderRect:self.redSliderRect
                                                         minValue:0.0
@@ -921,12 +916,7 @@
                 }
                 
                 // Green slider dragging
-                NSRect expandedGreenRect = NSMakeRect(self.greenSliderRect.origin.x - 20, 
-                                                     self.greenSliderRect.origin.y - 20, 
-                                                     self.greenSliderRect.size.width + 40, 
-                                                     self.greenSliderRect.size.height + 40);
-                
-                if (NSPointInRect(point, expandedGreenRect)) {
+                if (!NSIsEmptyRect(self.greenSliderRect) && [VLCSliderControl handleMouseDragged:point sliderRect:self.greenSliderRect sliderHandle:@"green"]) {
                     CGFloat value = [VLCSliderControl valueForPoint:point
                                                        sliderRect:self.greenSliderRect
                                                         minValue:0.0
@@ -941,12 +931,7 @@
                 }
                 
                 // Blue slider dragging
-                NSRect expandedBlueRect = NSMakeRect(self.blueSliderRect.origin.x - 20, 
-                                                    self.blueSliderRect.origin.y - 20, 
-                                                    self.blueSliderRect.size.width + 40, 
-                                                    self.blueSliderRect.size.height + 40);
-                
-                if (NSPointInRect(point, expandedBlueRect)) {
+                if (!NSIsEmptyRect(self.blueSliderRect) && [VLCSliderControl handleMouseDragged:point sliderRect:self.blueSliderRect sliderHandle:@"blue"]) {
                     CGFloat value = [VLCSliderControl valueForPoint:point
                                                        sliderRect:self.blueSliderRect
                                                         minValue:0.0
@@ -961,14 +946,10 @@
                 }
             }
             
-            // Selection Color RGB sliders dragging (always available in Themes group)
+            // Handle Selection Color RGB sliders (only when Custom theme is selected)
+            if (self.currentTheme == VLC_THEME_CUSTOM) {
             // Selection Red slider dragging
-            NSRect expandedSelectionRedRect = NSMakeRect(self.selectionRedSliderRect.origin.x - 20, 
-                                                        self.selectionRedSliderRect.origin.y - 20, 
-                                                        self.selectionRedSliderRect.size.width + 40, 
-                                                        self.selectionRedSliderRect.size.height + 40);
-            
-            if (NSPointInRect(point, expandedSelectionRedRect)) {
+                if ([VLCSliderControl handleMouseDragged:point sliderRect:self.selectionRedSliderRect sliderHandle:@"selectionRed"]) {
                 CGFloat value = [VLCSliderControl valueForPoint:point
                                                    sliderRect:self.selectionRedSliderRect
                                                     minValue:0.0
@@ -977,18 +958,14 @@
                 if (self.customSelectionRed != value) {
                     self.customSelectionRed = value;
                     [self updateSelectionColors];
+                        [self saveThemeSettings];
                     [self setNeedsDisplay:YES];
                 }
                 return;
             }
             
             // Selection Green slider dragging
-            NSRect expandedSelectionGreenRect = NSMakeRect(self.selectionGreenSliderRect.origin.x - 20, 
-                                                          self.selectionGreenSliderRect.origin.y - 20, 
-                                                          self.selectionGreenSliderRect.size.width + 40, 
-                                                          self.selectionGreenSliderRect.size.height + 40);
-            
-            if (NSPointInRect(point, expandedSelectionGreenRect)) {
+                if ([VLCSliderControl handleMouseDragged:point sliderRect:self.selectionGreenSliderRect sliderHandle:@"selectionGreen"]) {
                 CGFloat value = [VLCSliderControl valueForPoint:point
                                                    sliderRect:self.selectionGreenSliderRect
                                                     minValue:0.0
@@ -997,18 +974,14 @@
                 if (self.customSelectionGreen != value) {
                     self.customSelectionGreen = value;
                     [self updateSelectionColors];
+                        [self saveThemeSettings];
                     [self setNeedsDisplay:YES];
                 }
                 return;
             }
             
             // Selection Blue slider dragging
-            NSRect expandedSelectionBlueRect = NSMakeRect(self.selectionBlueSliderRect.origin.x - 20, 
-                                                         self.selectionBlueSliderRect.origin.y - 20, 
-                                                         self.selectionBlueSliderRect.size.width + 40, 
-                                                         self.selectionBlueSliderRect.size.height + 40);
-            
-            if (NSPointInRect(point, expandedSelectionBlueRect)) {
+                if ([VLCSliderControl handleMouseDragged:point sliderRect:self.selectionBlueSliderRect sliderHandle:@"selectionBlue"]) {
                 CGFloat value = [VLCSliderControl valueForPoint:point
                                                    sliderRect:self.selectionBlueSliderRect
                                                     minValue:0.0
@@ -1017,19 +990,15 @@
                 if (self.customSelectionBlue != value) {
                     self.customSelectionBlue = value;
                     [self updateSelectionColors];
+                        [self saveThemeSettings];
                     [self setNeedsDisplay:YES];
                 }
                 return;
+                }
             }
             
             // Transparency slider dragging
-            // Allow dragging even if mouse is slightly outside the slider for better UX
-            NSRect expandedRect = NSMakeRect(self.transparencySliderRect.origin.x - 20, 
-                                           self.transparencySliderRect.origin.y - 20, 
-                                           self.transparencySliderRect.size.width + 40, 
-                                           self.transparencySliderRect.size.height + 40);
-            
-            if (NSPointInRect(point, expandedRect)) {
+            if ([VLCSliderControl handleMouseDragged:point sliderRect:self.transparencySliderRect sliderHandle:@"transparency"]) {
                 CGFloat value = [VLCSliderControl valueForPoint:point
                                                    sliderRect:self.transparencySliderRect
                                                     minValue:0.0
@@ -1053,11 +1022,8 @@
             if (sliderRectValue) {
                 NSRect sliderRect = [sliderRectValue rectValue];
                 
-                // Allow dragging even if mouse is slightly outside the slider for better UX
-                NSRect expandedRect = NSMakeRect(sliderRect.origin.x - 20, sliderRect.origin.y - 20, 
-                                               sliderRect.size.width + 40, sliderRect.size.height + 40);
-                
-                if (NSPointInRect(point, expandedRect)) {
+                // Use VLCSliderControl activation system for consistency
+                if ([VLCSliderControl handleMouseDragged:point sliderRect:sliderRect sliderHandle:@"subtitle"]) {
                     // Calculate new font size based on drag position
                     NSRect actualSliderRect = NSMakeRect(sliderRect.origin.x + 10, sliderRect.origin.y + 10, 
                                                         sliderRect.size.width - 20, sliderRect.size.height - 20);
@@ -1079,7 +1045,7 @@
                             [settings applyToPlayer:self.player];
                         }
                         
-                        NSLog(@"Subtitle font scale dragged to: %ld (%.2fx)", (long)newFontSize, (float)newFontSize / 10.0f);
+                        //NSLog(@"Subtitle font scale dragged to: %ld (%.2fx)", (long)newFontSize, (float)newFontSize / 10.0f);
                         
                         // Redraw to show updated slider position
                         [self setNeedsDisplay:YES];
@@ -1897,9 +1863,9 @@
     if (!channel) return;
     
     // Debug logging
-    NSLog(@"Drawing movie info for channel: %@", channel.name);
-    NSLog(@"Channel logo URL: %@", channel.logo);
-    NSLog(@"Channel category: %@", channel.category);
+    //NSLog(@"Drawing movie info for channel: %@", channel.name);
+    //NSLog(@"Channel logo URL: %@", channel.logo);
+    //NSLog(@"Channel category: %@", channel.category);
     
     // Define constant for the increased background height
     CGFloat backgroundHeightIncrease = 30.0;
@@ -1921,7 +1887,7 @@
     
     // Apply the scroll offset to the content - this is critical for scrolling to work
     CGFloat scrollOffset = self.movieInfoScrollPosition;
-    NSLog(@"Applying scroll offset: %.1f to movie info panel", scrollOffset);
+    //NSLog(@"Applying scroll offset: %.1f to movie info panel", scrollOffset);
     
     NSAffineTransform *transform = [NSAffineTransform transform];
     [transform translateXBy:0 yBy:scrollOffset];
@@ -1979,7 +1945,7 @@
     
     // Check if we have a logo URL (movie poster)
     BOOL hasLogo = (channel.logo != nil && [channel.logo length] > 0);
-    NSLog(@"Has logo: %@", hasLogo ? @"YES" : @"NO");
+    //NSLog(@"Has logo: %@", hasLogo ? @"YES" : @"NO");
     
     // Calculate poster dimensions with proper aspect ratio - making it much larger
     CGFloat posterHeightPercent = 0.6; // Increase the poster height percentage significantly
@@ -2040,19 +2006,19 @@
                 // Fallback to older encoding method for backward compatibility
                 logoUrl = [logoUrl stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
             }
-            NSLog(@"Encoded URL: %@", logoUrl);
+            //NSLog(@"Encoded URL: %@", logoUrl);
         }
         
-        NSLog(@"Attempting to load image from: %@", logoUrl);
+        //NSLog(@"Attempting to load image from: %@", logoUrl);
         
         // Try to load the image from the URL
         if (logoUrl && [logoUrl length] > 0) {
-            NSLog(@"Loading from web URL: %@", logoUrl);
+            //NSLog(@"Loading from web URL: %@", logoUrl);
             
             // Create a URL object
             NSURL *imageUrl = [NSURL URLWithString:logoUrl];
             if (!imageUrl) {
-                NSLog(@"Invalid URL format: %@", logoUrl);
+                //NSLog(@"Invalid URL format: %@", logoUrl);
             } else {
                 // If we already have a cached image from a previous load, use it
                 if (channel.cachedPosterImage) {
@@ -2108,7 +2074,7 @@
             NSBezierPath *clipPath = [NSBezierPath bezierPathWithRoundedRect:innerRect xRadius:5 yRadius:5];
             [clipPath setClip];
             
-            NSLog(@"Drawing image in rect: %@", NSStringFromRect(safeDrawRect));
+            //NSLog(@"Drawing image in rect: %@", NSStringFromRect(safeDrawRect));
             [posterImage drawInRect:safeDrawRect fromRect:NSZeroRect operation:NSCompositeSourceOver fraction:1.0];
             
             [NSGraphicsContext restoreGraphicsState];
@@ -2117,7 +2083,7 @@
         NSRect safeRect = posterRect;
         [[NSColor colorWithCalibratedRed:0.1 green:0.1 blue:0.1 alpha:1.0] set];
         NSRectFill(safeRect);
-        NSLog(@"Drawing placeholder background - no logo available");
+        //NSLog(@"Drawing placeholder background - no logo available");
     } else if (channel.hasStartedFetchingMovieInfo && !channel.hasLoadedMovieInfo) {
         // Show loading indicator when fetching image - using exact poster rect
         NSRect safeRect = posterRect;
@@ -2418,8 +2384,8 @@
             // Using a much higher scaling factor to ensure scrolling works
             contentHeight = MAX(contentHeight, 1000 + (descriptionLength * 5.0)); // Very aggressive approximation
             
-            NSLog(@"Scroll indicator: content height = %.1f, scroll pos = %.1f", 
-                  contentHeight, self.movieInfoScrollPosition);
+            //NSLog(@"Scroll indicator: content height = %.1f, scroll pos = %.1f", 
+            //      contentHeight, self.movieInfoScrollPosition);
         }
         
         CGFloat visibleHeight = panelRect.size.height;
@@ -2748,26 +2714,26 @@
         // Get current channels
         NSArray *channels = [self getChannelsForCurrentGroup];
         if (!channels || channels.count == 0) {
-            NSLog(@"🚫 No channels available");
+            //NSLog(@"🚫 No channels available");
             return -1;
         }
         
-        NSLog(@"📋 Found %ld channels, using scroll position %.1f", (long)channels.count, currentScrollPosition);
+        //NSLog(@"📋 Found %ld channels, using scroll position %.1f", (long)channels.count, currentScrollPosition);
         
         // Calculate which channel the mouse is over using simplified Y calculation
         // This matches exactly how channels are drawn in the drawChannelList method
         CGFloat totalY = self.bounds.size.height - point.y + currentScrollPosition;
         NSInteger channelIndex = (NSInteger)(totalY / rowHeight);
         
-        NSLog(@"🎯 Calculated channel index: %ld (totalY=%.1f, rowHeight=%.1f)", 
-              (long)channelIndex, totalY, rowHeight);
+        //NSLog(@"🎯 Calculated channel index: %ld (totalY=%.1f, rowHeight=%.1f)", 
+        //      (long)channelIndex, totalY, rowHeight);
         
         // Validate the calculated index
         if (channelIndex >= 0 && channelIndex < channels.count) {
-            NSLog(@"✅ Found valid channel at index %ld", (long)channelIndex);
+            //NSLog(@"✅ Found valid channel at index %ld", (long)channelIndex);
             return channelIndex;
         } else {
-            NSLog(@"❌ Channel index %ld out of range (0-%ld)", (long)channelIndex, (long)(channels.count - 1));
+            //NSLog(@"❌ Channel index %ld out of range (0-%ld)", (long)channelIndex, (long)(channels.count - 1));
             return -1;
         }
     }
@@ -2805,8 +2771,13 @@
     NSInteger numRows = (NSInteger)ceilf((float)channels.count / (float)maxColumns);
     CGFloat totalGridHeight = numRows * (itemHeight + itemPadding) + itemPadding;
     
-    // Calculate scroll offset
-    CGFloat scrollOffset = MAX(0, MIN(channelScrollPosition, totalGridHeight - self.bounds.size.height));
+    // Add extra space at the bottom to ensure last row is fully visible when scrolled to the end
+    totalGridHeight += itemHeight;
+    
+    // CRITICAL FIX: Use same content height calculation as drawGridView (accounts for header space)
+    CGFloat contentHeight = self.bounds.size.height - 40;
+    CGFloat maxScroll = MAX(0, totalGridHeight - contentHeight);
+    CGFloat scrollOffset = MAX(0, MIN(channelScrollPosition, maxScroll));
     
     // Calculate grid item positions and check if point is inside any of them
     for (NSInteger i = 0; i < channels.count; i++) {
@@ -2883,13 +2854,13 @@
     
     // Don't reload if we already have a cached image
     if (channel.cachedPosterImage) {
-        NSLog(@"Image already cached for channel: %@", channel.name);
+        //NSLog(@"Image already cached for channel: %@", channel.name);
         return;
     }
     
     // We use a separate property to track image loading
     if (objc_getAssociatedObject(channel, "imageLoadingInProgress")) {
-        NSLog(@"Image loading already in progress for channel: %@", channel.name);
+        //NSLog(@"Image loading already in progress for channel: %@", channel.name);
         return;
     }
     
@@ -2910,16 +2881,16 @@
     
     // Additional validation for URL string format
     if (![imageUrl hasPrefix:@"http://"] && ![imageUrl hasPrefix:@"https://"]) {
-        NSLog(@"URL doesn't have http/https prefix, adding http://: %@", imageUrl);
+        //NSLog(@"URL doesn't have http/https prefix, adding http://: %@", imageUrl);
         imageUrl = [@"http://" stringByAppendingString:imageUrl];
     }
     
-    NSLog(@"Starting image download for channel: %@ from URL: %@", channel.name, imageUrl);
+    //NSLog(@"Starting image download for channel: %@ from URL: %@", channel.name, imageUrl);
     
     // Create URL object with validation
     NSURL *url = [NSURL URLWithString:imageUrl];
     if (!url) {
-        NSLog(@"Invalid image URL format: %@", imageUrl);
+        //NSLog(@"Invalid image URL format: %@", imageUrl);
         // Clear loading state
         objc_setAssociatedObject(channel, "imageLoadingInProgress", nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         return;
@@ -2927,7 +2898,7 @@
     
     // Final URL validation to prevent empty host issues
     if (!url.host || [url.host length] == 0) {
-        NSLog(@"URL has no valid host: %@", imageUrl);
+        //NSLog(@"URL has no valid host: %@", imageUrl);
         // Clear loading state
         objc_setAssociatedObject(channel, "imageLoadingInProgress", nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         return;
@@ -2943,7 +2914,7 @@
                                            completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         // Handle errors
         if (error) {
-            NSLog(@"Error loading image data for channel %@: %@", channel.name, [error localizedDescription]);
+            //NSLog(@"Error loading image data for channel %@: %@", channel.name, [error localizedDescription]);
             
             // Clear the loading flag on error
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -2955,7 +2926,7 @@
         // Check HTTP status
         NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
         if (httpResponse.statusCode != 200) {
-            NSLog(@"HTTP error loading image for channel %@: %ld", channel.name, (long)httpResponse.statusCode);
+            //NSLog(@"HTTP error loading image for channel %@: %ld", channel.name, (long)httpResponse.statusCode);
             
             // Clear the loading flag on HTTP error
             dispatch_async(dispatch_get_main_queue(), ^{
@@ -2969,7 +2940,7 @@
             // Create image from data
             NSImage *downloadedImage = [[NSImage alloc] initWithData:data];
             if (!downloadedImage) {
-                NSLog(@"Failed to create image from downloaded data for channel: %@", channel.name);
+                //NSLog(@"Failed to create image from downloaded data for channel: %@", channel.name);
                 
                 // Clear loading flag even on failure
                 objc_setAssociatedObject(channel, "imageLoadingInProgress", nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -2990,7 +2961,7 @@
             // Trigger a redraw
             [self setNeedsDisplay:YES];
             
-            NSLog(@"Successfully downloaded and cached image for channel: %@", channel.name);
+            //NSLog(@"Successfully downloaded and cached image for channel: %@", channel.name);
         });
     }];
     
@@ -3723,13 +3694,13 @@
             
             // Log results if any work was done
             if (channelsLoadedFromCache.count > 0) {
-                NSLog(@"📋 Loaded %ld movies from cache", (long)channelsLoadedFromCache.count);
+                //NSLog(@"📋 Loaded %ld movies from cache", (long)channelsLoadedFromCache.count);
                 // Use throttled update instead of immediate redraw for better performance
                 [self throttledDisplayUpdate];
             }
             
             if (downloadsStarted > 0) {
-                NSLog(@"🔄 Started fetching %ld movies (limited to 10 max)", (long)downloadsStarted);
+                //NSLog(@"🔄 Started fetching %ld movies (limited to 10 max)", (long)downloadsStarted);
             }
         });
     });
@@ -4043,8 +4014,8 @@
         return NO;
     }
     
-    NSLog(@"EPG Right-click detected on channel: %@ (hoveredChannelIndex: %ld)", 
-          channel.name, (long)self.hoveredChannelIndex);
+    //NSLog(@"EPG Right-click detected on channel: %@ (hoveredChannelIndex: %ld)", 
+    //      channel.name, (long)self.hoveredChannelIndex);
     
     // Sort programs by start time (same as in drawing code)
     NSArray *sortedPrograms = [channel.programs sortedArrayUsingComparator:^NSComparisonResult(VLCProgram *a, VLCProgram *b) {
@@ -4091,7 +4062,7 @@
 
 // Show context menu for EPG program
 - (void)showContextMenuForProgram:(VLCProgram *)program channel:(VLCChannel *)channel atPoint:(NSPoint)point withEvent:(NSEvent *)event {
-    NSLog(@"Creating EPG context menu for program: %@ on channel: %@", program.title, channel.name);
+   // NSLog(@"Creating EPG context menu for program: %@ on channel: %@", program.title, channel.name);
     
     NSMenu *menu = [[NSMenu alloc] init];
     
@@ -4152,13 +4123,13 @@
 - (void)playCatchUpFromMenu:(NSMenuItem *)sender {
     VLCProgram *program = [sender representedObject];
     if (program && rightClickedProgramChannel) {
-        NSLog(@"Playing catch-up for program: %@ on channel: %@", program.title, rightClickedProgramChannel.name);
+        //NSLog(@"Playing catch-up for program: %@ on channel: %@", program.title, rightClickedProgramChannel.name);
         
         // Generate timeshift URL for the program
         NSString *timeshiftUrl = [self generateTimeshiftUrlForProgram:program channel:rightClickedProgramChannel];
         
         if (timeshiftUrl) {
-            NSLog(@"Generated timeshift URL: %@", timeshiftUrl);
+            //NSLog(@"Generated timeshift URL: %@", timeshiftUrl);
             
             // Stop current playback
             if (self.player) {
@@ -4183,7 +4154,7 @@
                 // Start playing
                 [self.player play];
                 
-                NSLog(@"Started timeshift playback for program: %@", program.title);
+                //NSLog(@"Started timeshift playback for program: %@", program.title);
                 
                 // Force UI update
                 [self setNeedsDisplay:YES];
@@ -4210,7 +4181,7 @@
             // Hide the channel list after starting playback
             [self hideChannelListWithFade];
         } else {
-            NSLog(@"Failed to generate timeshift URL for program: %@", program.title);
+            //NSLog(@"Failed to generate timeshift URL for program: %@", program.title);
             
             // Show a brief error message
             [self setLoadingStatusText:@"Error: Could not generate timeshift URL"];
@@ -4235,10 +4206,10 @@
 - (void)playChannelFromEpgMenu:(NSMenuItem *)sender {
     VLCChannel *channel = [sender representedObject];
     if (channel) {
-        NSLog(@"EPG Context Menu - Playing channel: %@ (URL: %@)", channel.name, channel.url);
-        NSLog(@"EPG Context Menu - rightClickedProgramChannel: %@ (URL: %@)", 
-              rightClickedProgramChannel ? rightClickedProgramChannel.name : @"nil",
-              rightClickedProgramChannel ? rightClickedProgramChannel.url : @"nil");
+        //NSLog(@"EPG Context Menu - Playing channel: %@ (URL: %@)", channel.name, channel.url);
+        //NSLog(@"EPG Context Menu - rightClickedProgramChannel: %@ (URL: %@)", 
+        //      rightClickedProgramChannel ? rightClickedProgramChannel.name : @"nil",
+        //      rightClickedProgramChannel ? rightClickedProgramChannel.url : @"nil");
         
         // Use the stored rightClickedProgramChannel to ensure we play the correct channel
         // This is more reliable than the representedObject
@@ -4252,9 +4223,9 @@
             NSInteger channelIndex = [self findChannelIndexForChannel:channelToPlay];
             if (channelIndex >= 0) {
                 self.selectedChannelIndex = channelIndex;
-                NSLog(@"Updated selectedChannelIndex to: %ld for channel: %@", (long)channelIndex, channelToPlay.name);
+                //NSLog(@"Updated selectedChannelIndex to: %ld for channel: %@", (long)channelIndex, channelToPlay.name);
             } else {
-                NSLog(@"Warning: Could not find channel index for: %@", channelToPlay.name);
+                //NSLog(@"Warning: Could not find channel index for: %@", channelToPlay.name);
             }
             
             // Refresh the EPG information and update the display

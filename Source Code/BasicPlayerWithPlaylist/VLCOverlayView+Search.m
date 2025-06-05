@@ -19,21 +19,21 @@
     [defaults setInteger:self.selectedGroupIndex forKey:@"VLCLastSelectedGroup"];
     [defaults setInteger:self.selectedChannelIndex forKey:@"VLCLastSelectedChannel"];
     [defaults synchronize];
-    NSLog(@"Saved last selected indices: Cat=%ld, Group=%ld, Channel=%ld", 
-          (long)self.selectedCategoryIndex, (long)self.selectedGroupIndex, (long)self.selectedChannelIndex);
+    //NSLog(@"Saved last selected indices: Cat=%ld, Group=%ld, Channel=%ld", 
+    //      (long)self.selectedCategoryIndex, (long)self.selectedGroupIndex, (long)self.selectedChannelIndex);
 }
 
 - (void)loadAndRestoreLastSelectedIndices {
     @try {
         NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
         if (!defaults) {
-            NSLog(@"ERROR: NSUserDefaults is nil, cannot load selection indices");
+            //NSLog(@"ERROR: NSUserDefaults is nil, cannot load selection indices");
             return;
         }
         
         // Ensure we have valid data structures before proceeding
         if (!self.categories || [self.categories count] == 0) {
-            NSLog(@"Categories not yet loaded, skipping selection restoration");
+            //NSLog(@"Categories not yet loaded, skipping selection restoration");
             return;
         }
         
@@ -47,14 +47,14 @@
             savedGroup = [defaults integerForKey:@"VLCLastSelectedGroup"];
             savedChannel = [defaults integerForKey:@"VLCLastSelectedChannel"];
         } @catch (NSException *exception) {
-            NSLog(@"Exception while reading saved indices: %@", exception);
+            //NSLog(@"Exception while reading saved indices: %@", exception);
             savedCategory = CATEGORY_FAVORITES; // Default fallback
             savedGroup = 0;
             savedChannel = 0;
         }
         
-        NSLog(@"Loading saved indices: Cat=%ld, Group=%ld, Channel=%ld", 
-              (long)savedCategory, (long)savedGroup, (long)savedChannel);
+        //NSLog(@"Loading saved indices: Cat=%ld, Group=%ld, Channel=%ld", 
+        //      (long)savedCategory, (long)savedGroup, (long)savedChannel);
         
         // Validate category index
         if (savedCategory >= 0 && savedCategory < self.categories.count) {
@@ -85,13 +85,13 @@
             self.selectedChannelIndex = 0;
         }
         
-        NSLog(@"Restored selection to: Cat=%ld, Group=%ld, Channel=%ld", 
-              (long)self.selectedCategoryIndex, (long)self.selectedGroupIndex, (long)self.selectedChannelIndex);
+        //NSLog(@"Restored selection to: Cat=%ld, Group=%ld, Channel=%ld", 
+        //      (long)self.selectedCategoryIndex, (long)self.selectedGroupIndex, (long)self.selectedChannelIndex);
               
           // Center the selection in the menu and set hover indices to match (like auto-navigation)
         [self centerSelectionInMenuAndSetHoverIndices];
     } @catch (NSException *exception) {
-        NSLog(@"CRITICAL ERROR in loadAndRestoreLastSelectedIndices: %@", exception);
+        //NSLog(@"CRITICAL ERROR in loadAndRestoreLastSelectedIndices: %@", exception);
         // Set safe defaults
         self.selectedCategoryIndex = CATEGORY_FAVORITES;
         self.selectedGroupIndex = 0;
@@ -156,8 +156,8 @@
                         [defaults setObject:channel.url forKey:@"VLCSearchedChannelURL"];
                         [defaults synchronize];
                         
-                        NSLog(@"Saved original location for searched channel '%@': Cat=%ld, Group=%ld, Channel=%ld", 
-                              channel.name, (long)catIndex, (long)groupIndex, (long)channelIndex);
+                        //NSLog(@"Saved original location for searched channel '%@': Cat=%ld, Group=%ld, Channel=%ld", 
+                        //      channel.name, (long)catIndex, (long)groupIndex, (long)channelIndex);
                         return;
                     }
                 }
@@ -175,7 +175,7 @@
     self.selectedGroupIndex = -1; // No groups in search
     self.selectedChannelIndex = -1; // Will be set by search results
     
-    NSLog(@"Switched to SEARCH category for channel: %@", channel.name);
+    //NSLog(@"Switched to SEARCH category for channel: %@", channel.name);
 }
 
 @end

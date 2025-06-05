@@ -606,7 +606,7 @@
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     [defaults setInteger:currentViewMode forKey:@"VLCOverlayViewMode"];
     [defaults synchronize];
-    NSLog(@"Saved view mode preference: %ld", (long)currentViewMode);
+    //NSLog(@"Saved view mode preference: %ld", (long)currentViewMode);
 }
 
 - (void)loadViewModePreference {
@@ -625,7 +625,7 @@
     // Apply the loaded view mode
     [self applyViewMode:currentViewMode];
     
-    NSLog(@"Loaded view mode preference: %ld", (long)currentViewMode);
+    //NSLog(@"Loaded view mode preference: %ld", (long)currentViewMode);
 }
 
 - (void)applyViewMode:(NSInteger)viewMode {
@@ -649,16 +649,16 @@
     // CRITICAL FIX: Don't reset hover index if we're preserving state for EPG
     extern BOOL isPersistingHoverState;
     if (!isPersistingHoverState) {
-        NSLog(@"ViewModes: Resetting hover index from %ld to -1", (long)self.hoveredChannelIndex);
+        //NSLog(@"ViewModes: Resetting hover index from %ld to -1", (long)self.hoveredChannelIndex);
         self.hoveredChannelIndex = -1;
     } else {
-        NSLog(@"ViewModes: Preserving hover index %ld (EPG persistence mode)", (long)self.hoveredChannelIndex);
+        //NSLog(@"ViewModes: Preserving hover index %ld (EPG persistence mode)", (long)self.hoveredChannelIndex);
     }
     channelScrollPosition = 0;
     
-    NSLog(@"Applied view mode: %ld (Stacked: %@, Grid: %@)", (long)viewMode, 
-          isStackedViewActive ? @"YES" : @"NO", 
-          isGridViewActive ? @"YES" : @"NO");
+    //NSLog(@"Applied view mode: %ld (Stacked: %@, Grid: %@)", (long)viewMode, 
+    //      isStackedViewActive ? @"YES" : @"NO", 
+    //      isGridViewActive ? @"YES" : @"NO");
 }
 
 // Memory management: Clear cached images for channels that are not currently visible
@@ -689,7 +689,7 @@
     }
     
     if (clearedCount > 0) {
-        NSLog(@"Cleared %ld cached images from memory (buffer: %ld items)", (long)clearedCount, (long)memoryBufferSize);
+        //NSLog(@"Cleared %ld cached images from memory (buffer: %ld items)", (long)clearedCount, (long)memoryBufferSize);
     }
 }
 
@@ -705,7 +705,7 @@
     
     // Validate visible range
     if (visibleRange.location >= channelsInCurrentGroup.count || visibleRange.length == 0) {
-        NSLog(@"Invalid visible range for preloading");
+        //NSLog(@"Invalid visible range for preloading");
         return;
     }
     
@@ -718,7 +718,7 @@
     NSInteger startIndex = visibleStart;
     NSInteger endIndex = MIN(totalChannels - 1, visibleEnd);
     
-    NSLog(@"Processing ONLY visible movies (no buffer): indices %ld-%ld", (long)startIndex, (long)endIndex);
+    //NSLog(@"Processing ONLY visible movies (no buffer): indices %ld-%ld", (long)startIndex, (long)endIndex);
     
     // Process channels in the visible range only
     for (NSInteger i = startIndex; i <= endIndex; i++) {
@@ -740,9 +740,9 @@
                     [self fetchMovieInfoForChannelAsync:channel];
                 });
                 
-                NSLog(@"🔄 Started fetching movie info for visible item: %@", channel.name);
+                //NSLog(@"🔄 Started fetching movie info for visible item: %@", channel.name);
             } else {
-                NSLog(@"📋 Loaded movie info from cache for visible item: %@", channel.name);
+                //NSLog(@"📋 Loaded movie info from cache for visible item: %@", channel.name);
             }
         }
     }
@@ -817,7 +817,7 @@
     }
     
     if (cleanedCount > 0) {
-        NSLog(@"🧹 Cleaned up %ld incomplete movie info cache files", (long)cleanedCount);
+        //NSLog(@"🧹 Cleaned up %ld incomplete movie info cache files", (long)cleanedCount);
     }
 }
 

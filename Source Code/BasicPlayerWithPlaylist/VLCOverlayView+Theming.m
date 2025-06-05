@@ -10,7 +10,7 @@ static BOOL isInitializingTheme = NO;
 #pragma mark - Theme System
 
 - (void)initializeThemeSystem {
-    NSLog(@"Theme System: Starting initialization");
+    //NSLog(@"Theme System: Starting initialization");
     
     // Set initialization flag to prevent recursive updates
     isInitializingTheme = YES;
@@ -24,34 +24,34 @@ static BOOL isInitializingTheme = NO;
     // Apply the loaded theme
     [self updateThemeColors];
     
-    NSLog(@"Theme System: Initialization complete");
+    //NSLog(@"Theme System: Initialization complete");
 }
 
 - (void)applyTheme:(VLCColorTheme)theme {
-    NSLog(@"Theme System: Applying theme %ld", (long)theme);
+    //NSLog(@"Theme System: Applying theme %ld", (long)theme);
     self.currentTheme = theme;
     [self updateThemeColors];
     
     // Save all settings including the new selection colors
     [self saveThemeSettings];
     [self setNeedsDisplay:YES];
-    NSLog(@"Theme System: Applied theme %ld with matching selection colors", (long)theme);
+    //NSLog(@"Theme System: Applied theme %ld with matching selection colors", (long)theme);
 }
 
 - (void)setTransparencyLevel:(VLCTransparencyLevel)level {
-    NSLog(@"Theme System: Setting transparency level %ld (isInitializing: %@)", (long)level, isInitializingTheme ? @"YES" : @"NO");
+    //NSLog(@"Theme System: Setting transparency level %ld (isInitializing: %@)", (long)level, isInitializingTheme ? @"YES" : @"NO");
     
     // During initialization, just set the value and return immediately
     if (isInitializingTheme) {
-        NSLog(@"Theme System: Setting transparency level directly during initialization");
+        //NSLog(@"Theme System: Setting transparency level directly during initialization");
         
         // Use runtime to directly set the instance variable, completely bypassing any setter
         Ivar transparencyLevelIvar = class_getInstanceVariable([self class], "_transparencyLevel");
         if (transparencyLevelIvar != NULL) {
             object_setIvar(self, transparencyLevelIvar, (id)(NSInteger)level);
-            NSLog(@"Theme System: Successfully set _transparencyLevel directly to %ld", (long)level);
+            //NSLog(@"Theme System: Successfully set _transparencyLevel directly to %ld", (long)level);
         } else {
-            NSLog(@"Theme System: WARNING - Could not find _transparencyLevel instance variable");
+            //NSLog(@"Theme System: WARNING - Could not find _transparencyLevel instance variable");
         }
         return;
     }
@@ -65,7 +65,7 @@ static BOOL isInitializingTheme = NO;
     
     self.themeAlpha = [self alphaForTransparencyLevel:level];
     
-    NSLog(@"Theme System: Updating colors and saving settings for transparency level %ld", (long)level);
+    //NSLog(@"Theme System: Updating colors and saving settings for transparency level %ld", (long)level);
     [self updateThemeColors];
     [self saveThemeSettings];
     [self setNeedsDisplay:YES];
@@ -83,7 +83,7 @@ static BOOL isInitializingTheme = NO;
 }
 
 - (void)updateThemeColors {
-    NSLog(@"Theme System: Updating theme colors for theme %ld with alpha %.2f", (long)self.currentTheme, self.themeAlpha);
+    //NSLog(@"Theme System: Updating theme colors for theme %ld with alpha %.2f", (long)self.currentTheme, self.themeAlpha);
     CGFloat alpha = self.themeAlpha;
     
     switch (self.currentTheme) {
@@ -188,46 +188,108 @@ static BOOL isInitializingTheme = NO;
 }
 
 - (void)saveThemeSettings {
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    [defaults setInteger:self.currentTheme forKey:@"VLCOverlayTheme"];
-    [defaults setInteger:self.transparencyLevel forKey:@"VLCOverlayTransparency"];
-    [defaults setFloat:self.themeAlpha forKey:@"VLCOverlayThemeAlpha"];
-    [defaults setFloat:self.customThemeRed forKey:@"VLCOverlayCustomRed"];
-    [defaults setFloat:self.customThemeGreen forKey:@"VLCOverlayCustomGreen"];
-    [defaults setFloat:self.customThemeBlue forKey:@"VLCOverlayCustomBlue"];
+    // Store theme settings in Application Support instead of UserDefaults
+    NSString *themeSettingsPath = [self themeSettingsFilePath];
+    NSMutableDictionary *themeDict = [NSMutableDictionary dictionary];
+    
+    [themeDict setObject:@(self.currentTheme) forKey:@"VLCOverlayTheme"];
+    [themeDict setObject:@(self.transparencyLevel) forKey:@"VLCOverlayTransparency"];
+    [themeDict setObject:@(self.themeAlpha) forKey:@"VLCOverlayThemeAlpha"];
+    [themeDict setObject:@(self.customThemeRed) forKey:@"VLCOverlayCustomRed"];
+    [themeDict setObject:@(self.customThemeGreen) forKey:@"VLCOverlayCustomGreen"];
+    [themeDict setObject:@(self.customThemeBlue) forKey:@"VLCOverlayCustomBlue"];
     
     // Save selection color values
-    [defaults setFloat:self.customSelectionRed forKey:@"VLCOverlaySelectionRed"];
-    [defaults setFloat:self.customSelectionGreen forKey:@"VLCOverlaySelectionGreen"];
-    [defaults setFloat:self.customSelectionBlue forKey:@"VLCOverlaySelectionBlue"];
+    [themeDict setObject:@(self.customSelectionRed) forKey:@"VLCOverlaySelectionRed"];
+    [themeDict setObject:@(self.customSelectionGreen) forKey:@"VLCOverlaySelectionGreen"];
+    [themeDict setObject:@(self.customSelectionBlue) forKey:@"VLCOverlaySelectionBlue"];
     
-    [defaults synchronize];
+    // Write to file
+    BOOL success = [themeDict writeToFile:themeSettingsPath atomically:YES];
+    if (!success) {
+        //NSLog(@"Failed to save theme settings to: %@", themeSettingsPath);
+    }
 }
 
 - (void)loadThemeSettings {
-    NSLog(@"Theme System: Loading theme settings");
+    //NSLog(@"Theme System: Loading theme settings");
     
     // Ensure we're in initialization mode
     BOOL wasInitializing = isInitializingTheme;
     isInitializingTheme = YES;
     
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    // Load theme settings from Application Support instead of UserDefaults
+    NSString *themeSettingsPath = [self themeSettingsFilePath];
+    NSDictionary *themeDict = [NSDictionary dictionaryWithContentsOfFile:themeSettingsPath];
+    
+    if (!themeDict) {
+        // MIGRATION: Check if we have old UserDefaults theme data to migrate
+        [self migrateThemeSettingsToApplicationSupport];
+        // Try loading again after migration
+        themeDict = [NSDictionary dictionaryWithContentsOfFile:themeSettingsPath];
+    }
+    
+    if (!themeDict) {
+        // No theme settings found, use defaults with 0.9 transparency
+        //NSLog(@"No theme settings file found, using defaults with 0.9 transparency");
+        
+        // Set default theme alpha to 0.9 when no settings exist
+        // Store values directly in instance variables during initialization to avoid setter side effects
+        if (wasInitializing) {
+            // Set currentTheme to dark theme
+            [self setValue:@(VLC_THEME_DARK) forKey:@"currentTheme"];
+            
+            // Set transparencyLevel using runtime to completely bypass the setter
+            // Use LIGHT transparency as the closest to 0.9 (which is 0.85, we'll override the alpha)
+            Ivar transparencyLevelIvar = class_getInstanceVariable([self class], "_transparencyLevel");
+            if (transparencyLevelIvar != NULL) {
+                object_setIvar(self, transparencyLevelIvar, (id)(NSInteger)VLC_TRANSPARENCY_LIGHT);
+            }
+            
+            // Set themeAlpha directly to 0.9 (overriding the transparency level calculation)
+            [self setValue:@(0.9f) forKey:@"themeAlpha"];
+            //NSLog(@"Theme System: Set default themeAlpha to 0.9");
+        } else {
+            self.currentTheme = VLC_THEME_DARK;
+            self.transparencyLevel = VLC_TRANSPARENCY_LIGHT;
+            self.themeAlpha = 0.9f;
+        }
+        
+        // Set default custom theme RGB values
+        self.customThemeRed = 0.10;
+        self.customThemeGreen = 0.12;
+        self.customThemeBlue = 0.16;
+        
+        // Set default selection colors
+        self.customSelectionRed = 0.2;
+        self.customSelectionGreen = 0.4;
+        self.customSelectionBlue = 0.9;
+        
+        isInitializingTheme = wasInitializing;
+        return;
+    }
     
     // Load current theme
-    NSInteger savedTheme = [defaults integerForKey:@"VLCOverlayTheme"];
-    self.currentTheme = savedTheme;
+    NSNumber *savedTheme = [themeDict objectForKey:@"VLCOverlayTheme"];
+    NSInteger themeValue = savedTheme ? [savedTheme integerValue] : VLC_THEME_DARK;
+    self.currentTheme = themeValue;
     
     // Load transparency (default to VLC_TRANSPARENCY_MEDIUM) - avoid property setters during init
-    VLCTransparencyLevel loadedTransparency = [defaults integerForKey:@"VLCOverlayTransparency"];
+    NSNumber *savedTransparency = [themeDict objectForKey:@"VLCOverlayTransparency"];
+    VLCTransparencyLevel loadedTransparency = savedTransparency ? [savedTransparency integerValue] : VLC_TRANSPARENCY_MEDIUM;
     if (loadedTransparency < VLC_TRANSPARENCY_OPAQUE || loadedTransparency > VLC_TRANSPARENCY_VERY_HIGH) {
         loadedTransparency = VLC_TRANSPARENCY_MEDIUM;
     }
-    NSLog(@"Theme System: Loaded transparency: %ld", (long)loadedTransparency);
+    //NSLog(@"Theme System: Loaded transparency: %ld", (long)loadedTransparency);
     
     // Load custom RGB values (default to dark theme colors)
-    CGFloat loadedRed = [defaults floatForKey:@"VLCOverlayCustomRed"];
-    CGFloat loadedGreen = [defaults floatForKey:@"VLCOverlayCustomGreen"];
-    CGFloat loadedBlue = [defaults floatForKey:@"VLCOverlayCustomBlue"];
+    NSNumber *savedRed = [themeDict objectForKey:@"VLCOverlayCustomRed"];
+    NSNumber *savedGreen = [themeDict objectForKey:@"VLCOverlayCustomGreen"];
+    NSNumber *savedBlue = [themeDict objectForKey:@"VLCOverlayCustomBlue"];
+    
+    CGFloat loadedRed = savedRed ? [savedRed floatValue] : 0.10;
+    CGFloat loadedGreen = savedGreen ? [savedGreen floatValue] : 0.12;
+    CGFloat loadedBlue = savedBlue ? [savedBlue floatValue] : 0.16;
     
     // If no custom values saved, use default dark theme values
     if (loadedRed == 0.0 && loadedGreen == 0.0 && loadedBlue == 0.0) {
@@ -239,12 +301,16 @@ static BOOL isInitializingTheme = NO;
     self.customThemeRed = loadedRed;
     self.customThemeGreen = loadedGreen;
     self.customThemeBlue = loadedBlue;
-    NSLog(@"Theme System: Loaded custom RGB: %.2f, %.2f, %.2f", loadedRed, loadedGreen, loadedBlue);
+    //NSLog(@"Theme System: Loaded custom RGB: %.2f, %.2f, %.2f", loadedRed, loadedGreen, loadedBlue);
     
     // Load selection color values (default to nice blue if not saved)
-    CGFloat loadedSelectionRed = [defaults floatForKey:@"VLCOverlaySelectionRed"];
-    CGFloat loadedSelectionGreen = [defaults floatForKey:@"VLCOverlaySelectionGreen"];
-    CGFloat loadedSelectionBlue = [defaults floatForKey:@"VLCOverlaySelectionBlue"];
+    NSNumber *savedSelectionRed = [themeDict objectForKey:@"VLCOverlaySelectionRed"];
+    NSNumber *savedSelectionGreen = [themeDict objectForKey:@"VLCOverlaySelectionGreen"];
+    NSNumber *savedSelectionBlue = [themeDict objectForKey:@"VLCOverlaySelectionBlue"];
+    
+    CGFloat loadedSelectionRed = savedSelectionRed ? [savedSelectionRed floatValue] : 0.2;
+    CGFloat loadedSelectionGreen = savedSelectionGreen ? [savedSelectionGreen floatValue] : 0.4;
+    CGFloat loadedSelectionBlue = savedSelectionBlue ? [savedSelectionBlue floatValue] : 0.9;
     
     // If no selection colors saved, use default blue selection color
     if (loadedSelectionRed == 0.0 && loadedSelectionGreen == 0.0 && loadedSelectionBlue == 0.0) {
@@ -256,11 +322,12 @@ static BOOL isInitializingTheme = NO;
     self.customSelectionRed = loadedSelectionRed;
     self.customSelectionGreen = loadedSelectionGreen;
     self.customSelectionBlue = loadedSelectionBlue;
-    NSLog(@"Theme System: Loaded selection RGB: %.2f, %.2f, %.2f", 
-          loadedSelectionRed, loadedSelectionGreen, loadedSelectionBlue);
+    //NSLog(@"Theme System: Loaded selection RGB: %.2f, %.2f, %.2f", 
+    //      loadedSelectionRed, loadedSelectionGreen, loadedSelectionBlue);
     
     // Load custom alpha value (for smooth transparency)
-    CGFloat loadedAlpha = [defaults floatForKey:@"VLCOverlayThemeAlpha"];
+    NSNumber *savedAlpha = [themeDict objectForKey:@"VLCOverlayThemeAlpha"];
+    CGFloat loadedAlpha = savedAlpha ? [savedAlpha floatValue] : [self alphaForTransparencyLevel:loadedTransparency];
     if (loadedAlpha == 0.0) {
         // If no custom alpha saved, calculate from transparency level
         loadedAlpha = [self alphaForTransparencyLevel:loadedTransparency];
@@ -268,26 +335,26 @@ static BOOL isInitializingTheme = NO;
     
     // Store values directly in instance variables during initialization to avoid any setter side effects
     if (wasInitializing) {
-        NSLog(@"Theme System: Setting values directly during initialization");
+        //NSLog(@"Theme System: Setting values directly during initialization");
         
         // Set currentTheme using KVC (this one doesn't have a custom setter causing issues)
-        [self setValue:@(savedTheme) forKey:@"currentTheme"];
+        [self setValue:@(themeValue) forKey:@"currentTheme"];
         
         // Set transparencyLevel using runtime to completely bypass the setter
         Ivar transparencyLevelIvar = class_getInstanceVariable([self class], "_transparencyLevel");
         if (transparencyLevelIvar != NULL) {
             object_setIvar(self, transparencyLevelIvar, (id)(NSInteger)loadedTransparency);
-            NSLog(@"Theme System: Set _transparencyLevel directly to %ld", (long)loadedTransparency);
+            //NSLog(@"Theme System: Set _transparencyLevel directly to %ld", (long)loadedTransparency);
         } else {
-            NSLog(@"Theme System: WARNING - Could not find _transparencyLevel instance variable");
+            //NSLog(@"Theme System: WARNING - Could not find _transparencyLevel instance variable");
         }
         
         // Set themeAlpha to the saved value (or calculated value)
         [self setValue:@(loadedAlpha) forKey:@"themeAlpha"];
-        NSLog(@"Theme System: Set themeAlpha to %.2f", loadedAlpha);
+        //NSLog(@"Theme System: Set themeAlpha to %.2f", loadedAlpha);
     } else {
-        NSLog(@"Theme System: Using property setters (not during initialization)");
-        self.currentTheme = savedTheme;
+        //NSLog(@"Theme System: Using property setters (not during initialization)");
+        self.currentTheme = themeValue;
         self.transparencyLevel = loadedTransparency;
         self.themeAlpha = loadedAlpha;
     }
@@ -300,7 +367,92 @@ static BOOL isInitializingTheme = NO;
         [self updateThemeColors];
     }
     
-    NSLog(@"Theme System: Finished loading theme settings");
+    //NSLog(@"Theme System: Finished loading theme settings");
+}
+
+// Helper method to get the theme settings file path
+- (NSString *)themeSettingsFilePath {
+    NSString *appSupportDir = [self applicationSupportDirectory];
+    return [appSupportDir stringByAppendingPathComponent:@"theme_settings.plist"];
+}
+
+// Migration method to move theme UserDefaults data to Application Support
+- (void)migrateThemeSettingsToApplicationSupport {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSMutableDictionary *themeDict = [NSMutableDictionary dictionary];
+    BOOL hasDataToMigrate = NO;
+    
+    // Check for existing theme settings in UserDefaults
+    if ([defaults objectForKey:@"VLCOverlayTheme"]) {
+        [themeDict setObject:@([defaults integerForKey:@"VLCOverlayTheme"]) forKey:@"VLCOverlayTheme"];
+        hasDataToMigrate = YES;
+    }
+    
+    if ([defaults objectForKey:@"VLCOverlayTransparency"]) {
+        [themeDict setObject:@([defaults integerForKey:@"VLCOverlayTransparency"]) forKey:@"VLCOverlayTransparency"];
+        hasDataToMigrate = YES;
+    }
+    
+    if ([defaults objectForKey:@"VLCOverlayThemeAlpha"]) {
+        [themeDict setObject:@([defaults floatForKey:@"VLCOverlayThemeAlpha"]) forKey:@"VLCOverlayThemeAlpha"];
+        hasDataToMigrate = YES;
+    }
+    
+    if ([defaults objectForKey:@"VLCOverlayCustomRed"]) {
+        [themeDict setObject:@([defaults floatForKey:@"VLCOverlayCustomRed"]) forKey:@"VLCOverlayCustomRed"];
+        hasDataToMigrate = YES;
+    }
+    
+    if ([defaults objectForKey:@"VLCOverlayCustomGreen"]) {
+        [themeDict setObject:@([defaults floatForKey:@"VLCOverlayCustomGreen"]) forKey:@"VLCOverlayCustomGreen"];
+        hasDataToMigrate = YES;
+    }
+    
+    if ([defaults objectForKey:@"VLCOverlayCustomBlue"]) {
+        [themeDict setObject:@([defaults floatForKey:@"VLCOverlayCustomBlue"]) forKey:@"VLCOverlayCustomBlue"];
+        hasDataToMigrate = YES;
+    }
+    
+    if ([defaults objectForKey:@"VLCOverlaySelectionRed"]) {
+        [themeDict setObject:@([defaults floatForKey:@"VLCOverlaySelectionRed"]) forKey:@"VLCOverlaySelectionRed"];
+        hasDataToMigrate = YES;
+    }
+    
+    if ([defaults objectForKey:@"VLCOverlaySelectionGreen"]) {
+        [themeDict setObject:@([defaults floatForKey:@"VLCOverlaySelectionGreen"]) forKey:@"VLCOverlaySelectionGreen"];
+        hasDataToMigrate = YES;
+    }
+    
+    if ([defaults objectForKey:@"VLCOverlaySelectionBlue"]) {
+        [themeDict setObject:@([defaults floatForKey:@"VLCOverlaySelectionBlue"]) forKey:@"VLCOverlaySelectionBlue"];
+        hasDataToMigrate = YES;
+    }
+    
+    if (hasDataToMigrate) {
+        // Save migrated theme data to Application Support
+        NSString *themeSettingsPath = [self themeSettingsFilePath];
+        BOOL success = [themeDict writeToFile:themeSettingsPath atomically:YES];
+        
+        if (success) {
+            //NSLog(@"Successfully migrated theme UserDefaults data to Application Support: %@", themeSettingsPath);
+            
+            // Clear the old UserDefaults theme data after successful migration
+            [defaults removeObjectForKey:@"VLCOverlayTheme"];
+            [defaults removeObjectForKey:@"VLCOverlayTransparency"];
+            [defaults removeObjectForKey:@"VLCOverlayThemeAlpha"];
+            [defaults removeObjectForKey:@"VLCOverlayCustomRed"];
+            [defaults removeObjectForKey:@"VLCOverlayCustomGreen"];
+            [defaults removeObjectForKey:@"VLCOverlayCustomBlue"];
+            [defaults removeObjectForKey:@"VLCOverlaySelectionRed"];
+            [defaults removeObjectForKey:@"VLCOverlaySelectionGreen"];
+            [defaults removeObjectForKey:@"VLCOverlaySelectionBlue"];
+            [defaults synchronize];
+            
+            //NSLog(@"Cleared old theme UserDefaults data after migration");
+        } else {
+            //NSLog(@"Failed to migrate theme UserDefaults data to Application Support");
+        }
+    }
 }
 
 #pragma mark - Custom Theme RGB Helper
@@ -331,10 +483,10 @@ static BOOL isInitializingTheme = NO;
     // Save the settings
     [self saveThemeSettings];
     
-    NSLog(@"Selection Colors Updated: R=%.2f G=%.2f B=%.2f", 
-          self.customSelectionRed, self.customSelectionGreen, self.customSelectionBlue);
-    NSLog(@"Calculated Hover Colors: R=%.2f G=%.2f B=%.2f", 
-          hoverRed, hoverGreen, hoverBlue);
+    //NSLog(@"Selection Colors Updated: R=%.2f G=%.2f B=%.2f", 
+    //      self.customSelectionRed, self.customSelectionGreen, self.customSelectionBlue);
+    //NSLog(@"Calculated Hover Colors: R=%.2f G=%.2f B=%.2f", 
+    //      hoverRed, hoverGreen, hoverBlue);
 }
 
 @end 

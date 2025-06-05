@@ -1,5 +1,9 @@
 #import "VLCSliderControl.h"
 
+// Static variables to track active slider state
+static NSString *activeSliderHandle = nil;
+static BOOL isSliderBeingDragged = NO;
+
 @implementation VLCSliderControl
 
 + (void)drawSlider:(NSRect)rect
@@ -103,6 +107,65 @@
     
     // Convert to value
     return minValue + (proportion * (maxValue - minValue));
+}
+
+#pragma mark - Slider Activation Handling
+
++ (BOOL)handleMouseDown:(NSPoint)point 
+             sliderRect:(NSRect)sliderRect 
+           sliderHandle:(NSString *)sliderHandle {
+    
+    // Check if point is within this slider's rect
+    if (![self isPoint:point inSliderRect:sliderRect]) {
+        return NO;
+    }
+    
+    // If no slider is currently active, activate this one
+    if (!isSliderBeingDragged) {
+        activeSliderHandle = [sliderHandle copy];
+        isSliderBeingDragged = YES;
+        //NSLog(@"🎛️ Slider activated: %@", sliderHandle);
+        return YES;
+    }
+    
+    // If this slider is already active, continue
+    if ([activeSliderHandle isEqualToString:sliderHandle]) {
+        return YES;
+    }
+    
+    // Another slider is active, ignore this one
+    return NO;
+}
+
++ (BOOL)handleMouseDragged:(NSPoint)point 
+                sliderRect:(NSRect)sliderRect 
+              sliderHandle:(NSString *)sliderHandle {
+    
+    // Only respond if this slider is the active one
+    if (!isSliderBeingDragged || ![activeSliderHandle isEqualToString:sliderHandle]) {
+        return NO;
+    }
+    
+    // Allow dragging even if mouse moves outside the slider rect for better UX
+    return YES;
+}
+
++ (void)handleMouseUp {
+    // Deactivate all sliders
+    if (activeSliderHandle) {
+        //NSLog(@"🎛️ Slider deactivated: %@", activeSliderHandle);
+        [activeSliderHandle release];
+        activeSliderHandle = nil;
+    }
+    isSliderBeingDragged = NO;
+}
+
++ (BOOL)isSliderActive:(NSString *)sliderHandle {
+    return isSliderBeingDragged && [activeSliderHandle isEqualToString:sliderHandle];
+}
+
++ (NSString *)activeSliderHandle {
+    return activeSliderHandle;
 }
 
 @end 

@@ -26,18 +26,18 @@ static NSLock *gEpgMatchingLock = nil;
 - (void)loadEpgData {
     // Check if we have a valid EPG URL
     if (!self.epgUrl || [self.epgUrl isEqualToString:@""]) {
-        NSLog(@"No EPG URL specified");
+        //NSLog(@"No EPG URL specified");
         return;
     }
     
     // First verify that we have channel data - don't load EPG without channels
     if (!self.channels || [self.channels count] == 0) {
-        NSLog(@"Cannot load EPG data - no channels loaded yet. Load channel list first.");
+        //NSLog(@"Cannot load EPG data - no channels loaded yet. Load channel list first.");
         return;
     }
     
-    NSLog(@"Loading EPG data from URL: %@", self.epgUrl);
-    NSLog(@"Note: Loading EPG data preserves existing channel list");
+    //NSLog(@"Loading EPG data from URL: %@", self.epgUrl);
+    //NSLog(@"Note: Loading EPG data preserves existing channel list");
     
     // Cancel any previous timeout
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleEpgLoadingTimeout) object:nil];
@@ -47,9 +47,9 @@ static NSLock *gEpgMatchingLock = nil;
     
     // First try to load from cache - but continue to load from URL regardless
     if ([self loadEpgDataFromCache]) {
-        NSLog(@"Successfully loaded EPG data from cache, now updating from URL...");
+        //NSLog(@"Successfully loaded EPG data from cache, now updating from URL...");
     } else {
-        NSLog(@"No valid EPG cache found, downloading from URL...");
+        //NSLog(@"No valid EPG cache found, downloading from URL...");
     }
     
     // Make sure loading indicator is showing with clear initial status
@@ -72,9 +72,12 @@ static NSLock *gEpgMatchingLock = nil;
     // Store the retry count in the global variable
     gEpgRetryCount = retryCount;
     
-    // Store download timestamp in user defaults
-    [[NSUserDefaults standardUserDefaults] setObject:[NSDate date] forKey:@"LastEPGDownloadDate"];
-    [[NSUserDefaults standardUserDefaults] synchronize];
+    // Store download timestamp in Application Support settings file instead of UserDefaults
+    NSString *settingsPath = [self settingsFilePath];
+    NSMutableDictionary *settingsDict = [NSMutableDictionary dictionaryWithContentsOfFile:settingsPath];
+    if (!settingsDict) settingsDict = [NSMutableDictionary dictionary];
+    [settingsDict setObject:[NSDate date] forKey:@"LastEPGDownloadDate"];
+    [settingsDict writeToFile:settingsPath atomically:YES];
     
     // Load the latest data from the network regardless of cache status
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
@@ -95,7 +98,7 @@ static NSLock *gEpgMatchingLock = nil;
         
         // Set up temp file path for download
         NSString *tempFilePath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"temp_epg.xml"];
-        NSLog(@"Will download EPG to temp file: %@", tempFilePath);
+        //NSLog(@"Will download EPG to temp file: %@", tempFilePath);
         
         // Remove any existing file
         NSFileManager *fileManager = [NSFileManager defaultManager];
@@ -114,7 +117,7 @@ static NSLock *gEpgMatchingLock = nil;
         DownloadManager *manager = [[DownloadManager alloc] init];
         
         // Start download
-        NSLog(@"Starting EPG download from URL: %@ (retry: %ld)", self.epgUrl, (long)retryCount);
+        //NSLog(@"Starting EPG download from URL: %@ (retry: %ld)", self.epgUrl, (long)retryCount);
         
         // Cancel any previous timeout
         [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleEpgLoadingTimeout) object:nil];
@@ -132,10 +135,10 @@ static NSLock *gEpgMatchingLock = nil;
                           const int64_t LOG_THRESHOLD = 1 * 1024 * 1024; // Log every 1MB
                           
                           if (received - lastLoggedBytes > LOG_THRESHOLD) {
-                              NSLog(@"EPG download progress: %.1f%% (%.1f/%.1f MB)", 
-                                    progress * 100.0,
-                                    (float)received / 1048576.0,
-                                    (float)total / 1048576.0);
+                              //NSLog(@"EPG download progress: %.1f%% (%.1f/%.1f MB)", 
+                              //      progress * 100.0,
+                              //      (float)received / 1048576.0,
+                              //      (float)total / 1048576.0);
                               lastLoggedBytes = received;
                           }
                           
@@ -228,11 +231,11 @@ static NSLock *gEpgMatchingLock = nil;
                           
                           // Check for error
                           if (error) {
-                              NSLog(@"EPG download failed: %@", error);
+                              //NSLog(@"EPG download failed: %@", error);
                               
                               // If we haven't exceeded retry count, try again
                               if (retryCount < MAX_RETRIES) {
-                                  NSLog(@"EPG download failed, retrying (attempt %ld of %d)...", (long)retryCount + 1, (int)MAX_RETRIES);
+                                  //NSLog(@"EPG download failed, retrying (attempt %ld of %d)...", (long)retryCount + 1, (int)MAX_RETRIES);
                                   
                                   // Wait 3 seconds before retrying
                                   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), 
@@ -293,7 +296,7 @@ static NSLock *gEpgMatchingLock = nil;
                           }
                           
                           // Download succeeded - handle the file
-                          NSLog(@"EPG download complete, saved to: %@", filePath);
+                          //NSLog(@"EPG download complete, saved to: %@", filePath);
                           [self setLoadingStatusText:@"Download complete, processing data..."];
                           
                           // Read file into memory for processing
@@ -301,7 +304,7 @@ static NSLock *gEpgMatchingLock = nil;
                           NSData *downloadedData = [NSData dataWithContentsOfFile:filePath options:NSDataReadingMappedIfSafe error:&readError];
                           
                           if (readError || !downloadedData) {
-                              NSLog(@"Error reading downloaded EPG file: %@", readError ? [readError localizedDescription] : @"No data");
+                              //NSLog(@"Error reading downloaded EPG file: %@", readError ? [readError localizedDescription] : @"No data");
                               
                               // Show error
                               [self setLoadingStatusText:@"Error reading downloaded EPG data"];
@@ -354,7 +357,9 @@ static NSLock *gEpgMatchingLock = nil;
             [self startProgressRedrawTimer];
             
             // Display a message about loading from cache
-            NSDate *lastDownload = [[NSUserDefaults standardUserDefaults] objectForKey:@"LastEPGDownloadDate"];
+            NSString *settingsPath = [self settingsFilePath];
+            NSMutableDictionary *settingsDict = [NSMutableDictionary dictionaryWithContentsOfFile:settingsPath];
+            NSDate *lastDownload = [settingsDict objectForKey:@"LastEPGDownloadDate"];
             if (lastDownload) {
                 NSTimeInterval timeSince = [[NSDate date] timeIntervalSinceDate:lastDownload];
                 int hoursAgo = (int)(timeSince / 3600);
@@ -395,7 +400,7 @@ static NSLock *gEpgMatchingLock = nil;
 - (BOOL)loadEpgDataFromCacheWithoutChecks {
     // First verify that we have channel data - don't load EPG without channels
     if (!self.channels || [self.channels count] == 0) {
-        NSLog(@"Cannot load EPG data from cache - no channels loaded yet");
+        //NSLog(@"Cannot load EPG data from cache - no channels loaded yet");
         return NO;
     }
     
@@ -404,41 +409,41 @@ static NSLock *gEpgMatchingLock = nil;
     // Check if cache file exists
     NSFileManager *fileManager = [NSFileManager defaultManager];
     if (![fileManager fileExistsAtPath:cachePath]) {
-        NSLog(@"EPG cache file does not exist: %@", cachePath);
+        //NSLog(@"EPG cache file does not exist: %@", cachePath);
         return NO;
     }
     
     // Load cache data
     NSDictionary *cacheDict = [NSDictionary dictionaryWithContentsOfFile:cachePath];
     if (!cacheDict) {
-        NSLog(@"Failed to load EPG cache from %@", cachePath);
+        //NSLog(@"Failed to load EPG cache from %@", cachePath);
         return NO;
     }
     
     // Check cache version
     NSString *cacheVersion = [cacheDict objectForKey:@"epgCacheVersion"];
     if (!cacheVersion || ![cacheVersion isEqualToString:@"1.0"]) {
-        NSLog(@"Unsupported EPG cache version: %@", cacheVersion);
+        //NSLog(@"Unsupported EPG cache version: %@", cacheVersion);
         return NO;
     }
     
     // Check cache date (not older than 24 hours)
     NSDate *cacheDate = [cacheDict objectForKey:@"epgCacheDate"];
     if (!cacheDate) {
-        NSLog(@"Invalid EPG cache date");
+        //NSLog(@"Invalid EPG cache date");
         return NO;
     }
     
     NSTimeInterval timeSinceCache = [[NSDate date] timeIntervalSinceDate:cacheDate];
     if (timeSinceCache > 24 * 60 * 60) { // 24 hours
-        NSLog(@"EPG cache is too old (%f hours), reloading", timeSinceCache / 3600.0);
+        //NSLog(@"EPG cache is too old (%f hours), reloading", timeSinceCache / 3600.0);
         return NO;
     }
     
     // Process EPG data
     NSDictionary *epgData = [cacheDict objectForKey:@"epgData"];
     if (!epgData) {
-        NSLog(@"No EPG data in cache");
+        //NSLog(@"No EPG data in cache");
         return NO;
     }
     
@@ -500,26 +505,26 @@ static NSLock *gEpgMatchingLock = nil;
 - (void)loadEpgDataAtStartup {
     // Check if we have a valid EPG URL
     if (!self.epgUrl || [self.epgUrl isEqualToString:@""]) {
-        NSLog(@"No EPG URL specified for startup EPG loading");
+        //NSLog(@"No EPG URL specified for startup EPG loading");
         return;
     }
     
     // First verify that we have channel data - don't load EPG without channels
     if (!self.channels || [self.channels count] == 0) {
-        NSLog(@"Cannot load EPG data at startup - no channels loaded yet. Load channel list first.");
+        //NSLog(@"Cannot load EPG data at startup - no channels loaded yet. Load channel list first.");
         return;
     }
     
-    NSLog(@"Starting initial EPG load sequence at startup");
+    //NSLog(@"Starting initial EPG load sequence at startup");
     
     // First try to load from cache without any age check
     BOOL cacheLoaded = [self loadEpgDataFromCacheWithoutAgeCheck];
     if (cacheLoaded) {
-        NSLog(@"Successfully loaded EPG data from cache at startup");
+        //NSLog(@"Successfully loaded EPG data from cache at startup");
     }
     
     // Then always update from URL to get the latest data
-    NSLog(@"Now updating EPG from URL: %@", self.epgUrl);
+    //NSLog(@"Now updating EPG from URL: %@", self.epgUrl);
     [self loadEpgData];
 }
 
@@ -529,28 +534,28 @@ static NSLock *gEpgMatchingLock = nil;
     // Check if cache file exists
     NSFileManager *fileManager = [NSFileManager defaultManager];
     if (![fileManager fileExistsAtPath:cachePath]) {
-        NSLog(@"EPG cache file does not exist: %@", cachePath);
+        //NSLog(@"EPG cache file does not exist: %@", cachePath);
         return NO;
     }
     
     // Load cache data
     NSDictionary *cacheDict = [NSDictionary dictionaryWithContentsOfFile:cachePath];
     if (!cacheDict) {
-        NSLog(@"Failed to load EPG cache from %@", cachePath);
+        //NSLog(@"Failed to load EPG cache from %@", cachePath);
         return NO;
     }
     
     // Check cache version
     NSString *cacheVersion = [cacheDict objectForKey:@"epgCacheVersion"];
     if (!cacheVersion || ![cacheVersion isEqualToString:@"1.0"]) {
-        NSLog(@"Unsupported EPG cache version: %@", cacheVersion);
+        //NSLog(@"Unsupported EPG cache version: %@", cacheVersion);
         return NO;
     }
     
     // Process EPG data
     NSDictionary *epgData = [cacheDict objectForKey:@"epgData"];
     if (!epgData) {
-        NSLog(@"No EPG data in cache");
+        //NSLog(@"No EPG data in cache");
         return NO;
     }
     
@@ -614,7 +619,7 @@ static NSLock *gEpgMatchingLock = nil;
     // Check if matching is already in progress
     [gEpgMatchingLock lock];
     if (gEpgMatchingInProgress) {
-        NSLog(@"EPG matching already in progress. Skipping this request.");
+        //NSLog(@"EPG matching already in progress. Skipping this request.");
         [gEpgMatchingLock unlock];
         return;
     }
@@ -701,6 +706,24 @@ static NSLock *gEpgMatchingLock = nil;
                             [channel.programs removeAllObjects];
                             [channel.programs addObjectsFromArray:programsForChannel];
                             
+                            // FIXED: Check if any programs have archive support and update channel accordingly
+                            BOOL foundArchivePrograms = NO;
+                            for (VLCProgram *program in programsForChannel) {
+                                if (program.hasArchive) {
+                                    foundArchivePrograms = YES;
+                                    break;
+                                }
+                            }
+                            
+                            // If EPG data indicates programs have archive but channel doesn't support catchup,
+                            // automatically enable catchup for this channel to ensure consistency
+                            if (foundArchivePrograms && !channel.supportsCatchup) {
+                                channel.supportsCatchup = YES;
+                                channel.catchupDays = 7; // Default to 7 days if not specified
+                                channel.catchupSource = @"epg"; // Indicate this was set from EPG data
+                                //NSLog(@"✅ FIXED: Enabled catchup for channel '%@' based on EPG archive data", channel.name);
+                            }
+                            
                             // If channel supports catchup, mark past programs as having archive
                             if (channel.supportsCatchup) {
                                 // Apply EPG time offset to current time for proper comparison
@@ -769,12 +792,12 @@ static NSLock *gEpgMatchingLock = nil;
                 }
             }
             
-            NSLog(@"Matched EPG data with %ld out of %lu channels (%.1f%%)", 
-                  (long)totalMatches, (unsigned long)totalChannels, 
-                  (totalChannels > 0) ? ((float)totalMatches / totalChannels * 100.0) : 0.0);
+            //NSLog(@"Matched EPG data with %ld out of %lu channels (%.1f%%)", 
+            //      (long)totalMatches, (unsigned long)totalChannels, 
+            //      (totalChannels > 0) ? ((float)totalMatches / totalChannels * 100.0) : 0.0);
         }
         @catch (NSException *exception) {
-            NSLog(@"Exception during EPG matching: %@", exception);
+            //NSLog(@"Exception during EPG matching: %@", exception);
             // Report error to UI
             dispatch_async(dispatch_get_main_queue(), ^{
                 [self setLoadingStatusText:[NSString stringWithFormat:@"Error matching EPG: %@", [exception reason]]];
@@ -820,6 +843,10 @@ static NSLock *gEpgMatchingLock = nil;
                     [gProgressMessageLock unlock];
                 }
                 
+                // CRITICAL FIX: Refresh the channel list UI to show the newly loaded EPG data
+                // This ensures the EPG programs become visible immediately without requiring a restart
+                [self prepareSimpleChannelLists];
+                
                 [self setNeedsDisplay:YES];
                 
                 // Ensure EPG data is marked as loaded
@@ -829,6 +856,9 @@ static NSLock *gEpgMatchingLock = nil;
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                     self.isLoading = NO;
                     [self stopProgressRedrawTimer];
+                    
+                    // ADDITIONAL FIX: Force another UI refresh after clearing loading state
+                    // to ensure all UI components reflect the updated EPG data
                     [self setNeedsDisplay:YES];
                     
                     // Now that we're completely done, initiate saving to cache
@@ -858,7 +888,7 @@ static NSLock *gEpgMatchingLock = nil;
     // Only proceed if no matching is already in progress
     [gEpgMatchingLock lock];
     if (gEpgMatchingInProgress) {
-        NSLog(@"EPG processing already in progress. Skipping this request.");
+        //NSLog(@"EPG processing already in progress. Skipping this request.");
         [gEpgMatchingLock unlock];
         return;
     }
@@ -868,7 +898,7 @@ static NSLock *gEpgMatchingLock = nil;
     [gEpgMatchingLock unlock];
     
     if (!data) {
-        NSLog(@"No data to process for EPG");
+        //NSLog(@"No data to process for EPG");
         
         // Clear the flag since we're exiting early
         [gEpgMatchingLock lock];
@@ -885,7 +915,7 @@ static NSLock *gEpgMatchingLock = nil;
     }
     
     // Log the data size
-    NSLog(@"Processing EPG XML data: %lu bytes", (unsigned long)[data length]);
+    //NSLog(@"Processing EPG XML data: %lu bytes", (unsigned long)[data length]);
     
     // Update UI to show we're starting XML processing - this runs on the main thread
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -912,14 +942,14 @@ static NSLock *gEpgMatchingLock = nil;
         // Check if we have valid XML format - detect encoding
         NSString *xmlHeader = [[NSString alloc] initWithData:[data subdataWithRange:NSMakeRange(0, MIN(100, data.length))] encoding:NSUTF8StringEncoding];
         if (xmlHeader) {
-            NSLog(@"XML header: %@", xmlHeader);
+            //NSLog(@"XML header: %@", xmlHeader);
             [xmlHeader release];
         } else {
-            NSLog(@"WARNING: Could not decode XML header - may not be valid UTF-8 text");
+            //NSLog(@"WARNING: Could not decode XML header - may not be valid UTF-8 text");
             // Try other encodings
             xmlHeader = [[NSString alloc] initWithData:[data subdataWithRange:NSMakeRange(0, MIN(100, data.length))] encoding:NSISOLatin1StringEncoding];
             if (xmlHeader) {
-                NSLog(@"XML header with Latin1 encoding: %@", xmlHeader);
+                //NSLog(@"XML header with Latin1 encoding: %@", xmlHeader);
                 [xmlHeader release];
             }
         }
@@ -927,7 +957,7 @@ static NSLock *gEpgMatchingLock = nil;
         // Create new parser
         NSXMLParser *parser = [[NSXMLParser alloc] initWithData:data];
         if (!parser) {
-            NSLog(@"Failed to create XML parser");
+            //NSLog(@"Failed to create XML parser");
             // Update UI on main thread
             dispatch_async(dispatch_get_main_queue(), ^{
                 self.isLoadingEpg = NO;
@@ -954,7 +984,7 @@ static NSLock *gEpgMatchingLock = nil;
         
         // Make sure epgData is initialized
         if (!self.epgData) {
-            NSLog(@"Creating new epgData dictionary");
+            //NSLog(@"Creating new epgData dictionary");
             self.epgData = [NSMutableDictionary dictionary];
         }
         
@@ -1046,7 +1076,7 @@ static NSLock *gEpgMatchingLock = nil;
             
             // Note: We don't need to initiate saveEpgDataToCache here anymore, since matchEpgWithChannels will do that when it completes
         } else {
-            NSLog(@"XML parsing failed");
+            //NSLog(@"XML parsing failed");
             
             // Clear the flag since we're done
             [gEpgMatchingLock lock];
@@ -1105,7 +1135,7 @@ static NSLock *gEpgMatchingLock = nil;
 }
 
 - (void)handleEpgLoadingTimeout {
-    NSLog(@"EPG loading operation timed out after 5 minutes");
+    //NSLog(@"EPG loading operation timed out after 5 minutes");
     
     // Cancel any ongoing connection or operation
     if (progressTimer) {
@@ -1151,7 +1181,7 @@ static NSLock *gEpgMatchingLock = nil;
 
 - (void)handleDownloadComplete {
     // Process the received XML data
-    NSLog(@"EPG download complete, received %lu bytes of data", (unsigned long)[receivedData length]);
+    //NSLog(@"EPG download complete, received %lu bytes of data", (unsigned long)[receivedData length]);
     
     // Show download complete message - UI updates on main thread
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -1181,7 +1211,7 @@ static NSLock *gEpgMatchingLock = nil;
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         // Check if we have valid XML data
         NSString *xmlPreview = [[NSString alloc] initWithData:[receivedData subdataWithRange:NSMakeRange(0, MIN(200, receivedData.length))] encoding:NSUTF8StringEncoding];
-        NSLog(@"EPG XML data preview: %@", xmlPreview);
+        //NSLog(@"EPG XML data preview: %@", xmlPreview);
         [xmlPreview release];
         
         // Brief pause before processing to show the download complete message
@@ -1215,7 +1245,7 @@ static NSLock *gEpgMatchingLock = nil;
 }
 
 - (void)handleDownloadError:(NSError *)error retryCount:(NSInteger)retryCount {
-    NSLog(@"EPG download error: %@", error);
+    //NSLog(@"EPG download error: %@", error);
     
     // Cleanup any resources
     if (gDownloadFileHandle) {
@@ -1234,7 +1264,7 @@ static NSLock *gEpgMatchingLock = nil;
     const NSInteger MAX_RETRIES = 3;
     
     if (retryCount < MAX_RETRIES) {
-        NSLog(@"Will retry EPG download (attempt %ld of %d)...", (long)retryCount + 1, (int)MAX_RETRIES);
+        //NSLog(@"Will retry EPG download (attempt %ld of %d)...", (long)retryCount + 1, (int)MAX_RETRIES);
         
         // Wait for 3 seconds before retrying to allow temporary network issues to clear
         [self setLoadingStatusText:[NSString stringWithFormat:@"Download error: %@. Retrying in 3s...", 
@@ -1308,13 +1338,13 @@ static NSLock *gEpgMatchingLock = nil;
 - (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveResponse:(NSURLResponse *)response completionHandler:(void (^)(NSURLSessionResponseDisposition disposition))completionHandler {
     // Get expected content length
     expectedBytes = [response expectedContentLength];
-    NSLog(@"Received response, expected content length: %lld", expectedBytes);
+    //NSLog(@"Received response, expected content length: %lld", expectedBytes);
     
     // Get HTTP status code
     if ([response isKindOfClass:[NSHTTPURLResponse class]]) {
         NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
-        NSLog(@"HTTP status code: %ld", (long)httpResponse.statusCode);
-        NSLog(@"Response headers: %@", httpResponse.allHeaderFields);
+        //NSLog(@"HTTP status code: %ld", (long)httpResponse.statusCode);
+        //NSLog(@"Response headers: %@", httpResponse.allHeaderFields);
         
         if (httpResponse.statusCode != 200) {
             NSError *httpError = [NSError errorWithDomain:NSURLErrorDomain 
@@ -1329,7 +1359,7 @@ static NSLock *gEpgMatchingLock = nil;
     // Make sure we have a valid download file path
     if (!gDownloadFilePath) {
         gDownloadFilePath = [[NSTemporaryDirectory() stringByAppendingPathComponent:@"temp_epg.xml"] retain];
-        NSLog(@"Creating download file path: %@", gDownloadFilePath);
+        //NSLog(@"Creating download file path: %@", gDownloadFilePath);
     }
     
     // Create a new file handle if needed
@@ -1341,7 +1371,7 @@ static NSLock *gEpgMatchingLock = nil;
         gDownloadFileHandle = [[NSFileHandle fileHandleForWritingAtPath:gDownloadFilePath] retain];
         
         if (!gDownloadFileHandle) {
-            NSLog(@"ERROR: Could not create file handle for writing to %@", gDownloadFilePath);
+            //NSLog(@"ERROR: Could not create file handle for writing to %@", gDownloadFilePath);
             NSError *fileError = [NSError errorWithDomain:@"EPGDownloader" 
                                                      code:1003 
                                                  userInfo:@{NSLocalizedDescriptionKey: @"Failed to create file handle for writing"}];
@@ -1375,10 +1405,10 @@ static NSLock *gEpgMatchingLock = nil;
             const int64_t LOG_THRESHOLD = 5 * 1024 * 1024; // Log every 5MB
             
             if (fileSize - lastLoggedBytes > LOG_THRESHOLD) {
-                NSLog(@"EPG download progress: %.1f%% (%.1f/%.1f MB)", 
-                       progress * 100.0,
-                       (float)fileSize / 1048576.0,
-                       (float)expectedBytes / 1048576.0);
+                //NSLog(@"EPG download progress: %.1f%% (%.1f/%.1f MB)", 
+                //       progress * 100.0,
+                 //      (float)fileSize / 1048576.0,
+                 //      (float)expectedBytes / 1048576.0);
                 lastLoggedBytes = fileSize;
             }
             
@@ -1411,7 +1441,7 @@ static NSLock *gEpgMatchingLock = nil;
             }
         }
     } @catch (NSException *exception) {
-        NSLog(@"Error writing data to file: %@", exception);
+        //NSLog(@"Error writing data to file: %@", exception);
         NSError *error = [NSError errorWithDomain:@"EPGDownloader" 
                                              code:1001 
                                          userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Failed to write data: %@", [exception reason]]}];
@@ -1421,7 +1451,7 @@ static NSLock *gEpgMatchingLock = nil;
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
     if (error) {
-        NSLog(@"Session task error: %@", error);
+        //NSLog(@"Session task error: %@", error);
         [self handleDownloadError:error retryCount:gEpgRetryCount];
         return;
     }
@@ -1436,7 +1466,7 @@ static NSLock *gEpgMatchingLock = nil;
     NSData *downloadedData = [NSData dataWithContentsOfFile:gDownloadFilePath options:NSDataReadingMappedIfSafe error:&readError];
     
     if (readError || !downloadedData) {
-        NSLog(@"Error reading downloaded file: %@", readError ? [readError localizedDescription] : @"No data");
+        //NSLog(@"Error reading downloaded file: %@", readError ? [readError localizedDescription] : @"No data");
         NSError *epgError = readError ? readError : [NSError errorWithDomain:@"EPGDownload" code:1002 userInfo:@{NSLocalizedDescriptionKey: @"Failed to read downloaded data"}];
         [self handleDownloadError:epgError retryCount:gEpgRetryCount];
         
@@ -1460,7 +1490,7 @@ static NSLock *gEpgMatchingLock = nil;
 }
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task willPerformHTTPRedirection:(NSHTTPURLResponse *)response newRequest:(NSURLRequest *)request completionHandler:(void (^)(NSURLRequest * _Nullable))completionHandler {
-    NSLog(@"Redirecting from %@ to %@", [task.originalRequest.URL absoluteString], [request.URL absoluteString]);
+    //NSLog(@"Redirecting from %@ to %@", [task.originalRequest.URL absoluteString], [request.URL absoluteString]);
     
     // Create a mutable copy to add headers that might have been lost in redirect
     NSMutableURLRequest *mutableRequest = [request mutableCopy];
@@ -1638,7 +1668,7 @@ static NSLock *gEpgMatchingLock = nil;
             NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
             if (now - lastProgressUpdate > 0.5) { // Update at most twice per second
                 lastProgressUpdate = now;
-                NSLog(@"Parsing progress: %d programs, %d channels", totalProgramCount, totalChannelCount);
+                //NSLog(@"Parsing progress: %d programs, %d channels", totalProgramCount, totalChannelCount);
                 
                 // Update UI on main thread
                 dispatch_async(dispatch_get_main_queue(), ^{
@@ -1666,7 +1696,7 @@ static NSLock *gEpgMatchingLock = nil;
 }
 
 - (void)parser:(NSXMLParser *)parser parseErrorOccurred:(NSError *)parseError {
-    NSLog(@"XML parsing error: %@", parseError);
+    //NSLog(@"XML parsing error: %@", parseError);
     
     // Clean up any in-progress parsing
     if (currentProgram) {
@@ -1688,7 +1718,7 @@ static NSLock *gEpgMatchingLock = nil;
 }
 
 - (void)parserDidEndDocument:(NSXMLParser *)parser {
-    NSLog(@"XML parsing completed. Channels: %d, Programs: %d", totalChannelCount, totalProgramCount);
+    //NSLog(@"XML parsing completed. Channels: %d, Programs: %d", totalChannelCount, totalProgramCount);
     
     // Post-process EPG data to fix missing end times
     [self postProcessEpgData];
@@ -1737,7 +1767,7 @@ static NSLock *gEpgMatchingLock = nil;
 
 // Add a new method to post-process EPG data and fix missing end times
 - (void)postProcessEpgData {
-    NSLog(@"Post-processing EPG data to fix missing end times...");
+    //NSLog(@"Post-processing EPG data to fix missing end times...");
     
     NSInteger fixedEndTimes = 0;
     
@@ -1779,17 +1809,56 @@ static NSLock *gEpgMatchingLock = nil;
                 currentProgram.endTime = calculatedEndTime;
                 fixedEndTimes++;
                 
-                NSLog(@"Fixed missing end time for program '%@' on channel %@", 
-                      currentProgram.title, channelId);
+                //NSLog(@"Fixed missing end time for program '%@' on channel %@", 
+                //      currentProgram.title, channelId);
             }
         }
     }
     
     if (fixedEndTimes > 0) {
-        NSLog(@"Post-processing complete: Fixed %ld missing end times", (long)fixedEndTimes);
+        //NSLog(@"Post-processing complete: Fixed %ld missing end times", (long)fixedEndTimes);
     } else {
-        NSLog(@"Post-processing complete: No missing end times found");
+        //NSLog(@"Post-processing complete: No missing end times found");
     }
+}
+
+// Force reload EPG data (bypass cache and always download from server)
+- (void)forceReloadEpgData {
+    //NSLog(@"Force reloading EPG data - bypassing cache");
+    
+    // Check if we have a valid EPG URL
+    if (!self.epgUrl || [self.epgUrl isEqualToString:@""]) {
+        //NSLog(@"No EPG URL specified for force reload");
+        return;
+    }
+    
+    // First verify that we have channel data - don't load EPG without channels
+    if (!self.channels || [self.channels count] == 0) {
+        //NSLog(@"Cannot force reload EPG data - no channels loaded yet. Load channel list first.");
+        return;
+    }
+    
+    //NSLog(@"Force reloading EPG data from URL: %@", self.epgUrl);
+    
+    // Cancel any previous timeout
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleEpgLoadingTimeout) object:nil];
+    
+    // Set a timeout for the entire operation (5 minutes max)
+    [self performSelector:@selector(handleEpgLoadingTimeout) withObject:nil afterDelay:300.0];
+    
+    // Skip cache loading entirely for force reload - go straight to network download
+    
+    // Make sure loading indicator is showing with clear initial status
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self.isLoading = YES;
+        self.isLoadingEpg = YES;
+        [self startProgressRedrawTimer];
+        [self setLoadingStatusText:@"Force updating EPG data from server..."];
+        [self setNeedsDisplay:YES];
+    });
+    
+    // Start with retry count 0
+    [self loadEpgDataWithRetryCount:0];
 }
 
 @end

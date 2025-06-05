@@ -39,15 +39,15 @@ static char tempEarlyPlaybackChannelKey;
         if ([[NSFileManager defaultManager] fileExistsAtPath:localChannelsPath]) {
             // Use the channels.m3u in the application directory
             self.m3uFilePath = localChannelsPath;
-            NSLog(@"Using channels file from app directory: %@", self.m3uFilePath);
+            //NSLog(@"Using channels file from app directory: %@", self.m3uFilePath);
         } else {
             // Default to Application Support, but don't create a file
             self.m3uFilePath = [self localM3uFilePath];
-            NSLog(@"Setting m3uFilePath to Application Support: %@", self.m3uFilePath);
+            //NSLog(@"Setting m3uFilePath to Application Support: %@", self.m3uFilePath);
         }
     }
     
-    NSLog(@"Loading channels from: %@", self.m3uFilePath);
+    //NSLog(@"Loading channels from: %@", self.m3uFilePath);
     
     // Check if the m3uFilePath is a URL
     BOOL isLoadingFromCache = NO;
@@ -63,12 +63,15 @@ static char tempEarlyPlaybackChannelKey;
         if ([[NSFileManager defaultManager] fileExistsAtPath:cacheFilePath]) {
             // Cache exists, try to load it
             if ([self loadChannelsFromCache:self.m3uFilePath]) {
-                NSLog(@"Successfully loaded channels from cache: %@", cacheFilePath);
+                //NSLog(@"Successfully loaded channels from cache: %@", cacheFilePath);
                 isLoadingFromCache = YES;
                 
                 // Show message but don't keep loading indicator if we're only using cache
                 dispatch_async(dispatch_get_main_queue(), ^{
-                    NSDate *lastDownload = [[NSUserDefaults standardUserDefaults] objectForKey:@"LastM3UDownloadDate"];
+                    // Check last download time from Application Support settings file instead of UserDefaults
+                    NSString *settingsPath = [self settingsFilePath];
+                    NSDictionary *settingsDict = [NSDictionary dictionaryWithContentsOfFile:settingsPath];
+                    NSDate *lastDownload = [settingsDict objectForKey:@"LastM3UDownloadDate"];
                     if (lastDownload) {
                         NSTimeInterval timeSince = [[NSDate date] timeIntervalSinceDate:lastDownload];
                         int hoursAgo = (int)(timeSince / 3600);
@@ -91,7 +94,7 @@ static char tempEarlyPlaybackChannelKey;
         
         // If we loaded from cache but still need to refresh, do it in the background
         if (isLoadingFromCache && shouldDownloadM3U) {
-            NSLog(@"Refreshing M3U data in background (cache is older than 1 day)");
+            //NSLog(@"Refreshing M3U data in background (cache is older than 1 day)");
             dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
                 // Download the fresh content
                 NSURL *url = [NSURL URLWithString:self.m3uFilePath];
@@ -100,13 +103,13 @@ static char tempEarlyPlaybackChannelKey;
         } 
         // If we didn't load from cache or need refresh, download directly
         else if (!isLoadingFromCache || shouldDownloadM3U) {
-            NSLog(@"Downloading M3U data (no cache or forced refresh)");
+            //NSLog(@"Downloading M3U data (no cache or forced refresh)");
             // Load from URL
             NSURL *url = [NSURL URLWithString:self.m3uFilePath];
             [self loadChannelsFromM3uURL:url];
         } else {
             // Cache was loaded and refresh not needed
-            NSLog(@"Using cached M3U data (updated within the last day)");
+            //NSLog(@"Using cached M3U data (updated within the last day)");
             self.isLoading = NO;
             [self setNeedsDisplay:YES];
         }
@@ -118,14 +121,14 @@ static char tempEarlyPlaybackChannelKey;
         BOOL shouldDownloadEPG = [self shouldUpdateEPGAtStartup];
         
         if (shouldDownloadEPG) {
-            NSLog(@"Loading EPG data (older than 6 hours or doesn't exist)");
+            //NSLog(@"Loading EPG data (older than 6 hours or doesn't exist)");
             // Load EPG data with a slight delay to avoid overwhelming network
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), 
                 dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
                     [self loadEpgDataAtStartup];
             });
         } else {
-            NSLog(@"Using cached EPG data (updated within the last 6 hours)");
+            //NSLog(@"Using cached EPG data (updated within the last 6 hours)");
             // Try to load existing EPG data from cache
             [self loadEpgFromCacheOnly];
         }
@@ -136,7 +139,7 @@ static char tempEarlyPlaybackChannelKey;
     // Prepare the file path
     NSString *filePath = path;
     if (!filePath) {
-        NSLog(@"No m3u file path specified");
+        //NSLog(@"No m3u file path specified");
         dispatch_async(dispatch_get_main_queue(), ^{
             self.isLoading = NO;
             [self setNeedsDisplay:YES];
@@ -145,7 +148,7 @@ static char tempEarlyPlaybackChannelKey;
     }
     
     // Log which file we're loading from
-    NSLog(@"Attempting to load channels from: %@", filePath);
+    //NSLog(@"Attempting to load channels from: %@", filePath);
     [self setLoadingStatusText:@"Checking for cached channels..."];
     
     // First, check if this is a URL path and if there's a cache file for it
@@ -158,16 +161,16 @@ static char tempEarlyPlaybackChannelKey;
         hasCache = [fileManager fileExistsAtPath:cachePath];
         
         if (hasCache) {
-            NSLog(@"Cache file exists for URL: %@", cachePath);
+            //NSLog(@"Cache file exists for URL: %@", cachePath);
         } else {
-            NSLog(@"No cache file exists for URL: %@", cachePath);
+            //NSLog(@"No cache file exists for URL: %@", cachePath);
         }
     }
     
     // Try to load from cache if it's a URL (preferred) or move on to other methods
     if (isUrl && hasCache) {
         if ([self loadChannelsFromCache:filePath]) {
-            NSLog(@"Successfully loaded channels from cache");
+            //NSLog(@"Successfully loaded channels from cache");
             // Loading completes in the loadChannelsFromCache method
             return;
         }
@@ -192,7 +195,7 @@ static char tempEarlyPlaybackChannelKey;
 
 - (void)loadChannelsFromM3uURL:(NSURL *)url {
     if (!url) {
-        NSLog(@"Invalid URL passed to loadChannelsFromM3uURL:");
+        //NSLog(@"Invalid URL passed to loadChannelsFromM3uURL:");
         dispatch_async(dispatch_get_main_queue(), ^{
             self.isLoading = NO;
             [self setLoadingStatusText:@"Error: Invalid URL"];
@@ -201,7 +204,7 @@ static char tempEarlyPlaybackChannelKey;
         return;
     }
     
-    NSLog(@"Loading channels from URL: %@", url);
+    //NSLog(@"Loading channels from URL: %@", url);
     [self loadChannelsFromUrl:[url absoluteString]];
 }
 
@@ -221,7 +224,7 @@ static char tempEarlyPlaybackChannelKey;
     NSURL *url = [NSURL URLWithString:escapedUrlStr];
     
     if (!url) {
-        NSLog(@"Invalid URL format: %@", urlStr);
+        //NSLog(@"Invalid URL format: %@", urlStr);
         dispatch_async(dispatch_get_main_queue(), ^{
             [self setLoadingStatusText:@"Error: Invalid URL format"];
             self.isLoading = NO;
@@ -241,9 +244,12 @@ static char tempEarlyPlaybackChannelKey;
         return;
     }
     
-    // Store download timestamp in user defaults
-    [[NSUserDefaults standardUserDefaults] setObject:[NSDate date] forKey:@"LastM3UDownloadDate"];
-    [[NSUserDefaults standardUserDefaults] synchronize];
+    // Store download timestamp in Application Support settings file instead of UserDefaults
+    NSString *settingsPath = [self settingsFilePath];
+    NSMutableDictionary *settingsDict = [NSMutableDictionary dictionaryWithContentsOfFile:settingsPath];
+    if (!settingsDict) settingsDict = [NSMutableDictionary dictionary];
+    [settingsDict setObject:[NSDate date] forKey:@"LastM3UDownloadDate"];
+    [settingsDict writeToFile:settingsPath atomically:YES];
     
     // Set up temporary file
     NSString *tempFileName = [NSString stringWithFormat:@"temp_channels_%@.m3u", [[NSUUID UUID] UUIDString]];
@@ -264,7 +270,7 @@ static char tempEarlyPlaybackChannelKey;
     }
     
     // Add more detailed download information
-    NSLog(@"Starting M3U download from: %@", urlStr);
+    //NSLog(@"Starting M3U download from: %@", urlStr);
     
     // Update progress corner message
     if (!gProgressMessageLock) {
@@ -286,7 +292,7 @@ static char tempEarlyPlaybackChannelKey;
     
     // Set up download manager
     DownloadManager *manager = [[DownloadManager alloc] init];
-    NSLog(@"Starting channel list download from URL: %@ (retry: %ld)", urlStr, (long)retryCount);
+    //NSLog(@"Starting channel list download from URL: %@ (retry: %ld)", urlStr, (long)retryCount);
     
     [manager startDownloadFromURL:urlStr
                   progressHandler:^(int64_t received, int64_t total) {
@@ -317,16 +323,16 @@ static char tempEarlyPlaybackChannelKey;
                       
                       // Now log the progress with the calculated speed
                       if (received - lastLoggedBytes > LOG_THRESHOLD) {
-                          NSLog(@"Channel list download progress: %.1f%% (%.1f/%.1f MB) - Speed: %.2f MB/s", 
-                                progress * 100.0,
-                                (float)received / 1048576.0,
-                                (float)total / 1048576.0,
-                                speedMBps);
+                          //NSLog(@"Channel list download progress: %.1f%% (%.1f/%.1f MB) - Speed: %.2f MB/s", 
+                                //progress * 100.0,
+                                //(float)received / 1048576.0,
+                                //(float)total / 1048576.0,
+                                //speedMBps);
                           lastLoggedBytes = received;
                           
                           // Also print more detailed info to console
-                          NSLog(@"Download details: Received: %lld bytes, Total: %lld bytes, Progress: %.2f%%", 
-                                received, total, progress * 100.0);
+                          //NSLog(@"Download details: Received: %lld bytes, Total: %lld bytes, Progress: %.2f%%", 
+                           //     received, total, progress * 100.0);
                       }
                       
                       // Calculate ETA (estimated time of arrival) if we have a download speed
@@ -401,12 +407,12 @@ static char tempEarlyPlaybackChannelKey;
                 completionHandler:^(NSString *filePath, NSError *error) {
                       // Check for error
                       if (error) {
-                          NSLog(@"Channel list download failed: %@", error);
+                          //NSLog(@"Channel list download failed: %@", error);
                           
                           // If we haven't exceeded retry count, try again
                           if (retryCount < MAX_RETRIES) {
-                              NSLog(@"Channel list download failed, retrying (attempt %ld of %d)...", 
-                                    (long)retryCount + 1, (int)MAX_RETRIES);
+                              //NSLog(@"Channel list download failed, retrying (attempt %ld of %d)...", 
+                              //      (long)retryCount + 1, (int)MAX_RETRIES);
                               
                               // Wait 3 seconds before retrying
                               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), 
@@ -465,16 +471,16 @@ static char tempEarlyPlaybackChannelKey;
                       }
                       
                       // Download succeeded
-                      NSLog(@"Channel list download complete, saved to: %@", filePath);
+                      //NSLog(@"Channel list download complete, saved to: %@", filePath);
                       
                       // Get file size for reporting
                       NSDictionary *fileAttributes = [[NSFileManager defaultManager] attributesOfItemAtPath:filePath error:nil];
                       unsigned long long fileSize = [fileAttributes fileSize];
                       
                       // Log detailed completion info
-                      NSLog(@"Channel list download summary:");
-                      NSLog(@"- File size: %.2f MB", (float)fileSize / 1048576.0);
-                      NSLog(@"- Saved to: %@", filePath);
+                      //NSLog(@"Channel list download summary:");
+                      //NSLog(@"- File size: %.2f MB", (float)fileSize / 1048576.0);
+                      //NSLog(@"- Saved to: %@", filePath);
                       
                       // Show completion message with file size
                       [self setLoadingStatusText:[NSString stringWithFormat:@"Download complete: %.2f MB", 
@@ -516,7 +522,7 @@ static char tempEarlyPlaybackChannelKey;
                                                        attributes:nil 
                                                             error:&dirError];
                               if (dirError) {
-                                  NSLog(@"Error creating Application Support directory: %@", dirError);
+                                  //NSLog(@"Error creating Application Support directory: %@", dirError);
                               }
                           }
                           
@@ -528,9 +534,9 @@ static char tempEarlyPlaybackChannelKey;
                           [fileManager copyItemAtPath:filePath toPath:localPath error:&copyError];
                           
                           if (copyError) {
-                              NSLog(@"Error saving channel file to Application Support: %@", copyError);
+                              //NSLog(@"Error saving channel file to Application Support: %@", copyError);
                           } else {
-                              NSLog(@"Successfully saved channel file to Application Support: %@", localPath);
+                              //NSLog(@"Successfully saved channel file to Application Support: %@", localPath);
                           }
                       });
                       
@@ -543,7 +549,7 @@ static char tempEarlyPlaybackChannelKey;
 - (void)loadChannelsFromLocalFile:(NSString *)filePath {
     NSFileManager *fileManager = [NSFileManager defaultManager];
     if (![fileManager fileExistsAtPath:filePath]) {
-        NSLog(@"M3U file not found at path: %@", filePath);
+        //NSLog(@"M3U file not found at path: %@", filePath);
         dispatch_async(dispatch_get_main_queue(), ^{
             self.isLoading = NO;
             [self setNeedsDisplay:YES];
@@ -558,7 +564,7 @@ static char tempEarlyPlaybackChannelKey;
                                                          error:&error];
     
     if (error || !fileContents) {
-        NSLog(@"Error reading M3U file: %@", error);
+        //NSLog(@"Error reading M3U file: %@", error);
         dispatch_async(dispatch_get_main_queue(), ^{
             self.isLoading = NO;
             [self setNeedsDisplay:YES];
@@ -577,7 +583,7 @@ static char tempEarlyPlaybackChannelKey;
     
     // Only proceed if we have content to process
     if (lineCount == 0) {
-        NSLog(@"M3U content is empty or invalid");
+        //NSLog(@"M3U content is empty or invalid");
         dispatch_async(dispatch_get_main_queue(), ^{
             self.isLoading = NO;
             [self setNeedsDisplay:YES];
@@ -619,8 +625,8 @@ static char tempEarlyPlaybackChannelKey;
         if (favoriteChannels.count > 0) {
             [savedFavorites setObject:favoriteChannels forKey:@"channels"];
         }
-        NSLog(@"Saved %lu favorite groups with %lu channels before M3U processing", 
-             (unsigned long)favoriteGroups.count, (unsigned long)favoriteChannels.count);
+        //NSLog(@"Saved %lu favorite groups with %lu channels before M3U processing", 
+        //     (unsigned long)favoriteGroups.count, (unsigned long)favoriteChannels.count);
     }
     
     // Initialize tracking variables
@@ -801,20 +807,23 @@ static char tempEarlyPlaybackChannelKey;
             // Set catch-up properties
             NSString *catchupValue = [currentExtInfo objectForKey:@"catchup"];
             if (catchupValue) {
-                // Channel supports catch-up if catchup="1", catchup="default", or any non-empty value
+                // FIXED: Only consider specific valid catchup values as supporting timeshift
+                // Remove the overly permissive "[catchupValue length] > 0" condition that was causing false positives
                 channel.supportsCatchup = ([catchupValue isEqualToString:@"1"] || 
                                          [catchupValue isEqualToString:@"default"] || 
-                                         [catchupValue length] > 0);
+                                         [catchupValue isEqualToString:@"append"] ||
+                                         [catchupValue isEqualToString:@"timeshift"] ||
+                                         [catchupValue isEqualToString:@"shift"]);
                 channel.catchupSource = catchupValue;
                 
-                NSLog(@"Channel '%@' supports catch-up: %@ (source: %@)", 
-                      channel.name, channel.supportsCatchup ? @"YES" : @"NO", catchupValue);
+                //NSLog(@"Channel '%@' supports catch-up: %@ (source: %@)", 
+                //      channel.name, channel.supportsCatchup ? @"YES" : @"NO", catchupValue);
             }
             
             NSString *catchupDaysStr = [currentExtInfo objectForKey:@"catchup-days"];
             if (catchupDaysStr) {
                 channel.catchupDays = [catchupDaysStr integerValue];
-                NSLog(@"Channel '%@' catch-up days: %ld", channel.name, (long)channel.catchupDays);
+                //NSLog(@"Channel '%@' catch-up days: %ld", channel.name, (long)channel.catchupDays);
             } else if (channel.supportsCatchup) {
                 // Default to 7 days if catch-up is supported but no days specified
                 channel.catchupDays = 7;
@@ -864,7 +873,7 @@ static char tempEarlyPlaybackChannelKey;
                     category = @"SERIES";
                 } else {
                     category = @"MOVIES";
-                    NSLog(@"Categorized as MOVIE: '%@' (has logo: %@)", channel.name, channel.logo ? @"YES" : @"NO");
+                    //NSLog(@"Categorized as MOVIE: '%@' (has logo: %@)", channel.name, channel.logo ? @"YES" : @"NO");
                 }
             } else {
                 // If not a movie file, always categorize as TV regardless of other factors
@@ -925,7 +934,7 @@ static char tempEarlyPlaybackChannelKey;
     // instead of the temporary file path
     NSString *cacheSourcePath = self.m3uFilePath;
     if ([sourcePath hasPrefix:NSTemporaryDirectory()]) {
-        NSLog(@"Using original URL for cache instead of temp file: %@", cacheSourcePath);
+        //NSLog(@"Using original URL for cache instead of temp file: %@", cacheSourcePath);
     } else {
         cacheSourcePath = sourcePath;
     }
@@ -997,8 +1006,8 @@ static char tempEarlyPlaybackChannelKey;
             }
         }
         
-        NSLog(@"Restored %lu favorite groups after M3U processing", 
-           (unsigned long)[[savedFavorites objectForKey:@"groups"] count]);
+        //NSLog(@"Restored %lu favorite groups after M3U processing", 
+        //   (unsigned long)[[savedFavorites objectForKey:@"groups"] count]);
     }
     
     // Ensure Settings options
@@ -1014,7 +1023,7 @@ static char tempEarlyPlaybackChannelKey;
         
         // NOW start EPG loading if we have a URL (AFTER M3U processing is complete)
         if (self.epgUrl && [self.epgUrl length] > 0) {
-            NSLog(@"M3U processing complete - starting EPG download from: %@", self.epgUrl);
+            //NSLog(@"M3U processing complete - starting EPG download from: %@", self.epgUrl);
             [self setLoadingStatusText:@"Channels loaded - starting EPG download..."];
             
             // Start EPG loading in background after a short delay
@@ -1031,7 +1040,7 @@ static char tempEarlyPlaybackChannelKey;
                 [self loadEpgData];
             });
         } else {
-            NSLog(@"M3U processing complete - no EPG URL configured");
+            //NSLog(@"M3U processing complete - no EPG URL configured");
         }
         
         // Start preloading all movie info and covers in the background
@@ -1040,7 +1049,7 @@ static char tempEarlyPlaybackChannelKey;
                       dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
             // DISABLED: Don't preload all movie info - only load for visible items
             // [self preloadAllMovieInfoAndCovers];
-            NSLog(@"📱 Movie info loading optimized: Will load only for visible items on demand");
+            //NSLog(@"📱 Movie info loading optimized: Will load only for visible items on demand");
         });
     });
 }
@@ -1133,7 +1142,7 @@ static char tempEarlyPlaybackChannelKey;
             return YES;
         }
     } @catch (NSException *exception) {
-        NSLog(@"Exception adding group %@ to category %@: %@", group, category, exception);
+        //NSLog(@"Exception adding group %@ to category %@: %@", group, category, exception);
     }
     
     return NO;
@@ -1145,13 +1154,13 @@ static char tempEarlyPlaybackChannelKey;
 - (void)playChannelAtIndex:(NSInteger)index {
     [self hideControls];
     if (index < 0 || index >= [self.simpleChannelNames count]) {
-        NSLog(@"Invalid channel index: %ld", (long)index);
+        //NSLog(@"Invalid channel index: %ld", (long)index);
         return;
     }
     
     NSString *url = [self.simpleChannelUrls objectAtIndex:index];
     if (!url || ![url isKindOfClass:[NSString class]] || [url length] == 0) {
-        NSLog(@"Invalid URL for channel at index %ld", (long)index);
+        //NSLog(@"Invalid URL for channel at index %ld", (long)index);
         return;
     }
     
@@ -1170,14 +1179,14 @@ static char tempEarlyPlaybackChannelKey;
     
     // Add better checks for URL validity
     if (channel.url == nil || ![channel.url isKindOfClass:[NSString class]] || [channel.url length] == 0) {
-        NSLog(@"Invalid or empty URL for channel: %@", channel.name);
+        //NSLog(@"Invalid or empty URL for channel: %@", channel.name);
         return;
     }
     
     // Get the URL object
     NSURL *url = [NSURL URLWithString:channel.url];
     if (!url) {
-        NSLog(@"Error: Invalid URL format: %@", channel.url);
+        //NSLog(@"Error: Invalid URL format: %@", channel.url);
         return;
     }
     
@@ -1190,7 +1199,7 @@ static char tempEarlyPlaybackChannelKey;
         
         // Force a brief pause to allow VLC to properly reset time state
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            NSLog(@"Time state cleared, starting new media playback for channel: %@", channel.name);
+            //NSLog(@"Time state cleared, starting new media playback for channel: %@", channel.name);
             
             // Create a media object
             VLCMedia *media = [VLCMedia mediaWithURL:url];
@@ -1214,11 +1223,11 @@ static char tempEarlyPlaybackChannelKey;
                 // Use the actual media URL for consistency with saving
                 NSString *actualMediaURL = [self.player.media.url absoluteString];
                 if (actualMediaURL) {
-                    NSLog(@"=== RESUME: Using actual media URL: %@ ===", actualMediaURL);
+                    //NSLog(@"=== RESUME: Using actual media URL: %@ ===", actualMediaURL);
                     [self resumePlaybackPositionForURL:actualMediaURL];
                 } else {
                     // Fallback to original URL
-                    NSLog(@"=== RESUME: Fallback to channel URL: %@ ===", channel.url);
+                    //NSLog(@"=== RESUME: Fallback to channel URL: %@ ===", channel.url);
                     [self resumePlaybackPositionForURL:channel.url];
                 }
             });
@@ -1289,14 +1298,14 @@ static char tempEarlyPlaybackChannelKey;
 - (void)playChannelWithUrl:(NSString *)urlString {
     // Add stronger validation for URL string
     if (urlString == nil || ![urlString isKindOfClass:[NSString class]] || [urlString length] == 0) {
-        NSLog(@"Invalid or empty URL string");
+        //NSLog(@"Invalid or empty URL string");
         return;
     }
     
     // Get the URL object
     NSURL *url = [NSURL URLWithString:urlString];
     if (!url) {
-        NSLog(@"Error: Invalid URL format: %@", urlString);
+        //NSLog(@"Error: Invalid URL format: %@", urlString);
         return;
     }
     
@@ -1309,7 +1318,7 @@ static char tempEarlyPlaybackChannelKey;
         
         // Force a brief pause to allow VLC to properly reset time state
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            NSLog(@"Time state cleared, starting new media playback for URL: %@", urlString);
+            //NSLog(@"Time state cleared, starting new media playback for URL: %@", urlString);
             
             // Create a media object
             VLCMedia *media = [VLCMedia mediaWithURL:url];
@@ -1333,11 +1342,11 @@ static char tempEarlyPlaybackChannelKey;
                 // Use the actual media URL for consistency with saving
                 NSString *actualMediaURL = [self.player.media.url absoluteString];
                 if (actualMediaURL) {
-                    NSLog(@"=== RESUME: Using actual media URL: %@ ===", actualMediaURL);
+                    //NSLog(@"=== RESUME: Using actual media URL: %@ ===", actualMediaURL);
                     [self resumePlaybackPositionForURL:actualMediaURL];
                 } else {
                     // Fallback to original URL
-                    NSLog(@"=== RESUME: Fallback to URL string: %@ ===", urlString);
+                    //NSLog(@"=== RESUME: Fallback to URL string: %@ ===", urlString);
                     [self resumePlaybackPositionForURL:urlString];
                 }
             });
@@ -1364,7 +1373,7 @@ static char tempEarlyPlaybackChannelKey;
     if (foundChannel) {
         // Save detailed content info for early startup
         [self saveLastPlayedContentInfo:foundChannel];
-        NSLog(@"Saved detailed content info for channel: %@", foundChannel.name);
+        //NSLog(@"Saved detailed content info for channel: %@", foundChannel.name);
     } else {
         // Create a minimal channel object with just the URL and save it
         VLCChannel *minimalChannel = [[VLCChannel alloc] init];
@@ -1375,7 +1384,7 @@ static char tempEarlyPlaybackChannelKey;
             NSInteger urlIndex = [self.simpleChannelUrls indexOfObject:urlString];
             if (urlIndex != NSNotFound && urlIndex < [self.simpleChannelNames count]) {
                 minimalChannel.name = [self.simpleChannelNames objectAtIndex:urlIndex];
-                NSLog(@"Found channel name from simple lists: %@", minimalChannel.name);
+                //NSLog(@"Found channel name from simple lists: %@", minimalChannel.name);
             }
         }
         
@@ -1385,7 +1394,7 @@ static char tempEarlyPlaybackChannelKey;
         
         [self saveLastPlayedContentInfo:minimalChannel];
         [minimalChannel release];
-        NSLog(@"Saved minimal content info for URL: %@", urlString);
+        //NSLog(@"Saved minimal content info for URL: %@", urlString);
     }
     
     // Clear any temporary early playback channel since we're now playing new content
@@ -1449,7 +1458,7 @@ static char tempEarlyPlaybackChannelKey;
     [defaults setObject:urlString forKey:@"LastPlayedChannelURL"];
     [defaults synchronize];
     
-    NSLog(@"Saved last played channel URL: %@", urlString);
+    //NSLog(@"Saved last played channel URL: %@", urlString);
 }
 
 - (NSString *)getLastPlayedChannelUrl {
@@ -1470,7 +1479,7 @@ static char tempEarlyPlaybackChannelKey;
     
     // Check if m3uFilePath is a URL
     if ([self.m3uFilePath hasPrefix:@"http://"] || [self.m3uFilePath hasPrefix:@"https://"]) {
-        NSLog(@"Force reloading channel list from URL: %@", self.m3uFilePath);
+        //NSLog(@"Force reloading channel list from URL: %@", self.m3uFilePath);
         
         // Always load from URL - run in background
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
@@ -1548,7 +1557,7 @@ static char tempEarlyPlaybackChannelKey;
         
         // Now check if the filename is numeric
         if ([self isNumeric:filenameWithoutExtension]) {
-            NSLog(@"Extracted movie ID from filename: %@", filenameWithoutExtension);
+            //NSLog(@"Extracted movie ID from filename: %@", filenameWithoutExtension);
             return filenameWithoutExtension;
         }
     }
@@ -1561,7 +1570,7 @@ static char tempEarlyPlaybackChannelKey;
         if (components.count > 0) {
             NSString *idValue = components[0];
             if ([idValue length] > 0 && [self isNumeric:idValue]) {
-                NSLog(@"Found movie ID in query parameter: %@", idValue);
+                //NSLog(@"Found movie ID in query parameter: %@", idValue);
                 return idValue;
             }
         }
@@ -1581,7 +1590,7 @@ static char tempEarlyPlaybackChannelKey;
                 NSRange idRange = [match rangeAtIndex:1];
                 NSString *idValue = [url substringWithRange:idRange];
                 if ([idValue length] > 0) {
-                    NSLog(@"Extracted movie ID from path: %@", idValue);
+                    //NSLog(@"Extracted movie ID from path: %@", idValue);
                     return idValue;
                 }
             }
@@ -1607,7 +1616,7 @@ static char tempEarlyPlaybackChannelKey;
     if (!movieId) {
         movieId = [self extractMovieIdFromUrl:channel.url];
         if (!movieId) {
-            NSLog(@"Failed to extract movie ID from URL: %@", channel.url);
+            //NSLog(@"Failed to extract movie ID from URL: %@", channel.url);
             return nil;
         }
         channel.movieId = movieId;
@@ -1669,7 +1678,7 @@ static char tempEarlyPlaybackChannelKey;
     NSString *apiUrl = [NSString stringWithFormat:@"%@://%@%@/player_api.php?username=%@&password=%@&action=get_vod_info&vod_id=%@",
                         scheme, host, portString, username, password, movieId];
     
-    NSLog(@"Constructed movie API URL: %@", apiUrl);
+    //NSLog(@"Constructed movie API URL: %@", apiUrl);
     return apiUrl;
 }
 
@@ -1679,11 +1688,11 @@ static char tempEarlyPlaybackChannelKey;
     
     NSString *apiUrl = [self constructMovieApiUrlForChannel:channel];
     if (!apiUrl) {
-        NSLog(@"Failed to construct movie API URL for channel: %@", channel.name);
+        //NSLog(@"Failed to construct movie API URL for channel: %@", channel.name);
         return;
     }
     
-    NSLog(@"Fetching movie info from: %@", apiUrl);
+    //NSLog(@"Fetching movie info from: %@", apiUrl);
     
     // Create the URL request with more robust timeout handling
     NSURL *url = [NSURL URLWithString:apiUrl];
@@ -1740,8 +1749,8 @@ static char tempEarlyPlaybackChannelKey;
                 }
             }
             
-            NSLog(@"🔴 Movie info fetch failed for '%@' - %@: %@", 
-                  channel.name, errorCategory, error.localizedDescription);
+            //NSLog(@"🔴 Movie info fetch failed for '%@' - %@: %@", 
+            //      channel.name, errorCategory, error.localizedDescription);
             
             dispatch_async(dispatch_get_main_queue(), ^{
                 // Always reset the fetching flag to allow retry
@@ -1751,9 +1760,9 @@ static char tempEarlyPlaybackChannelKey;
                 // For other errors (like bad URL), we won't retry automatically
                 if (isNetworkError && shouldRetry) {
                     // Don't mark as loaded, allowing the system to retry later
-                    NSLog(@"📡 Network error for '%@' - will retry automatically later", channel.name);
+                    //NSLog(@"📡 Network error for '%@' - will retry automatically later", channel.name);
                 } else {
-                    NSLog(@"❌ Permanent error for '%@' - manual retry required", channel.name);
+                    //NSLog(@"❌ Permanent error for '%@' - manual retry required", channel.name);
                 }
                 
                 // Trigger UI update
@@ -1763,7 +1772,7 @@ static char tempEarlyPlaybackChannelKey;
             return;
         }
         
-        NSLog(@"📥 Received movie data for '%@' (%lu bytes)", channel.name, (unsigned long)[data length]);
+        //NSLog(@"📥 Received movie data for '%@' (%lu bytes)", channel.name, (unsigned long)[data length]);
         
         // Validate HTTP response code
         if ([response isKindOfClass:[NSHTTPURLResponse class]]) {
@@ -1771,7 +1780,7 @@ static char tempEarlyPlaybackChannelKey;
             NSInteger statusCode = [httpResponse statusCode];
             
             if (statusCode < 200 || statusCode >= 300) {
-                NSLog(@"🔴 HTTP error %ld for movie info fetch: %@", (long)statusCode, channel.name);
+                //NSLog(@"🔴 HTTP error %ld for movie info fetch: %@", (long)statusCode, channel.name);
                 dispatch_async(dispatch_get_main_queue(), ^{
                     channel.hasStartedFetchingMovieInfo = NO; // Reset for retry
                     [self setNeedsDisplay:YES];
@@ -1787,7 +1796,7 @@ static char tempEarlyPlaybackChannelKey;
                                                                       error:&jsonError];
         
         if (jsonError || !jsonResponse) {
-            NSLog(@"🔴 JSON parsing error for '%@': %@", channel.name, jsonError.localizedDescription);
+            //NSLog(@"🔴 JSON parsing error for '%@': %@", channel.name, jsonError.localizedDescription);
             // Reset fetch status on JSON error
             dispatch_async(dispatch_get_main_queue(), ^{
                 channel.hasStartedFetchingMovieInfo = NO; // Reset so we can try again later
@@ -1799,14 +1808,14 @@ static char tempEarlyPlaybackChannelKey;
         // Extract info from response
         NSDictionary *info = [jsonResponse objectForKey:@"info"];
         if (!info || ![info isKindOfClass:[NSDictionary class]]) {
-            NSLog(@"🔴 Invalid movie info response format for '%@' - no 'info' object", channel.name);
+            //NSLog(@"🔴 Invalid movie info response format for '%@' - no 'info' object", channel.name);
             
             // Print the response for debugging (first 500 chars only to avoid spam)
             NSString *responseStr = [jsonResponse description];
             if (responseStr.length > 500) {
                 responseStr = [[responseStr substringToIndex:500] stringByAppendingString:@"..."];
             }
-            NSLog(@"📋 Response received for '%@': %@", channel.name, responseStr);
+            //NSLog(@"📋 Response received for '%@': %@", channel.name, responseStr);
             
             // Reset fetch status on format error
             dispatch_async(dispatch_get_main_queue(), ^{
@@ -1851,11 +1860,11 @@ static char tempEarlyPlaybackChannelKey;
             NSString *coverUrl = [info objectForKey:@"movie_image"];
             if (coverUrl && (!channel.logo || [channel.logo length] == 0)) {
                 channel.logo = coverUrl;
-                NSLog(@"Updated movie logo URL from API: %@", coverUrl);
+                //NSLog(@"Updated movie logo URL from API: %@", coverUrl);
             }
             
             channel.hasLoadedMovieInfo = YES;
-            NSLog(@"Successfully loaded movie info for: %@", channel.name);
+            //NSLog(@"Successfully loaded movie info for: %@", channel.name);
             
             // Trigger UI update if this channel is being displayed
             if (self.hoveredChannelIndex >= 0) {
@@ -1892,7 +1901,7 @@ static char tempEarlyPlaybackChannelKey;
         }
     }
     
-    NSLog(@"Found %lu movie channels to preload", (unsigned long)movieChannels.count);
+    //NSLog(@"Found %lu movie channels to preload", (unsigned long)movieChannels.count);
     
     // Process in batches to avoid overwhelming the system
     const NSInteger BATCH_SIZE = 5;
@@ -1910,7 +1919,7 @@ static char tempEarlyPlaybackChannelKey;
     
     // Check if we've finished processing all channels
     if (currentIndex >= movieChannels.count) {
-        NSLog(@"Completed preloading all movie info and covers");
+        //NSLog(@"Completed preloading all movie info and covers");
         return;
     }
     
@@ -1918,8 +1927,8 @@ static char tempEarlyPlaybackChannelKey;
     NSInteger endIndex = MIN(currentIndex + batchSize, movieChannels.count);
     
     // Process this batch
-    NSLog(@"Processing movie info batch %ld to %ld of %lu", 
-         (long)currentIndex, (long)endIndex - 1, (unsigned long)movieChannels.count);
+    //NSLog(@"Processing movie info batch %ld to %ld of %lu", 
+    //     (long)currentIndex, (long)endIndex - 1, (unsigned long)movieChannels.count);
          
     dispatch_group_t group = dispatch_group_create();
     
@@ -1935,15 +1944,15 @@ static char tempEarlyPlaybackChannelKey;
             
             // Load movie info
             dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-                NSLog(@"Preloading movie info for channel %@ (%ld of %lu)", 
-                     channel.name, (long)i, (unsigned long)movieChannels.count);
+                //NSLog(@"Preloading movie info for channel %@ (%ld of %lu)", 
+                //     channel.name, (long)i, (unsigned long)movieChannels.count);
                      
                 [self fetchMovieInfoForChannel:channel];
                 
                 // After fetching movie info, also load the image if needed
                 dispatch_async(dispatch_get_main_queue(), ^{
                     if (channel.logo && !channel.cachedPosterImage) {
-                        NSLog(@"Preloading cover image for channel %@", channel.name);
+                        //NSLog(@"Preloading cover image for channel %@", channel.name);
                         [self loadImageAsynchronously:channel.logo forChannel:channel];
                     }
                     dispatch_group_leave(group);
@@ -1952,11 +1961,11 @@ static char tempEarlyPlaybackChannelKey;
         } else {
             // Already loaded from cache or started fetching
             if (loadedFromCache) {
-                NSLog(@"Movie info for %@ already loaded from cache", channel.name);
+                //NSLog(@"Movie info for %@ already loaded from cache", channel.name);
                 
                 // Still load the image if needed
                 if (channel.logo && !channel.cachedPosterImage) {
-                    NSLog(@"Preloading cover image for channel %@", channel.name);
+                    //NSLog(@"Preloading cover image for channel %@", channel.name);
                     [self loadImageAsynchronously:channel.logo forChannel:channel];
                 }
             }
@@ -1988,7 +1997,7 @@ static char tempEarlyPlaybackChannelKey;
     
     // Check if we've finished processing all channels
     if (currentIndex >= movieChannels.count) {
-        NSLog(@"Completed refreshing all movie info and covers");
+       // NSLog(@"Completed refreshing all movie info and covers");
         
         // Reset refresh state on main thread
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -2003,8 +2012,8 @@ static char tempEarlyPlaybackChannelKey;
     NSInteger endIndex = MIN(currentIndex + batchSize, movieChannels.count);
     
     // Process this batch
-    NSLog(@"Processing movie info batch %ld to %ld of %lu", 
-         (long)currentIndex, (long)endIndex - 1, (unsigned long)movieChannels.count);
+    //NSLog(@"Processing movie info batch %ld to %ld of %lu", 
+    //       (long)currentIndex, (long)endIndex - 1, (unsigned long)movieChannels.count);
          
     dispatch_group_t group = dispatch_group_create();
     
@@ -2017,15 +2026,15 @@ static char tempEarlyPlaybackChannelKey;
         
         // Load movie info
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-            NSLog(@"Refreshing movie info for channel %@ (%ld of %lu)", 
-                 channel.name, (long)i + 1, (unsigned long)movieChannels.count);
+            //NSLog(@"Refreshing movie info for channel %@ (%ld of %lu)", 
+            //     channel.name, (long)i + 1, (unsigned long)movieChannels.count);
                  
             [self fetchMovieInfoForChannel:channel];
             
             // After fetching movie info, also load the image if needed
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (channel.logo && !channel.cachedPosterImage) {
-                    NSLog(@"Refreshing cover image for channel %@", channel.name);
+                    //NSLog(@"Refreshing cover image for channel %@", channel.name);
                     [self loadImageAsynchronously:channel.logo forChannel:channel];
                 }
                 
@@ -2056,7 +2065,7 @@ static char tempEarlyPlaybackChannelKey;
 
 // Add method to start movie info refresh with progress tracking
 - (void)startMovieInfoRefresh {
-    NSLog(@"Starting movie info refresh with progress tracking");
+    //NSLog(@"Starting movie info refresh with progress tracking");
     
     // Set refresh state
     self.isRefreshingMovieInfo = YES;
@@ -2080,7 +2089,7 @@ static char tempEarlyPlaybackChannelKey;
     }
     
     self.movieRefreshTotal = movieChannels.count;
-    NSLog(@"Found %ld movie channels to refresh", (long)self.movieRefreshTotal);
+    //NSLog(@"Found %ld movie channels to refresh", (long)self.movieRefreshTotal);
     
     // Trigger initial UI update to show progress bar
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -2093,7 +2102,7 @@ static char tempEarlyPlaybackChannelKey;
 
 // Add method to force refresh all movie info and covers with progress tracking
 - (void)forceRefreshAllMovieInfoAndCoversWithProgress:(NSMutableArray *)movieChannels {
-    NSLog(@"Starting forced refresh of all movie info and covers with progress tracking");
+    //NSLog(@"Starting forced refresh of all movie info and covers with progress tracking");
     
     // Reset all movie channels
     for (VLCChannel *channel in movieChannels) {
@@ -2127,7 +2136,7 @@ static char tempEarlyPlaybackChannelKey;
 
 // Add method to force refresh all movie info and covers (legacy method)
 - (void)forceRefreshAllMovieInfoAndCovers {
-    NSLog(@"Starting forced refresh of all movie info and covers");
+    //NSLog(@"Starting forced refresh of all movie info and covers");
     
     // Get all movie channels
     NSMutableArray *movieChannels = [NSMutableArray array];
@@ -2145,7 +2154,7 @@ static char tempEarlyPlaybackChannelKey;
         }
     }
     
-    NSLog(@"Found %lu movie channels to refresh", (unsigned long)movieChannels.count);
+    //(@"Found %lu movie channels to refresh", (unsigned long)movieChannels.count);
     
     // Use the new progress-enabled method
     [self forceRefreshAllMovieInfoAndCoversWithProgress:movieChannels];
@@ -2966,7 +2975,7 @@ static char tempEarlyPlaybackChannelKey;
                 channel.catchupSource = @"default";
                 channel.catchupTemplate = @""; // Will be constructed dynamically
                 updatedChannels++;
-                //NSLog(@"Updated catch-up for channel '%@': %d days", channel.name, (int)channel.catchupDays);
+                NSLog(@"Updated catch-up for channel '%@': %d days", channel.name, (int)channel.catchupDays);
             }
         }
     }
@@ -3221,14 +3230,14 @@ static char tempEarlyPlaybackChannelKey;
     }
     
     if (username.length == 0 || password.length == 0) {
-        NSLog(@"Cannot generate timeshift URL: failed to extract username/password from channel URL: %@", channel.url);
+        //NSLog(@"Cannot generate timeshift URL: failed to extract username/password from channel URL: %@", channel.url);
         return nil;
     }
     
     // Extract stream_id from channel URL
     NSString *streamId = [self extractStreamIdFromChannelUrl:channel.url];
     if (!streamId) {
-        NSLog(@"Cannot generate timeshift URL: failed to extract stream ID from channel URL: %@", channel.url);
+        //NSLog(@"Cannot generate timeshift URL: failed to extract stream ID from channel URL: %@", channel.url);
         return nil;
     }
     
@@ -3250,30 +3259,30 @@ static char tempEarlyPlaybackChannelKey;
     NSString *startTimeString = [formatter stringFromDate:adjustedStartTime];
     [formatter release];
     
-    NSLog(@"Timeshift URL generation: Original program start time = %@", program.startTime);
-    NSLog(@"Timeshift URL generation: EPG offset = %ld hours, compensation = %.0f seconds", 
-          (long)self.epgTimeOffsetHours, offsetCompensation);
-    NSLog(@"Timeshift URL generation: Adjusted start time for server = %@", adjustedStartTime);
+    //NSLog(@"Timeshift URL generation: Original program start time = %@", program.startTime);
+    //NSLog(@"Timeshift URL generation: EPG offset = %ld hours, compensation = %.0f seconds", 
+    //      (long)self.epgTimeOffsetHours, offsetCompensation);
+    //NSLog(@"Timeshift URL generation: Adjusted start time for server = %@", adjustedStartTime);
     
     // Generate timeshift URL using PHP-based format with query parameters
     // Format: http://host:port/streaming/timeshift.php?username=User&password=Pass&stream=1234&start=2020-12-06:08-00&duration=120
     NSString *timeshiftUrl = [NSString stringWithFormat:@"%@/streaming/timeshift.php?username=%@&password=%@&stream=%@&start=%@&duration=%ld",
                              baseUrl, username, password, streamId, startTimeString, (long)durationMinutes];
     
-    NSLog(@"Generated timeshift URL for program '%@': %@", program.title, timeshiftUrl);
-    NSLog(@"Using server: %@, username: %@, password: %@, streamId: %@, start: %@, duration: %ld min", 
-          baseUrl, username, password, streamId, startTimeString, (long)durationMinutes);
+    //NSLog(@"Generated timeshift URL for program '%@': %@", program.title, timeshiftUrl);
+    //NSLog(@"Using server: %@, username: %@, password: %@, streamId: %@, start: %@, duration: %ld min", 
+    //      baseUrl, username, password, streamId, startTimeString, (long)durationMinutes);
     return timeshiftUrl;
 }
 
 // Play timeshift content for a specific program
 - (void)playTimeshiftForProgram:(VLCProgram *)program channel:(VLCChannel *)channel {
-    NSLog(@"Playing timeshift for program: %@ on channel: %@", program.title, channel.name);
+    //NSLog(@"Playing timeshift for program: %@ on channel: %@", program.title, channel.name);
     
     // Generate timeshift URL
     NSString *timeshiftUrl = [self generateTimeshiftUrlForProgram:program channel:channel];
     if (!timeshiftUrl) {
-        NSLog(@"Failed to generate timeshift URL for program: %@", program.title);
+        //NSLog(@"Failed to generate timeshift URL for program: %@", program.title);
         
         // Show error alert
         NSAlert *alert = [[NSAlert alloc] init];
@@ -3292,7 +3301,7 @@ static char tempEarlyPlaybackChannelKey;
         
         // Brief pause to allow VLC to reset
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            NSLog(@"Starting timeshift playback for program: %@", program.title);
+            //NSLog(@"Starting timeshift playback for program: %@", program.title);
             
             // Create media object with timeshift URL
             NSURL *url = [NSURL URLWithString:timeshiftUrl];
@@ -3307,7 +3316,7 @@ static char tempEarlyPlaybackChannelKey;
             // Start playing
             [self.player play];
             
-            NSLog(@"Started timeshift playback for URL: %@", timeshiftUrl);
+            //NSLog(@"Started timeshift playback for URL: %@", timeshiftUrl);
             
             // Force UI update
             [self setNeedsDisplay:YES];
@@ -3419,7 +3428,7 @@ static char tempEarlyPlaybackChannelKey;
     NSString *streamId = [queryParams objectForKey:@"stream"];
     
     if (!username || !password || !streamId) {
-        NSLog(@"Could not extract username/password/stream from timeshift URL");
+        //NSLog(@"Could not extract username/password/stream from timeshift URL");
         return nil;
     }
     
@@ -3427,7 +3436,7 @@ static char tempEarlyPlaybackChannelKey;
     NSString *originalUrl = [NSString stringWithFormat:@"%@/live/%@/%@/%@.m3u8", 
                             baseUrl, username, password, streamId];
     
-    NSLog(@"Converted timeshift URL to live URL: %@ -> %@", timeshiftUrl, originalUrl);
+    //NSLog(@"Converted timeshift URL to live URL: %@ -> %@", timeshiftUrl, originalUrl);
     return originalUrl;
 }
 
@@ -3463,7 +3472,7 @@ static char tempEarlyPlaybackChannelKey;
     
     [updatedInfo release];
     
-    NSLog(@"Updated cached info to live channel: %@ (%@)", originalChannelName, liveUrl);
+    //NSLog(@"Updated cached info to live channel: %@ (%@)", originalChannelName, liveUrl);
 }
 
 @end 

@@ -1,6 +1,5 @@
 //
 //  DownloadManager.m
-//  BasicPlayerWithPlaylist
 //
 //  Created by Nurettin Akpolat on 20/05/2025.
 //

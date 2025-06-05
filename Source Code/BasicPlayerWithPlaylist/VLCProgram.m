@@ -27,7 +27,7 @@
                      [formatter stringFromDate:_endTime]];
     } else {
         // Handle missing end time - estimate 1 hour duration
-        NSLog(@"Warning: Missing end time for program '%@' starting at %@", _title, _startTime);
+        //NSLog(@"Warning: Missing end time for program '%@' starting at %@", _title, _startTime);
         
         NSDate *estimatedEndTime = [_startTime dateByAddingTimeInterval:3600]; // 1 hour
         timeRange = [NSString stringWithFormat:@"%@ - %@", 
@@ -58,7 +58,7 @@
                      [formatter stringFromDate:adjustedEndTime]];
     } else {
         // Handle missing end time - show only start time or estimate end time
-        NSLog(@"Warning: Missing end time for program '%@' starting at %@", _title, _startTime);
+        //NSLog(@"Warning: Missing end time for program '%@' starting at %@", _title, _startTime);
         
         // Try to estimate end time as 1 hour after start time if no end time available
         NSDate *estimatedEndTime = [adjustedStartTime dateByAddingTimeInterval:3600]; // 1 hour

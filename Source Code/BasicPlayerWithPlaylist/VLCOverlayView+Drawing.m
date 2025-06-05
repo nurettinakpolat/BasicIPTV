@@ -71,11 +71,11 @@ extern BOOL isStackedViewActive;
             // Update the EPG time offset
             self.epgTimeOffsetHours = [offsetValue integerValue];
             
-            NSLog(@"EPG time offset changed to: %ld hours", (long)self.epgTimeOffsetHours);
+            //NSLog(@"EPG time offset changed to: %ld hours", (long)self.epgTimeOffsetHours);
             
             // Save settings
-            if ([self respondsToSelector:@selector(saveSettings)]) {
-                [self saveSettings];
+            if ([self respondsToSelector:@selector(saveSettingsState)]) {
+                [self saveSettingsState];
             }
             
             // Refresh display
@@ -119,7 +119,7 @@ extern BOOL isStackedViewActive;
     // Log each dropdown state
     for (NSString *identifier in self.dropdownManager.activeDropdowns) {
         VLCDropdown *dropdown = [self.dropdownManager.activeDropdowns objectForKey:identifier];
-      //  NSLog(@"Dropdown '%@': isOpen=%@, items=%ld", identifier, dropdown.isOpen ? @"YES" : @"NO", [dropdown.items count]);
+      //NSLog(@"Dropdown '%@': isOpen=%@, items=%ld", identifier, dropdown.isOpen ? @"YES" : @"NO", [dropdown.items count]);
     }
     
     // Use the new dropdown manager to draw all dropdowns
@@ -917,7 +917,6 @@ extern BOOL isStackedViewActive;
         self.blueSliderRect = blueSliderInteractionRect;
         
         yOffset += controlHeight + verticalSpacing;
-    }
     
     // Add a section separator for Selection Colors
     yOffset += 15;
@@ -930,7 +929,7 @@ extern BOOL isStackedViewActive;
     [@"Selection Colors" drawInRect:selectionSectionRect withAttributes:sectionAttrs];
     yOffset += 35;
     
-    // Selection Color RGB sliders (always shown)
+        // Selection Color RGB sliders (only shown for custom theme)
     // Selection Red slider
     NSRect selectionRedRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
     NSString *selectionRedDisplayText = [NSString stringWithFormat:@"%d", (int)(self.customSelectionRed * 255)];
@@ -981,6 +980,28 @@ extern BOOL isStackedViewActive;
     self.selectionBlueSliderRect = selectionBlueSliderInteractionRect;
     
     yOffset += controlHeight + verticalSpacing;
+    } else {
+        // Clear RGB slider rects when theme is not custom to make them non-interactive
+        self.redSliderRect = NSZeroRect;
+        self.greenSliderRect = NSZeroRect;
+        self.blueSliderRect = NSZeroRect;
+        
+        // Also clear selection color slider rects when theme is not custom
+        self.selectionRedSliderRect = NSZeroRect;
+        self.selectionGreenSliderRect = NSZeroRect;
+        self.selectionBlueSliderRect = NSZeroRect;
+        
+        // Reset slider activation state if any RGB or selection sliders were active
+        NSString *activeSlider = [VLCSliderControl activeSliderHandle];
+        if (activeSlider && ([activeSlider isEqualToString:@"red"] || 
+                            [activeSlider isEqualToString:@"green"] || 
+                            [activeSlider isEqualToString:@"blue"] ||
+                            [activeSlider isEqualToString:@"selectionRed"] ||
+                            [activeSlider isEqualToString:@"selectionGreen"] ||
+                            [activeSlider isEqualToString:@"selectionBlue"])) {
+            [VLCSliderControl handleMouseUp];
+        }
+    }
     
     // Draw Transparency Slider (always shown)
     NSRect transparencyRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
@@ -1096,14 +1117,25 @@ extern BOOL isStackedViewActive;
     [themeDropdown addItemWithValue:@(VLC_THEME_GREEN) displayText:@"Green"];
     [themeDropdown addItemWithValue:@(VLC_THEME_PURPLE) displayText:@"Purple"];
     [themeDropdown addItemWithValue:@(VLC_THEME_CUSTOM) displayText:@"Custom"];
-    themeDropdown.selectedIndex = self.currentTheme;
+    
+    // Find the correct index for the current theme instead of using the enum value directly
+    NSInteger selectedIndex = 0; // Default to first item (Dark)
+    for (NSInteger i = 0; i < [themeDropdown.items count]; i++) {
+        VLCDropdownItem *item = [themeDropdown.items objectAtIndex:i];
+        if ([item.value integerValue] == self.currentTheme) {
+            selectedIndex = i;
+            break;
+        }
+    }
+    themeDropdown.selectedIndex = selectedIndex;
     
     // Set theme dropdown callback
     themeDropdown.onSelectionChanged = ^(VLCDropdown *dropdown, VLCDropdownItem *selectedItem, NSInteger index) {
         VLCColorTheme newTheme = [selectedItem.value integerValue];
-        NSLog(@"Theme changed to: %@ (%ld)", selectedItem.displayText, (long)newTheme);
+        NSLog(@"Theme changed from %ld to: %@ (%ld)", (long)self.currentTheme, selectedItem.displayText, (long)newTheme);
         [self applyTheme:newTheme];
         [self setNeedsDisplay:YES];
+        NSLog(@"After applying theme: currentTheme = %ld", (long)self.currentTheme);
     };
     
     // Create transparency slider

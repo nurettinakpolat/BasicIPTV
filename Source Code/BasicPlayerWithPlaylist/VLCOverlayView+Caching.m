@@ -34,8 +34,8 @@
         cacheFileName = [NSString stringWithFormat:@"channels_%@.plist", hash];
         
         // Log the URL and its hash for debugging
-        NSLog(@"Creating cache path for URL: %@", sourcePath);
-        NSLog(@"URL hash: %@", hash);
+        //NSLog(@"Creating cache path for URL: %@", sourcePath);
+        //NSLog(@"URL hash: %@", hash);
     } else {
         // For local files, use a sanitized version of the filename
         NSString *lastComponent = [sourcePath lastPathComponent];
@@ -53,7 +53,7 @@
     
     // Check if the cache file exists and log it
     BOOL exists = [[NSFileManager defaultManager] fileExistsAtPath:cachePath];
-    NSLog(@"Cache path: %@, Exists: %@", cachePath, exists ? @"YES" : @"NO");
+    //NSLog(@"Cache path: %@, Exists: %@", cachePath, exists ? @"YES" : @"NO");
     
     return cachePath;
 }
@@ -164,10 +164,10 @@
             if (success) {
                 [self setLoadingStatusText:[NSString stringWithFormat:@"Saved %lu channels to cache", 
                                           (unsigned long)totalChannels]];
-                NSLog(@"Successfully saved channels cache to %@", cachePath);
+                //NSLog(@"Successfully saved channels cache to %@", cachePath);
             } else {
                 [self setLoadingStatusText:@"Failed to write cache file"];
-                NSLog(@"Failed to write channels cache to %@", cachePath);
+                //NSLog(@"Failed to write channels cache to %@", cachePath);
             }
             self.epgLoadingProgress = 1.0;
             [self setNeedsDisplay:YES];
@@ -175,7 +175,7 @@
         
         return success;
     } @catch (NSException *exception) {
-        NSLog(@"Exception while saving channels cache: %@", exception);
+        //NSLog(@"Exception while saving channels cache: %@", exception);
         
         // Update progress on error
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -191,39 +191,39 @@
 - (BOOL)loadChannelsFromCache:(NSString *)sourcePath {
     NSString *cachePath = [self channelCacheFilePath:sourcePath];
     
-    NSLog(@"Attempting to load channels from cache: %@", cachePath);
+    //NSLog(@"Attempting to load channels from cache: %@", cachePath);
     
     // Check if the cache file exists
     NSFileManager *fileManager = [NSFileManager defaultManager];
     if (![fileManager fileExistsAtPath:cachePath]) {
-        NSLog(@"Cache file does not exist: %@", cachePath);
+        //NSLog(@"Cache file does not exist: %@", cachePath);
         return NO;
     }
     
     // Load from the cache file
     NSDictionary *cacheDict = [NSDictionary dictionaryWithContentsOfFile:cachePath];
     if (!cacheDict) {
-        NSLog(@"Failed to load channels cache from %@", cachePath);
+        //NSLog(@"Failed to load channels cache from %@", cachePath);
         return NO;
     }
     
     // Check cache version
     NSString *cacheVersion = [cacheDict objectForKey:@"cacheVersion"];
     if (!cacheVersion || (![cacheVersion isEqualToString:@"1.0"] && ![cacheVersion isEqualToString:@"1.1"])) {
-        NSLog(@"Unsupported cache version: %@", cacheVersion);
+        //NSLog(@"Unsupported cache version: %@", cacheVersion);
         return NO;
     }
     
     // Check timestamp (1 week max)
     NSDate *cacheDate = [cacheDict objectForKey:@"cacheDate"];
     if (!cacheDate) {
-        NSLog(@"Invalid cache date");
+        //NSLog(@"Invalid cache date");
         return NO;
     }
     
     NSTimeInterval timeSinceCache = [[NSDate date] timeIntervalSinceDate:cacheDate];
     if (timeSinceCache > 7 * 24 * 60 * 60) { // 7 days
-        NSLog(@"Cache too old (%f days), refreshing", timeSinceCache / (24 * 60 * 60));
+        //NSLog(@"Cache too old (%f days), refreshing", timeSinceCache / (24 * 60 * 60));
         return NO;
     }
     
@@ -511,7 +511,7 @@
         // Prepare simple channel lists
         [self prepareSimpleChannelLists];
         
-        NSLog(@"Successfully loaded %lu channels from cache", (unsigned long)[self.channels count]);
+        //NSLog(@"Successfully loaded %lu channels from cache", (unsigned long)[self.channels count]);
         
         // Update UI on main thread
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -519,10 +519,10 @@
             // CRITICAL FIX: Don't reset hover index if we're preserving state for EPG
             extern BOOL isPersistingHoverState;
             if (!isPersistingHoverState) {
-                NSLog(@"Caching: Resetting hover index from %ld to -1", (long)self.hoveredChannelIndex);
+                //NSLog(@"Caching: Resetting hover index from %ld to -1", (long)self.hoveredChannelIndex);
                 self.hoveredChannelIndex = -1;
             } else {
-                NSLog(@"Caching: Preserving hover index %ld (EPG persistence mode)", (long)self.hoveredChannelIndex);
+                //NSLog(@"Caching: Preserving hover index %ld (EPG persistence mode)", (long)self.hoveredChannelIndex);
             }
             self.selectedCategoryIndex = CATEGORY_FAVORITES;
             self.selectedGroupIndex = -1;
@@ -535,7 +535,7 @@
         return YES;
     }
     @catch (NSException *exception) {
-        NSLog(@"Exception loading channels from cache: %@", exception);
+        //NSLog(@"Exception loading channels from cache: %@", exception);
         [pool drain];
         return NO;
     }
@@ -567,7 +567,7 @@
 
 - (void)saveEpgDataToCache_implementation {
     if (!self.epgData || [self.epgData count] == 0) {
-        NSLog(@"No EPG data to save to cache");
+        //NSLog(@"No EPG data to save to cache");
         return;
     }
     
@@ -582,12 +582,12 @@
                 if (self.epgData && [self.epgData isKindOfClass:[NSDictionary class]]) {
                     epgDataCopy = [[NSDictionary alloc] initWithDictionary:self.epgData copyItems:YES];
                 } else {
-                    NSLog(@"ERROR: self.epgData is not a valid NSDictionary: %@", [self.epgData class]);
+                   // NSLog(@"ERROR: self.epgData is not a valid NSDictionary: %@", [self.epgData class]);
                     return;
                 }
             }
         } @catch (NSException *exception) {
-            NSLog(@"ERROR: Exception while copying EPG data: %@", exception);
+            //NSLog(@"ERROR: Exception while copying EPG data: %@", exception);
             return;
         }
     } else {

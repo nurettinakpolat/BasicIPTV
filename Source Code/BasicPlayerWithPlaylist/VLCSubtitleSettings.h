@@ -1,6 +1,5 @@
 //
 //  VLCSubtitleSettings.h
-//  BasicPlayerWithPlaylist
 //
 //  Subtitle settings manager with configurable font size and appearance
 //
