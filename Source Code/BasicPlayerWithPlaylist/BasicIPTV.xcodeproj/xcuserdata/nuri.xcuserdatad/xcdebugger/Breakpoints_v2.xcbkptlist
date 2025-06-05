@@ -135,38 +135,6 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "68AD6BF6-449D-4DAB-91B5-B15A5F760796"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "VLCOverlayView+UI.m"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "3164"
-            endingLineNumber = "3164"
-            landmarkName = "-fetchMovieInfoForChannelAsync:"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "9827BF52-7D67-43D7-A07D-97D5884AC0FE"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "VLCOverlayView+UI.m"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "2424"
-            endingLineNumber = "2424"
-            landmarkName = "-updateEpgButtonClicked"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
             uuid = "A4B137AD-C66F-4C0B-AC52-3D73ED24740A"
             shouldBeEnabled = "No"
             ignoreCount = "0"
@@ -176,23 +144,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1671"
             endingLineNumber = "1671"
-            landmarkName = "-fetchMovieInfoForChannel:"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "869C63B6-4AD9-4767-9BDF-1DCD92E7054E"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "VLCOverlayView+UI.m"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "2431"
-            endingLineNumber = "2431"
-            landmarkName = "-updateEpgButtonClicked"
+            landmarkName = "-constructMovieApiUrlForChannel:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -208,7 +160,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1674"
             endingLineNumber = "1674"
-            landmarkName = "-fetchMovieInfoForChannel:"
+            landmarkName = "-constructMovieApiUrlForChannel:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -224,7 +176,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1673"
             endingLineNumber = "1673"
-            landmarkName = "-fetchMovieInfoForChannel:"
+            landmarkName = "-constructMovieApiUrlForChannel:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -238,9 +190,39 @@
             filePath = "VLCOverlayView+UI.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "6289"
-            endingLineNumber = "6289"
-            landmarkName = "-simpleChannelIndexAtPoint:"
+            startingLineNumber = "2971"
+            endingLineNumber = "2971">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "4463D1C5-2013-4668-919E-6DA744750313"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCOverlayView+Drawing.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "591"
+            endingLineNumber = "591"
+            landmarkName = "-drawSearchInterface:menuRect:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "D5D9F0CF-C5C5-4111-902F-B599A14BE536"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCOverlayView+Drawing.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "440"
+            endingLineNumber = "440"
+            landmarkName = "-drawGroups:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

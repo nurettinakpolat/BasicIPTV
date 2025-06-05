@@ -28,6 +28,36 @@ NSLock *gProgressMessageLock = nil;
 
 @implementation VLCOverlayView
 
+@synthesize hoveredChannelIndex = _hoveredChannelIndex;
+
+// Custom setter for hoveredChannelIndex to prevent changes during EPG preservation
+- (void)setHoveredChannelIndex:(NSInteger)newIndex {
+    extern BOOL isPersistingHoverState;
+    extern NSInteger lastValidHoveredChannelIndex;
+    
+    //NSLog(@"🔧 SETTER: Attempting to set hover index from %ld to %ld (isPersisting: %@)", 
+    //      (long)_hoveredChannelIndex, (long)newIndex, isPersistingHoverState ? @"YES" : @"NO");
+    
+    // If we're preserving hover state for EPG
+    if (isPersistingHoverState) {
+        if (newIndex == -1) {
+            // IGNORE -1 values during preservation - don't overwrite the stored valid index
+            //NSLog(@"BLOCKED: Ignoring -1 during EPG preservation, keeping current value %ld", (long)_hoveredChannelIndex);
+            return;
+        } else if (lastValidHoveredChannelIndex >= 0 && _hoveredChannelIndex != lastValidHoveredChannelIndex) {
+            // Restore the stored valid index if we don't have it yet
+            //NSLog(@"RESTORING: Setting hover index to stored valid value %ld", (long)lastValidHoveredChannelIndex);
+            _hoveredChannelIndex = lastValidHoveredChannelIndex;
+            return;
+        }
+        // Allow other valid changes during preservation (user hovering over different channels in EPG)
+    }
+    
+    // Allow the change
+    _hoveredChannelIndex = newIndex;
+    //NSLog(@"🔧 SETTER: Successfully set hover index to %ld", (long)_hoveredChannelIndex);
+}
+
 #pragma mark - Initialization
 
 - (instancetype)initWithFrame:(NSRect)frame {
@@ -65,8 +95,7 @@ NSLock *gProgressMessageLock = nil;
         // Initialize text field properties
         self.m3uFieldActive = NO;
         self.epgFieldActive = NO;
-        self.epgTimeOffsetDropdownActive = NO;
-        self.epgTimeOffsetDropdownHoveredIndex = -1; // No hover initially
+        // EPG Time Offset dropdown is now handled by VLCDropdownManager
         self.tempM3uUrl = @"";
         self.tempEpgUrl = @"";
         self.m3uCursorPosition = 0;

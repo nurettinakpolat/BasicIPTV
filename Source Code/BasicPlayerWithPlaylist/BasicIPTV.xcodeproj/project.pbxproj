@@ -13,6 +13,14 @@
 		8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */; };
 		CF5EDBC92DEDC0AB00C14C04 /* VLCOverlayView+Theming.m in Sources */ = {isa = PBXBuildFile; fileRef = CF5EDBC82DEDC0AB00C14C04 /* VLCOverlayView+Theming.m */; };
 		CF5EDBD22DEE01D700C14C04 /* VLCSliderControl.m in Sources */ = {isa = PBXBuildFile; fileRef = CF5EDBD12DEE01D700C14C04 /* VLCSliderControl.m */; };
+		CF5EDBE42DF0BCE200C14C04 /* VLCOverlayView+MouseHandling.m in Sources */ = {isa = PBXBuildFile; fileRef = CF5EDBDB2DF0BCE200C14C04 /* VLCOverlayView+MouseHandling.m */; };
+		CF5EDBE52DF0BCE200C14C04 /* VLCOverlayView+Drawing.m in Sources */ = {isa = PBXBuildFile; fileRef = CF5EDBD72DF0BCE200C14C04 /* VLCOverlayView+Drawing.m */; };
+		CF5EDBE62DF0BCE200C14C04 /* VLCOverlayView+Globals.m in Sources */ = {isa = PBXBuildFile; fileRef = CF5EDBD92DF0BCE200C14C04 /* VLCOverlayView+Globals.m */; };
+		CF5EDBE72DF0BCE200C14C04 /* VLCOverlayView+Search.m in Sources */ = {isa = PBXBuildFile; fileRef = CF5EDBDD2DF0BCE200C14C04 /* VLCOverlayView+Search.m */; };
+		CF5EDBE92DF0BCE200C14C04 /* VLCOverlayView+ContextMenu.m in Sources */ = {isa = PBXBuildFile; fileRef = CF5EDBD52DF0BCE200C14C04 /* VLCOverlayView+ContextMenu.m */; };
+		CF5EDBEA2DF0BCE200C14C04 /* VLCOverlayView+ViewModes.m in Sources */ = {isa = PBXBuildFile; fileRef = CF5EDBE32DF0BCE200C14C04 /* VLCOverlayView+ViewModes.m */; };
+		CF5EDBEB2DF0BCE200C14C04 /* VLCOverlayView+TextFields.m in Sources */ = {isa = PBXBuildFile; fileRef = CF5EDBDF2DF0BCE200C14C04 /* VLCOverlayView+TextFields.m */; };
+		CF5EDBEC2DF0BCE200C14C04 /* VLCOverlayView_SPLIT_README.md in Resources */ = {isa = PBXBuildFile; fileRef = CF5EDBD32DF0BCE200C14C04 /* VLCOverlayView_SPLIT_README.md */; };
 		CF87D27B2DEC3A8900D27E30 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = CF87D27A2DEC3A8900D27E30 /* main.m */; };
 		CFA399A32DDB740A007E36FA /* VLCProgram.m in Sources */ = {isa = PBXBuildFile; fileRef = CFA399A22DDB740A007E36FA /* VLCProgram.m */; };
 		CFA399AA2DDB7424007E36FA /* VLCOverlayView+Utilities.m in Sources */ = {isa = PBXBuildFile; fileRef = CFA399A82DDB7424007E36FA /* VLCOverlayView+Utilities.m */; };
@@ -63,6 +71,21 @@
 		CF5EDBC82DEDC0AB00C14C04 /* VLCOverlayView+Theming.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+Theming.m"; sourceTree = "<group>"; };
 		CF5EDBD02DEE01D700C14C04 /* VLCSliderControl.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VLCSliderControl.h; sourceTree = "<group>"; };
 		CF5EDBD12DEE01D700C14C04 /* VLCSliderControl.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VLCSliderControl.m; sourceTree = "<group>"; };
+		CF5EDBD32DF0BCE200C14C04 /* VLCOverlayView_SPLIT_README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = VLCOverlayView_SPLIT_README.md; sourceTree = "<group>"; };
+		CF5EDBD42DF0BCE200C14C04 /* VLCOverlayView+ContextMenu.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+ContextMenu.h"; sourceTree = "<group>"; };
+		CF5EDBD52DF0BCE200C14C04 /* VLCOverlayView+ContextMenu.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+ContextMenu.m"; sourceTree = "<group>"; };
+		CF5EDBD62DF0BCE200C14C04 /* VLCOverlayView+Drawing.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+Drawing.h"; sourceTree = "<group>"; };
+		CF5EDBD72DF0BCE200C14C04 /* VLCOverlayView+Drawing.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+Drawing.m"; sourceTree = "<group>"; };
+		CF5EDBD82DF0BCE200C14C04 /* VLCOverlayView+Globals.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+Globals.h"; sourceTree = "<group>"; };
+		CF5EDBD92DF0BCE200C14C04 /* VLCOverlayView+Globals.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+Globals.m"; sourceTree = "<group>"; };
+		CF5EDBDA2DF0BCE200C14C04 /* VLCOverlayView+MouseHandling.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+MouseHandling.h"; sourceTree = "<group>"; };
+		CF5EDBDB2DF0BCE200C14C04 /* VLCOverlayView+MouseHandling.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+MouseHandling.m"; sourceTree = "<group>"; };
+		CF5EDBDC2DF0BCE200C14C04 /* VLCOverlayView+Search.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+Search.h"; sourceTree = "<group>"; };
+		CF5EDBDD2DF0BCE200C14C04 /* VLCOverlayView+Search.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+Search.m"; sourceTree = "<group>"; };
+		CF5EDBDE2DF0BCE200C14C04 /* VLCOverlayView+TextFields.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+TextFields.h"; sourceTree = "<group>"; };
+		CF5EDBDF2DF0BCE200C14C04 /* VLCOverlayView+TextFields.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+TextFields.m"; sourceTree = "<group>"; };
+		CF5EDBE22DF0BCE200C14C04 /* VLCOverlayView+ViewModes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+ViewModes.h"; sourceTree = "<group>"; };
+		CF5EDBE32DF0BCE200C14C04 /* VLCOverlayView+ViewModes.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+ViewModes.m"; sourceTree = "<group>"; };
 		CF87D27A2DEC3A8900D27E30 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		CFA3999A2DD46F3D007E36FA /* BasicIPTV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BasicIPTV.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CFA3999B2DDB740A007E36FA /* VLCOverlayView+Caching.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+Caching.h"; sourceTree = "<group>"; };
@@ -121,6 +144,21 @@
 		080E96DDFE201D6D7F000001 /* Classes */ = {
 			isa = PBXGroup;
 			children = (
+				CF5EDBD32DF0BCE200C14C04 /* VLCOverlayView_SPLIT_README.md */,
+				CF5EDBD42DF0BCE200C14C04 /* VLCOverlayView+ContextMenu.h */,
+				CF5EDBD52DF0BCE200C14C04 /* VLCOverlayView+ContextMenu.m */,
+				CF5EDBD62DF0BCE200C14C04 /* VLCOverlayView+Drawing.h */,
+				CF5EDBD72DF0BCE200C14C04 /* VLCOverlayView+Drawing.m */,
+				CF5EDBD82DF0BCE200C14C04 /* VLCOverlayView+Globals.h */,
+				CF5EDBD92DF0BCE200C14C04 /* VLCOverlayView+Globals.m */,
+				CF5EDBDA2DF0BCE200C14C04 /* VLCOverlayView+MouseHandling.h */,
+				CF5EDBDB2DF0BCE200C14C04 /* VLCOverlayView+MouseHandling.m */,
+				CF5EDBDC2DF0BCE200C14C04 /* VLCOverlayView+Search.h */,
+				CF5EDBDD2DF0BCE200C14C04 /* VLCOverlayView+Search.m */,
+				CF5EDBDE2DF0BCE200C14C04 /* VLCOverlayView+TextFields.h */,
+				CF5EDBDF2DF0BCE200C14C04 /* VLCOverlayView+TextFields.m */,
+				CF5EDBE22DF0BCE200C14C04 /* VLCOverlayView+ViewModes.h */,
+				CF5EDBE32DF0BCE200C14C04 /* VLCOverlayView+ViewModes.m */,
 				CF5EDBD02DEE01D700C14C04 /* VLCSliderControl.h */,
 				CF5EDBD12DEE01D700C14C04 /* VLCSliderControl.m */,
 				CF5EDBC72DEDC0AB00C14C04 /* VLCOverlayView+Theming.h */,
@@ -284,6 +322,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8D11072A0486CEB800E47090 /* MainMenu.nib in Resources */,
+				CF5EDBEC2DF0BCE200C14C04 /* VLCOverlayView_SPLIT_README.md in Resources */,
 				8D11072B0486CEB800E47090 /* InfoPlist.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -305,6 +344,13 @@
 				CFF7A2692DD3E5B2009BAC21 /* VLCGLVideoView.m in Sources */,
 				8D11072D0486CEB800E47090 /* main.m in Sources */,
 				CFA399B12DDB7609007E36FA /* VLCOverlayView+Favorites.m in Sources */,
+				CF5EDBE42DF0BCE200C14C04 /* VLCOverlayView+MouseHandling.m in Sources */,
+				CF5EDBE52DF0BCE200C14C04 /* VLCOverlayView+Drawing.m in Sources */,
+				CF5EDBE62DF0BCE200C14C04 /* VLCOverlayView+Globals.m in Sources */,
+				CF5EDBE72DF0BCE200C14C04 /* VLCOverlayView+Search.m in Sources */,
+				CF5EDBE92DF0BCE200C14C04 /* VLCOverlayView+ContextMenu.m in Sources */,
+				CF5EDBEA2DF0BCE200C14C04 /* VLCOverlayView+ViewModes.m in Sources */,
+				CF5EDBEB2DF0BCE200C14C04 /* VLCOverlayView+TextFields.m in Sources */,
 				CFA399B22DDB7609007E36FA /* VLCOverlayView+Caching.m in Sources */,
 				CFA399B32DDB7609007E36FA /* VLCOverlayView+ChannelManagement.m in Sources */,
 				CFA399B42DDB7609007E36FA /* VLCOverlayView+UI.m in Sources */,

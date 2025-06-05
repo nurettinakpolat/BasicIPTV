@@ -516,7 +516,14 @@
         // Update UI on main thread
         dispatch_async(dispatch_get_main_queue(), ^{
             self.isLoading = NO;
-            self.hoveredChannelIndex = -1;
+            // CRITICAL FIX: Don't reset hover index if we're preserving state for EPG
+            extern BOOL isPersistingHoverState;
+            if (!isPersistingHoverState) {
+                NSLog(@"Caching: Resetting hover index from %ld to -1", (long)self.hoveredChannelIndex);
+                self.hoveredChannelIndex = -1;
+            } else {
+                NSLog(@"Caching: Preserving hover index %ld (EPG persistence mode)", (long)self.hoveredChannelIndex);
+            }
             self.selectedCategoryIndex = CATEGORY_FAVORITES;
             self.selectedGroupIndex = -1;
             

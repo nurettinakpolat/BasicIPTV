@@ -18,7 +18,11 @@
 
 // User interaction handling
 - (void)markUserInteraction;
+- (void)markUserInteractionWithMenuShow:(BOOL)shouldShowMenu;
 - (void)scheduleInteractionCheck;
+- (void)checkUserInteraction;
+- (void)hideChannelList;
+- (void)ensureCursorVisible;
 
 // Loading progress
 - (void)setLoadingStatusText:(NSString *)text;
@@ -35,5 +39,9 @@
 
 // Helper methods
 - (BOOL)isNumeric:(NSString *)string;
+
+// Auto-navigation functionality
+- (void)autoNavigateToCurrentlyPlayingChannel;
+- (void)centerSelectionInMenuAndSetHoverIndices;
 
 @end 

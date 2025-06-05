@@ -1,6 +1,22 @@
 #import "VLCOverlayView.h"
+#import "VLCOverlayView+Drawing.h"
+#import "VLCOverlayView+MouseHandling.h"
+#import "VLCOverlayView+ContextMenu.h"
+#import "VLCOverlayView+TextFields.h"
+#import "VLCOverlayView+Search.h"
+#import "VLCOverlayView+ViewModes.h"
+#import "VLCOverlayView+Globals.h"
 
 @interface VLCOverlayView (UI)
+
+// This category now serves as a coordination point for all UI functionality
+// The actual method declarations are in their respective category headers:
+// - VLCOverlayView+Drawing.h: UI setup and drawing methods
+// - VLCOverlayView+MouseHandling.h: Mouse and keyboard event handling
+// - VLCOverlayView+ContextMenu.h: Context menu functionality
+// - VLCOverlayView+TextFields.h: Text field delegates and URL handling
+// - VLCOverlayView+Search.h: Search functionality and selection persistence
+// - VLCOverlayView+ViewModes.h: View mode management and stacked view drawing
 
 // UI setup
 - (void)setupTrackingArea;
@@ -83,5 +99,15 @@
 - (void)performSearch:(NSString *)searchText;
 - (void)performDelayedSearch:(NSTimer *)timer;
 - (BOOL)channel:(VLCChannel *)channel matchesSearchText:(NSString *)searchText;
+
+// Selection persistence methods
+- (void)saveLastSelectedIndices;
+- (void)loadAndRestoreLastSelectedIndices;
+- (NSArray *)getGroupsForCategoryIndex:(NSInteger)categoryIndex;
+
+// Smart search selection methods
+- (void)saveOriginalLocationForSearchedChannel:(VLCChannel *)channel;
+- (void)selectSearchAndRememberOriginalLocation:(VLCChannel *)channel;
+- (void)restoreOriginalLocationOfSearchedChannel;
 
 @end

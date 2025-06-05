@@ -1143,6 +1143,7 @@ static char tempEarlyPlaybackChannelKey;
 
 // New method to handle channel playback by index
 - (void)playChannelAtIndex:(NSInteger)index {
+    [self hideControls];
     if (index < 0 || index >= [self.simpleChannelNames count]) {
         NSLog(@"Invalid channel index: %ld", (long)index);
         return;
@@ -1154,10 +1155,14 @@ static char tempEarlyPlaybackChannelKey;
         return;
     }
     
+    // Save the current selection as the last played selection
+    [self saveLastSelectedIndices];
+    
     [self playChannelWithUrl:url];
 }
 
 - (void)playChannel:(VLCChannel *)channel {
+    [self hideControls];
     if (channel == nil) {
         NSLog(@"Invalid channel");
         return;

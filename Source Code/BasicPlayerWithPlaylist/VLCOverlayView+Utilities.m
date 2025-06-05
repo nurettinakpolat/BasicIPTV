@@ -521,6 +521,22 @@
             self.simpleChannelNames = [names copy];
             self.simpleChannelUrls = [urls copy];
             
+            // Restore last selected indices on first run (when channels are initially loaded)
+            static BOOL hasRestoredSelection = NO;
+            if (!hasRestoredSelection && self.channels && self.channels.count > 0) {
+                // Add a small delay to ensure all data structures are properly initialized
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    // Double-check that we still have valid data
+                    if (self.categories && self.categories.count > 0 && self.channels && self.channels.count > 0) {
+                        [self loadAndRestoreLastSelectedIndices];
+                        NSLog(@"Restored last selected indices after channel loading with delay");
+                    } else {
+                        NSLog(@"Skipped selection restoration - data not ready yet");
+                    }
+                });
+                hasRestoredSelection = YES;
+            }
+            
             // Make sure favorites weren't lost
             if (savedFavorites.count > 0) {
                 NSArray *currentFavGroups = [self safeGroupsForCategory:@"FAVORITES"];
@@ -607,6 +623,36 @@
         CGFloat mainMenuWidth = 200;
         CGFloat submenuWidth = 250;
         CGFloat rowHeight = 40;
+        
+        // FIXED: Handle search mode differently
+        if (self.selectedCategoryIndex == CATEGORY_SEARCH) {
+            // For search mode, check if we have search results and if point is in channel list area
+            if (point.x < mainMenuWidth + submenuWidth) {
+                return -1;
+            }
+            
+            // Use search channel results count instead of regular channel list
+            NSUInteger count = 0;
+            if (self.searchChannelResults && [self.searchChannelResults count] > 0) {
+                count = [self.searchChannelResults count];
+            } else {
+                // No search results - return -1
+                return -1;
+            }
+            
+            // Calculate which search result was hovered
+            CGFloat effectiveY = self.bounds.size.height - point.y;
+            NSInteger itemsScrolled = (NSInteger)floor(self.searchChannelScrollPosition / rowHeight);
+            NSInteger visibleIndex = (NSInteger)floor(effectiveY / rowHeight);
+            NSInteger index = visibleIndex + itemsScrolled;
+            
+            // Check the index bounds
+            if (index < 0 || index >= (NSInteger)count) {
+                return -1;
+            }
+            
+            return index;
+        }
         
         // If we don't have a selected group or not in the channel list area, return -1
         if ((self.selectedCategoryIndex != CATEGORY_FAVORITES && self.selectedCategoryIndex != CATEGORY_TV && self.selectedCategoryIndex != CATEGORY_MOVIES && self.selectedCategoryIndex != CATEGORY_SERIES) || 
@@ -705,6 +751,29 @@
             //NSLog(@"Cursor hidden after %.1f seconds of no mouse movement", timeSinceLastMouseMove);
         }
         
+        // AUTO-NAVIGATION: If menu has been hidden for more than 15 seconds, auto-navigate to playing channel
+        static NSTimeInterval lastMenuHideTime = 0;
+        static BOOL hasAutoNavigated = NO;
+        
+        if (!self.isChannelListVisible) {
+            // Menu is hidden - track how long it's been hidden
+            if (lastMenuHideTime == 0) {
+                lastMenuHideTime = currentTime; // Start tracking
+                hasAutoNavigated = NO; // Reset flag when menu becomes hidden
+            }
+            
+            NSTimeInterval timeSinceMenuHidden = currentTime - lastMenuHideTime;
+            if (timeSinceMenuHidden >= 15.0 && !hasAutoNavigated) {
+                // 15 seconds have passed, auto-navigate to currently playing channel
+                [self autoNavigateToCurrentlyPlayingChannel];
+                hasAutoNavigated = YES; // Only do this once per hide session
+            }
+        } else {
+            // Menu is visible - reset the hide timer
+            lastMenuHideTime = 0;
+            hasAutoNavigated = NO;
+        }
+        
         // If more than 5 seconds have passed since last interaction, hide the menu
         if (timeSinceLastInteraction >= 5.0) {
             //NSLog(@"User interaction timed out after %.1f seconds - hiding menu", timeSinceLastInteraction);
@@ -749,6 +818,221 @@
         [NSCursor unhide];
         isCursorHidden = NO;
         NSLog(@"Cursor shown via ensureCursorVisible");
+    }
+}
+
+// Auto-navigate to currently playing channel after 15 seconds of menu being hidden
+- (void)autoNavigateToCurrentlyPlayingChannel {
+    @try {
+        NSLog(@"Auto-navigating to currently playing channel...");
+        
+        // Get the currently playing channel URL
+        NSString *currentChannelUrl = [self getLastPlayedChannelUrl];
+        if (!currentChannelUrl || [currentChannelUrl length] == 0) {
+            NSLog(@"No currently playing channel found");
+            return;
+        }
+        
+        // Find the channel in our data structures
+        VLCChannel *foundChannel = nil;
+        NSInteger foundCategoryIndex = -1;
+        NSInteger foundGroupIndex = -1;
+        NSInteger foundChannelIndex = -1;
+        
+        // Search through all categories and groups
+        for (NSInteger catIndex = 0; catIndex < self.categories.count; catIndex++) {
+            NSString *category = [self.categories objectAtIndex:catIndex];
+            
+            // Skip SEARCH category
+            if ([category isEqualToString:@"SEARCH"]) continue;
+            
+            NSArray *groups = [self getGroupsForCategoryIndex:catIndex];
+            if (!groups) continue;
+            
+            for (NSInteger groupIndex = 0; groupIndex < groups.count; groupIndex++) {
+                NSString *group = [groups objectAtIndex:groupIndex];
+                NSArray *channelsInGroup = [self.channelsByGroup objectForKey:group];
+                
+                if (channelsInGroup) {
+                    for (NSInteger channelIndex = 0; channelIndex < channelsInGroup.count; channelIndex++) {
+                        VLCChannel *channel = [channelsInGroup objectAtIndex:channelIndex];
+                        
+                        // Match by URL
+                        if ([channel.url isEqualToString:currentChannelUrl]) {
+                            foundChannel = channel;
+                            foundCategoryIndex = catIndex;
+                            foundGroupIndex = groupIndex;
+                            foundChannelIndex = channelIndex;
+                            
+                            NSLog(@"Found currently playing channel '%@' at Cat=%ld, Group=%ld, Channel=%ld", 
+                                  channel.name, (long)catIndex, (long)groupIndex, (long)channelIndex);
+                            break;
+                        }
+                    }
+                    if (foundChannel) break;
+                }
+            }
+            if (foundChannel) break;
+        }
+        
+        // If we found the channel, set the selection and center the view
+        if (foundChannel) {
+            // Update selection indices
+            self.selectedCategoryIndex = foundCategoryIndex;
+            self.selectedGroupIndex = foundGroupIndex;
+            
+            // Prepare channel lists for the selected group
+            [self prepareSimpleChannelLists];
+            
+            // Set the channel index (this might have changed after prepareSimpleChannelLists)
+            if (foundChannelIndex < self.simpleChannelNames.count) {
+                self.selectedChannelIndex = foundChannelIndex;
+            } else {
+                self.selectedChannelIndex = 0; // Fallback
+            }
+            
+            // Center the selection in the view and set hover indices
+            [self centerSelectionInMenuAndSetHoverIndices];
+            
+            NSLog(@"Auto-navigation completed: Cat=%ld, Group=%ld, Channel=%ld", 
+                  (long)self.selectedCategoryIndex, (long)self.selectedGroupIndex, (long)self.selectedChannelIndex);
+        } else {
+            NSLog(@"Currently playing channel not found in menu structure");
+        }
+        
+    } @catch (NSException *exception) {
+        NSLog(@"Exception in autoNavigateToCurrentlyPlayingChannel: %@", exception);
+    }
+}
+
+// Center the current selection in the menu panels and set hover indices to match
+- (void)centerSelectionInMenuAndSetHoverIndices {
+    @try {
+        // Access the global view mode variables from UI.m
+        extern BOOL isStackedViewActive;
+        extern BOOL isGridViewActive;
+        
+        // Center category scroll position
+        if (self.selectedCategoryIndex >= 0 && self.categories.count > 0) {
+            CGFloat categoryRowHeight = 40;
+            CGFloat categoryPanelHeight = self.bounds.size.height;
+            CGFloat totalCategoryHeight = self.categories.count * categoryRowHeight;
+            
+            // Calculate position to center the selected category
+            CGFloat targetCategoryY = self.selectedCategoryIndex * categoryRowHeight;
+            CGFloat centerOffset = (categoryPanelHeight / 2) - (categoryRowHeight / 2);
+            categoryScrollPosition = MAX(0, MIN(targetCategoryY - centerOffset, totalCategoryHeight - categoryPanelHeight));
+            
+            // Set hover index to match selection
+            self.hoveredCategoryIndex = self.selectedCategoryIndex;
+        }
+        
+        // Center group scroll position
+        NSArray *groups = [self getGroupsForCategoryIndex:self.selectedCategoryIndex];
+        if (groups && self.selectedGroupIndex >= 0 && self.selectedGroupIndex < groups.count) {
+            CGFloat groupRowHeight = 40;
+            CGFloat groupPanelHeight = self.bounds.size.height;
+            CGFloat totalGroupHeight = groups.count * groupRowHeight;
+            
+            // Calculate position to center the selected group
+            CGFloat targetGroupY = self.selectedGroupIndex * groupRowHeight;
+            CGFloat centerOffset = (groupPanelHeight / 2) - (groupRowHeight / 2);
+            groupScrollPosition = MAX(0, MIN(targetGroupY - centerOffset, totalGroupHeight - groupPanelHeight));
+            
+            // Set hover index to match selection
+            self.hoveredGroupIndex = self.selectedGroupIndex;
+        }
+        
+        // Center channel scroll position - handle different view modes
+        if (self.selectedChannelIndex >= 0 && self.simpleChannelNames.count > 0) {
+            CGFloat channelRowHeight = 40; // Default for list view
+            CGFloat channelPanelHeight = self.bounds.size.height;
+            CGFloat totalChannelHeight = 0;
+            CGFloat maxScroll = 0;
+            
+            // Determine current view mode and calculate appropriate scroll position
+            BOOL isMovieCategory = (self.selectedCategoryIndex == CATEGORY_MOVIES) || 
+                                  (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]);
+            
+            if (isMovieCategory && isStackedViewActive) {
+                // STACKED VIEW - use the exact same calculations as drawStackedView
+                channelRowHeight = 400; // Default stacked view row height
+                
+                // Calculate stacked view dimensions (match drawStackedView)
+                CGFloat catWidth = 200;
+                CGFloat groupWidth = 250;
+                CGFloat stackedViewX = catWidth + groupWidth;
+                CGFloat stackedViewWidth = self.bounds.size.width - stackedViewX;
+                NSRect stackedRect = NSMakeRect(stackedViewX, 0, stackedViewWidth, self.bounds.size.height);
+                
+                // Apply minimum rows logic (match drawStackedView)
+                NSInteger minVisibleRows = 4;
+                CGFloat requiredHeight = minVisibleRows * channelRowHeight;
+                if (stackedRect.size.height < requiredHeight) {
+                    channelRowHeight = MAX(80, stackedRect.size.height / minVisibleRows);
+                }
+                
+                totalChannelHeight = self.simpleChannelNames.count * channelRowHeight;
+                channelPanelHeight = stackedRect.size.height;
+                maxScroll = MAX(0, totalChannelHeight - channelPanelHeight);
+                
+            } else if (isMovieCategory && isGridViewActive) {
+                // GRID VIEW - use the exact same calculations as grid scrolling
+                CGFloat catWidth = 200;
+                CGFloat groupWidth = 250;
+                CGFloat gridX = catWidth + groupWidth;
+                CGFloat gridWidth = self.bounds.size.width - gridX;
+                CGFloat itemPadding = 10;
+                CGFloat itemWidth = MIN(180, (gridWidth / 2) - (itemPadding * 2));
+                CGFloat itemHeight = itemWidth * 1.5;
+                
+                // Calculate grid layout
+                NSInteger maxColumns = MAX(1, (NSInteger)((gridWidth - itemPadding) / (itemWidth + itemPadding)));
+                NSInteger numRows = (NSInteger)ceilf((float)self.simpleChannelNames.count / (float)maxColumns);
+                CGFloat totalGridHeight = numRows * (itemHeight + itemPadding) + itemPadding;
+                totalGridHeight += itemHeight; // Extra padding
+                
+                // For grid view, calculate which row the selected item is in
+                NSInteger selectedRow = self.selectedChannelIndex / maxColumns;
+                CGFloat targetRowY = selectedRow * (itemHeight + itemPadding);
+                
+                channelPanelHeight = self.bounds.size.height - 40; // Account for header
+                maxScroll = MAX(0, totalGridHeight - channelPanelHeight);
+                
+                // Center the selected row
+                CGFloat centerOffset = (channelPanelHeight / 2) - (itemHeight / 2);
+                channelScrollPosition = MAX(0, MIN(targetRowY - centerOffset, maxScroll));
+                
+                NSLog(@"Grid view centering: selectedIndex=%ld, row=%ld, targetY=%.1f, scrollPos=%.1f", 
+                      (long)self.selectedChannelIndex, (long)selectedRow, targetRowY, channelScrollPosition);
+                
+            } else {
+                // LIST VIEW - standard 40px row height
+                channelRowHeight = 40;
+                totalChannelHeight = self.simpleChannelNames.count * channelRowHeight;
+                maxScroll = MAX(0, totalChannelHeight - channelPanelHeight);
+            }
+            
+            // For list and stacked view, center the selected item
+            if (!isGridViewActive) {
+                CGFloat targetChannelY = self.selectedChannelIndex * channelRowHeight;
+                CGFloat centerOffset = (channelPanelHeight / 2) - (channelRowHeight / 2);
+                channelScrollPosition = MAX(0, MIN(targetChannelY - centerOffset, maxScroll));
+                
+                NSLog(@"Centering view mode: rowHeight=%.1f, targetY=%.1f, scrollPos=%.1f", 
+                      channelRowHeight, targetChannelY, channelScrollPosition);
+            }
+            
+            // Set hover index to match selection
+            self.hoveredChannelIndex = self.selectedChannelIndex;
+        }
+        
+        NSLog(@"Centered selection and set hover indices: Cat=%ld, Group=%ld, Channel=%ld (ViewMode: Stacked=%@, Grid=%@)", 
+              (long)self.hoveredCategoryIndex, (long)self.hoveredGroupIndex, (long)self.hoveredChannelIndex,
+              isStackedViewActive ? @"YES" : @"NO", isGridViewActive ? @"YES" : @"NO");
+              
+    } @catch (NSException *exception) {
+        NSLog(@"Exception in centerSelectionInMenuAndSetHoverIndices: %@", exception);
     }
 }
 

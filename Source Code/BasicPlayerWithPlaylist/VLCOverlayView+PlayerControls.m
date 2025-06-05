@@ -233,7 +233,9 @@ static NSTimeInterval lastMouseMoveTime = 0;
     
     // Check for hover over progress bar if controls are visible and progress bar rect is set
     if (playerControlsVisible && !NSEqualRects(self.progressBarRect, NSZeroRect)) {
-        NSRect expandedProgressBarRect = NSInsetRect(self.progressBarRect, -5, -10);
+        // FIXED: Much more generous hover detection area to cover full progress bar width
+        // Expand horizontally much more to ensure detection works beyond current position
+        NSRect expandedProgressBarRect = NSInsetRect(self.progressBarRect, -100 ,-40);
         BOOL currentHoverState = NSPointInRect(mouseInView, expandedProgressBarRect);
         
         // Update hover state and trigger redraw if needed
@@ -400,7 +402,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
         if (currentChannel.programs && currentChannel.programs.count > 0) {
             currentProgram = [currentChannel currentProgramWithTimeOffset:self.epgTimeOffsetHours];
         }
-        NSLog(@"Player Controls - Using tmpCurrentChannel: %@", currentChannel.name);
+       // NSLog(@"Player Controls - Using tmpCurrentChannel: %@", currentChannel.name);
     }
     // PRIORITY 2: For timeshift content, use the saved program information instead of current time
     else if (isTimeshiftPlaying) {
@@ -1602,6 +1604,14 @@ static NSTimeInterval lastMouseMoveTime = 0;
 - (BOOL)handlePlayerControlsClickAtPoint:(NSPoint)point {
     NSLog(@"handlePlayerControlsClickAtPoint called with point: (%.1f, %.1f)", point.x, point.y);
     
+    // FIRST: Check if any dropdown is open and would handle this click
+    // This prevents clicks from falling through to the progress bar
+    if (self.dropdownManager && [self.dropdownManager isPointInAnyDropdown:point]) {
+        NSLog(@"Click blocked by dropdown - not processing player controls");
+        // Let the dropdown manager handle it in the main mouseDown method
+        return NO; // Return NO so the main mouseDown continues to process it
+    }
+    
     // Only process clicks if player controls are visible
     if (!playerControlsVisible || !self.player) {
         NSLog(@"Controls not visible (%@) or no player (%@)", 
@@ -1645,10 +1655,14 @@ static NSTimeInterval lastMouseMoveTime = 0;
         CGFloat relativePosition = relativeX / self.progressBarRect.size.width;
         relativePosition = MIN(1.0, MAX(0.0, relativePosition)); // Clamp between 0 and 1
         
+        NSLog(@"DEBUG CLICK: Progress bar clicked at relativePosition=%.3f", relativePosition);
+        
         // Check if we're playing timeshift content
         BOOL isTimeshiftPlaying = [self isCurrentlyPlayingTimeshift];
+        NSLog(@"DEBUG CLICK: isTimeshiftPlaying=%@", isTimeshiftPlaying ? @"YES" : @"NO");
         
         if (isTimeshiftPlaying) {
+            NSLog(@"DEBUG CLICK: Calling handleTimeshiftSeek with relativePosition=%.3f", relativePosition);
             // Handle timeshift seeking
             [self handleTimeshiftSeek:relativePosition];
         } else {
@@ -2706,7 +2720,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
         *programStatusStr = [frozenValues objectForKey:@"programStatusStr"];
         *programTimeRange = @"Seeking to new position...";
         *progress = 0.5; // Keep progress in middle during seeking
-        NSLog(@"Using frozen time values during seeking: %@ - %@", *currentTimeStr, *totalTimeStr);
+        //NSLog(@"Using frozen time values during seeking: %@ - %@", *currentTimeStr, *totalTimeStr);
         return;
     }
     
@@ -2763,58 +2777,83 @@ static NSTimeInterval lastMouseMoveTime = 0;
     NSDate *currentRealTime = [NSDate date];
     
     if (timeshiftStartTime) {
+        // IMPORTANT: The timeshift start time from URL is in SERVER TIME (created with EPG offset applied)
+        // We need to convert it back to LOCAL TIME for proper display
+        // Since timeshift URL was created as: server_time = local_time - epg_offset
+        // To get back: local_time = server_time + epg_offset
+        NSTimeInterval epgAdjustmentForDisplay = self.epgTimeOffsetHours * 3600.0;
+        timeshiftStartTime = [timeshiftStartTime dateByAddingTimeInterval:epgAdjustmentForDisplay];
+        
+        // DEBUG: Log the timeshift calculation
+        NSDateFormatter *debugFormatter = [[NSDateFormatter alloc] init];
+        [debugFormatter setDateFormat:@"HH:mm:ss"];
+        [debugFormatter setTimeZone:[NSTimeZone localTimeZone]];
+       // NSLog(@"DEBUG TIMESHIFT: EPG offset: %ld, Original start time: %@, Adjusted start time: %@", 
+       //        (long)self.epgTimeOffsetHours, 
+       //        [debugFormatter stringFromDate:[timeshiftStartTime dateByAddingTimeInterval:-epgAdjustmentForDisplay]], 
+       //        [debugFormatter stringFromDate:timeshiftStartTime]);
+        // Keep debugFormatter alive for other debug logs below
+        
         // FIXED: Use sliding 2-hour window centered around current playback position
         
-        // Calculate current playback position in seconds from timeshift start
+        // Calculate current playback position in seconds from timeshift start (now in local time)
         NSTimeInterval currentSeconds = [currentTime intValue] / 1000.0;
         NSDate *actualPlayTime = [timeshiftStartTime dateByAddingTimeInterval:currentSeconds];
-        actualPlayTime = [actualPlayTime dateByAddingTimeInterval:-7200];
+        
+        // DEBUG: Log actual play time calculation
+        //NSLog(@"DEBUG TIMESHIFT: Current seconds: %.1f, Actual play time: %@", 
+        //      currentSeconds, [debugFormatter stringFromDate:actualPlayTime]);
+        
+        // FIXED: Progressbar should work with LOCAL TIME only
+        // EPG offset should only be used when matching against EPG programs, not for progressbar display
+        // Remove the EPG adjustment from the progressbar calculation
        
         
-        // Create a 2-hour sliding window centered around current playback position
-        NSTimeInterval windowDuration = 7200; // 2 hours in seconds
-        NSDate *windowStartTime = [actualPlayTime dateByAddingTimeInterval:-(windowDuration / 2)]; // 1 hour before current
-        NSDate *windowEndTime = [actualPlayTime dateByAddingTimeInterval:(windowDuration / 2)];   // 1 hour after current
+        // COMPLETELY REWRITTEN: Progress bar shows 2-hour window centered around current play time
+        // Start time: current play time - 1 hour
+        // End time: current play time + 1 hour (capped at current real time)
+        // Progress: current play time position within this 2-hour window
         
-       
-        // Adjust window if it goes beyond current real time (can't go into future)
-        if ([windowEndTime compare:currentRealTime] == NSOrderedDescending) {
-            // Window end is in the future, adjust to end at current real time
-            windowEndTime = currentRealTime;
-            windowStartTime = [windowEndTime dateByAddingTimeInterval:-windowDuration];
-        }
-        
-        
-        // Calculate progress within the sliding window
-        NSTimeInterval actualWindowDuration = [windowEndTime timeIntervalSinceDate:windowStartTime];
-        NSTimeInterval playTimeOffset = [actualPlayTime timeIntervalSinceDate:windowStartTime];
-        
-        if (actualWindowDuration > 0) {
-            *progress = playTimeOffset / actualWindowDuration;
-            *progress = MIN(1.0, MAX(0.0, *progress)); // Clamp between 0 and 1
-        } else {
-            *progress = 0.5; // Fallback to middle
-        }
-        
-        // Format times for display (with EPG offset applied)
+        // Format times for display
         NSDateFormatter *timeFormatter = [[NSDateFormatter alloc] init];
         [timeFormatter setDateFormat:@"HH:mm:ss"];
         [timeFormatter setTimeZone:[NSTimeZone localTimeZone]];
         
-        // Apply EPG offset to window times for display
-        // FIXED: EPG offset direction - if EPG offset is -1 hour, we need to ADD 1 hour to display times
+        NSDate *centeredStartTime = [actualPlayTime dateByAddingTimeInterval:-3600]; // -1 hour
+        NSDate *centeredEndTime = [actualPlayTime dateByAddingTimeInterval:3600];    // +1 hour
+        
+        // Apply the same constraint as seeking: cap end time at currentRealTime + EPG offset
+        NSTimeInterval epgOffsetSeconds = -self.epgTimeOffsetHours * 3600.0; // Convert to positive offset
+        NSDate *maxAllowedTime = [currentRealTime dateByAddingTimeInterval:epgOffsetSeconds];
+        
+        if ([centeredEndTime compare:maxAllowedTime] == NSOrderedDescending) {
+            centeredEndTime = maxAllowedTime;
+        }
+        
+        // FIXED: Always show symmetric 2-hour window centered around current play time
+        // Don't cap the end time - keep the window symmetric for consistent display
+        // Seeking constraint will be handled in the click handler, not by modifying display window
+        
+        // Apply EPG offset for display times only
         NSTimeInterval displayOffsetSeconds = self.epgTimeOffsetHours * 3600.0;
-        NSDate *displayWindowStartTime = [windowStartTime dateByAddingTimeInterval:displayOffsetSeconds];
-        NSDate *displayWindowEndTime = [windowEndTime dateByAddingTimeInterval:displayOffsetSeconds];
+        NSDate *displayStartTime = [centeredStartTime dateByAddingTimeInterval:displayOffsetSeconds];
+        NSDate *displayEndTime = [centeredEndTime dateByAddingTimeInterval:displayOffsetSeconds]; // Apply EPG offset to end time for symmetric window
         NSDate *displayCurrentPlayTime = [actualPlayTime dateByAddingTimeInterval:displayOffsetSeconds];
-        //displayWindowStartTime = displayCurrentPlayTime;
-        //displayWindowStartTime = [displayWindowStartTime dateByAddingTimeInterval: -3600];
-        //displayWindowEndTime = displayCurrentPlayTime;
-        //displayWindowEndTime = [displayWindowStartTime dateByAddingTimeInterval: 3600];
+        
+        // Calculate progress: current play time position within the 2-hour window
+        NSTimeInterval windowDuration = [centeredEndTime timeIntervalSinceDate:centeredStartTime];
+        NSTimeInterval playTimeOffset = [actualPlayTime timeIntervalSinceDate:centeredStartTime];
+        
+        if (windowDuration > 0) {
+            *progress = playTimeOffset / windowDuration;
+            *progress = MIN(1.0, MAX(0.0, *progress)); // Clamp between 0 and 1
+        } else {
+            *progress = 0.5; // Fallback to middle
+        }
       
-        // Show window start and end times (actual local time without EPG offset for player controls)
-        *currentTimeStr = [timeFormatter stringFromDate:windowStartTime];
-        *totalTimeStr = [timeFormatter stringFromDate:windowEndTime];
+        // Show the centered window times for progress bar
+        *currentTimeStr = [timeFormatter stringFromDate:displayStartTime];
+        *totalTimeStr = [timeFormatter stringFromDate:displayEndTime];
         
         // Calculate how far behind live we are
         NSTimeInterval timeBehindLive = [currentRealTime timeIntervalSinceDate:actualPlayTime];
@@ -2828,9 +2867,12 @@ static NSTimeInterval lastMouseMoveTime = 0;
             
           
             // Calculate hover target time within the sliding window (actual local time)
-            NSTimeInterval hoverOffsetInWindow = relativePosition * actualWindowDuration;
-            NSDate *hoverTargetTime = [windowStartTime dateByAddingTimeInterval:hoverOffsetInWindow];
+            NSTimeInterval displayedWindowDuration = [displayEndTime timeIntervalSinceDate:displayStartTime];
+            NSTimeInterval hoverOffsetInDisplayWindow = relativePosition * displayedWindowDuration;
+            NSDate *hoverTargetTime = [displayStartTime dateByAddingTimeInterval:hoverOffsetInDisplayWindow];
             
+            // FIXED: Show raw server time for hover (no EPG offset applied)
+            // The hover should show the actual server time, not EPG-adjusted time
             NSString *hoverTimeStr = [timeFormatter stringFromDate:hoverTargetTime];
             NSString *hoverText = [NSString stringWithFormat:@"Timeshift - Hover: %@ (click to seek)", hoverTimeStr];
             *programStatusStr = hoverText;
@@ -2839,12 +2881,14 @@ static NSTimeInterval lastMouseMoveTime = 0;
             // Create a safe copy to prevent deallocation issues
             NSString *safeHoverTextCopy = [NSString stringWithString:hoverText];
             objc_setAssociatedObject(self, &lastHoverTextKey, safeHoverTextCopy, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            
+            // STORE THE EXACT HOVER TARGET TIME FOR SEEKING 
+            // This prevents recalculation mismatches when end time is capped
+            objc_setAssociatedObject(self, @selector(getStoredHoverTargetTime), hoverTargetTime, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         } else {
-            // Show current play position within the sliding window (actual local time)
-            //NSTimeInterval offset = self.epgTimeOffsetHours * 3600.0 * 2;
-            //NSDate *actualPlayTimeTmp = actualPlayTime;
-            //actualPlayTimeTmp = [actualPlayTimeTmp dateByAddingTimeInterval:offset];
-            NSString *currentPlayTimeStr = [timeFormatter stringFromDate:actualPlayTime];
+            // FIXED: Show EPG-adjusted current play position in status display
+            // When EPG offset is -1 hour, display time should be 1 hour earlier than server time
+            NSString *currentPlayTimeStr = [timeFormatter stringFromDate:displayCurrentPlayTime];
             
             int behindMins = (int)(timeBehindLive / 60);
             if (behindMins < 60) {
@@ -2865,8 +2909,8 @@ static NSTimeInterval lastMouseMoveTime = 0;
             for (VLCProgram *program in currentChannel.programs) {
                 if (program.startTime && program.endTime) {
                     // Check if program overlaps with our window
-                    BOOL programOverlaps = ([program.startTime compare:windowEndTime] == NSOrderedAscending && 
-                                          [program.endTime compare:windowStartTime] == NSOrderedDescending);
+                    BOOL programOverlaps = ([program.startTime compare:centeredEndTime] == NSOrderedAscending && 
+                                          [program.endTime compare:centeredStartTime] == NSOrderedDescending);
                     
                     if (programOverlaps) {
                         [programsInWindow addObject:program];
@@ -2882,10 +2926,13 @@ static NSTimeInterval lastMouseMoveTime = 0;
                 relativePosition = MIN(1.0, MAX(0.0, relativePosition));
                 
                 // Calculate hover target time within the sliding window
-                NSTimeInterval hoverOffsetInWindow = relativePosition * actualWindowDuration;
-                NSDate *hoverTargetTime = [windowStartTime dateByAddingTimeInterval:hoverOffsetInWindow];
+                NSTimeInterval displayedWindowDuration = [displayEndTime timeIntervalSinceDate:displayStartTime];
+                NSTimeInterval hoverOffsetInDisplayWindow = relativePosition * displayedWindowDuration;
+                NSDate *hoverTargetTime = [displayStartTime dateByAddingTimeInterval:hoverOffsetInDisplayWindow];
                 
-                // Apply EPG offset for program matching (FIXED: use negative offset like elsewhere)
+                // FIXED: Convert display time back to server time for EPG program matching
+                // Since hoverTargetTime is in display time (with mixed EPG offset), we need to convert to server time
+                // Remove the EPG offset to get back to raw server time for program matching
                 NSTimeInterval epgOffsetSeconds = -self.epgTimeOffsetHours * 3600.0;
                 NSDate *adjustedHoverTime = [hoverTargetTime dateByAddingTimeInterval:epgOffsetSeconds];
                 
@@ -3105,63 +3152,101 @@ static NSTimeInterval lastMouseMoveTime = 0;
         return;
     }
     
+    // IMPORTANT: The timeshift start time from URL is in SERVER TIME (created with EPG offset applied)
+    // We need to convert it back to LOCAL TIME for proper calculation and display
+    // Since timeshift URL was created as: server_time = local_time - epg_offset
+    // To get back: local_time = server_time + epg_offset
+    NSTimeInterval epgAdjustmentForDisplay = self.epgTimeOffsetHours * 3600.0;
+    timeshiftStartTime = [timeshiftStartTime dateByAddingTimeInterval:epgAdjustmentForDisplay];
+
     // Get current playback position
     VLCTime *currentTime = [self.player time];
     if (!currentTime) {
         [self clearFrozenTimeValues]; // Clear frozen values on error
         return;
     }
-    
-    // Calculate current actual play time
+
+    // Calculate current actual play time (now in local time)
     NSTimeInterval currentSeconds = [currentTime intValue] / 1000.0;
     NSDate *currentPlayTime = [timeshiftStartTime dateByAddingTimeInterval:currentSeconds];
-    //currentPlayTime = [currentPlayTime dateByAddingTimeInterval:self.epgTimeOffsetHours*-3600*2];
+    
+    // FIXED: Seeking should work with LOCAL TIME, same as progressbar display
+    // EPG offset should only be applied when creating the timeshift URL, not for window calculation
+    
     NSDate *currentRealTime = [NSDate date];
-    currentRealTime = [currentRealTime dateByAddingTimeInterval:self.epgTimeOffsetHours*-3600*2];
-    // FIXED: Use the same sliding window logic as the progress display
-    // Create a 2-hour sliding window centered around current playback position
-    NSTimeInterval windowDuration = 7200; // 2 hours in seconds
-    NSDate *windowStartTime = [currentPlayTime dateByAddingTimeInterval:-(windowDuration / 2)]; // 1 hour before current
-    NSDate *windowEndTime = [currentPlayTime dateByAddingTimeInterval:(windowDuration / 2)];   // 1 hour after current
     
-    // Adjust window if it goes beyond current real time (can't go into future)
-    if ([windowEndTime compare:currentRealTime] == NSOrderedDescending) {
-        // Window end is in the future, adjust to end at current real time
-        windowEndTime = currentRealTime;
-        windowStartTime = [windowEndTime dateByAddingTimeInterval:-windowDuration];
+    // Debug logging for seeking calculation
+    NSDateFormatter *debugFormatter = [[NSDateFormatter alloc] init];
+    [debugFormatter setDateFormat:@"HH:mm:ss"];
+    [debugFormatter setTimeZone:[NSTimeZone localTimeZone]];
+    
+    // FIXED: Use stored hover target time if available (prevents recalculation mismatches)
+    NSDate *storedHoverTime = [self getStoredHoverTargetTime];
+    NSDate *targetTime;
+    
+    if (storedHoverTime && wasHovering) {
+        // Use exact hover target time - but convert from display time back to server time
+        // The stored hover time is in display time (EPG offset applied), convert back to server time
+        NSTimeInterval epgOffsetForConversion = self.epgTimeOffsetHours * -3600.0; // Convert display time back to server time
+        targetTime = [storedHoverTime dateByAddingTimeInterval:epgOffsetForConversion];
+        NSLog(@"DEBUG SEEKING: Using stored hover target time=%@ (display) -> %@ (server)", [debugFormatter stringFromDate:storedHoverTime], [debugFormatter stringFromDate:targetTime]);
+    } else {
+        // Fallback to recalculation for non-hover clicks
+        // FIXED: Use the EXACT same sliding window logic as the progress display
+        // Create a symmetric 2-hour sliding window centered around current playback position (LOCAL TIME)
+        NSDate *windowStartTime = [currentPlayTime dateByAddingTimeInterval:-3600]; // 1 hour before current
+        NSDate *windowEndTime = [currentPlayTime dateByAddingTimeInterval:3600];   // 1 hour after current
+        
+        // Apply the same constraint as progress bar display: cap end time at currentRealTime + EPG offset
+        NSTimeInterval epgOffsetSeconds = -self.epgTimeOffsetHours * 3600.0; // Convert to positive offset
+        NSDate *maxAllowedTime = [currentRealTime dateByAddingTimeInterval:epgOffsetSeconds];
+        
+        if ([windowEndTime compare:maxAllowedTime] == NSOrderedDescending) {
+            windowEndTime = maxAllowedTime;
+        }
+        
+        // Calculate the target time based on relative position within the sliding window (LOCAL TIME)
+        NSTimeInterval actualWindowDuration = [windowEndTime timeIntervalSinceDate:windowStartTime];
+        NSTimeInterval targetOffsetFromWindowStart = relativePosition * actualWindowDuration;
+        targetTime = [windowStartTime dateByAddingTimeInterval:targetOffsetFromWindowStart];
+        NSLog(@"DEBUG SEEKING: Calculated target time from relative position=%@", [debugFormatter stringFromDate:targetTime]);
+        
+        NSLog(@"DEBUG SEEKING: windowStart=%@, windowEnd=%@", [debugFormatter stringFromDate:windowStartTime], [debugFormatter stringFromDate:windowEndTime]);
     }
     
+    NSLog(@"DEBUG SEEKING: relativePosition=%.3f", relativePosition);
+    NSLog(@"DEBUG SEEKING: currentPlayTime=%@, currentRealTime=%@", [debugFormatter stringFromDate:currentPlayTime], [debugFormatter stringFromDate:currentRealTime]);
+    NSLog(@"DEBUG SEEKING: final targetTime=%@", [debugFormatter stringFromDate:targetTime]);
     
-    // Calculate the target time based on relative position within the sliding window
-    NSTimeInterval actualWindowDuration = [windowEndTime timeIntervalSinceDate:windowStartTime];
-    NSTimeInterval targetOffsetFromWindowStart = relativePosition * actualWindowDuration;
-    NSDate *targetTime = [windowStartTime dateByAddingTimeInterval:targetOffsetFromWindowStart];
-    
-    // Make sure we don't try to seek into the future beyond real time
-    if ([targetTime compare:currentRealTime] == NSOrderedDescending) {
-        targetTime = currentRealTime;
-    }
+    [debugFormatter release];
     
     // Don't seek if we're already very close to the target time (within 30 seconds)
     NSTimeInterval timeDifference = ABS([targetTime timeIntervalSinceDate:currentPlayTime]);
+    NSLog(@"DEBUG SEEKING: timeDifference=%.1f seconds", timeDifference);
     
     if (timeDifference < 30) {
+        NSLog(@"DEBUG SEEKING: timeDifference < 30s, not seeking");
         [self clearFrozenTimeValues]; // Clear frozen values when not seeking
         return;
     }
     
-    // Generate new timeshift URL for the target time
-    NSString *newTimeshiftUrl = [self generateNewTimeshiftUrlFromCurrentUrl:currentUrl newStartTime:targetTime];
+    // IMPORTANT: Apply EPG offset ONLY when creating the timeshift URL
+    // timeshift_time = localtime - epg_offset (as you explained)
+    NSTimeInterval epgOffsetForUrl = -self.epgTimeOffsetHours * 3600.0; // timeshift_time = localtime - epg_offset
+    NSDate *timeshiftUrlTime = [targetTime dateByAddingTimeInterval:epgOffsetForUrl];
+    
+    // Generate new timeshift URL for the timeshift URL time (converted from local time)
+    NSString *newTimeshiftUrl = [self generateNewTimeshiftUrlFromCurrentUrl:currentUrl newStartTime:timeshiftUrlTime];
     
     if (newTimeshiftUrl) {
+        NSLog(@"SEEKING TO URL: %@", newTimeshiftUrl);
+        
         NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
         [formatter setDateFormat:@"EEE HH:mm:ss"];
         [formatter setTimeZone:[NSTimeZone localTimeZone]];
         
-        // Apply EPG offset for display
-        NSTimeInterval displayOffsetSeconds = self.epgTimeOffsetHours * 3600.0;
-        NSDate *displayTargetTime = [targetTime dateByAddingTimeInterval:displayOffsetSeconds];
-        NSString *targetTimeStr = [formatter stringFromDate:displayTargetTime];
+        // Display the LOCAL target time (not EPG-adjusted)
+        NSString *targetTimeStr = [formatter stringFromDate:targetTime];
         [formatter release];
         
         
@@ -3528,6 +3613,25 @@ static NSTimeInterval lastMouseMoveTime = 0;
     }
     
     // Return nil if no valid hover text is available
+    return nil;
+}
+
+// Get stored hover target time for seeking
+- (NSDate *)getStoredHoverTargetTime {
+    // DEFENSIVE PROGRAMMING: Safely retrieve and validate the hover target time
+    @try {
+        NSDate *hoverTime = objc_getAssociatedObject(self, @selector(getStoredHoverTargetTime));
+        
+        // Validate the returned object
+        if (hoverTime != nil && [hoverTime respondsToSelector:@selector(isKindOfClass:)] && 
+            [hoverTime isKindOfClass:[NSDate class]]) {
+            return hoverTime;
+        }
+    } @catch (NSException *exception) {
+        NSLog(@"Exception accessing stored hover target time: %@", exception);
+    }
+    
+    // Return nil if no valid hover time is available
     return nil;
 }
 
