@@ -1,5 +1,7 @@
 #import "VLCOverlayView.h"
 
+#if TARGET_OS_OSX
+
 @interface VLCOverlayView (Utilities)
 
 // Safe accessor methods
@@ -39,9 +41,12 @@
 
 // Helper methods
 - (BOOL)isNumeric:(NSString *)string;
+- (BOOL)isMovieChannel:(VLCChannel *)channel;
 
 // Auto-navigation functionality
 - (void)autoNavigateToCurrentlyPlayingChannel;
 - (void)centerSelectionInMenuAndSetHoverIndices;
 
 @end 
+
+#endif // TARGET_OS_OSX 

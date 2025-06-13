@@ -1,5 +1,7 @@
 #import "VLCOverlayView.h"
 
+#if TARGET_OS_OSX
+
 @interface VLCOverlayView (Drawing)
 
 // UI setup
@@ -36,3 +38,5 @@
 - (void)drawDropdowns:(NSRect)rect;
 
 @end 
+
+#endif // TARGET_OS_OSX 

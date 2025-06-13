@@ -1,4 +1,7 @@
 #import "VLCOverlayView.h"
+
+#if TARGET_OS_OSX
+
 #import "VLCOverlayView+Drawing.h"
 #import "VLCOverlayView+MouseHandling.h"
 #import "VLCOverlayView+ContextMenu.h"
@@ -110,3 +113,5 @@
 - (void)restoreOriginalLocationOfSearchedChannel;
 
 @end
+
+#endif // TARGET_OS_OSX

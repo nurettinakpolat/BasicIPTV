@@ -2,6 +2,8 @@
 #import "VLCReusableTextField.h"
 #import "VLCClickableLabel.h"
 
+#if TARGET_OS_OSX
+
 @interface VLCOverlayView (TextFields) <VLCReusableTextFieldDelegate, VLCClickableLabelDelegate>
 
 // Text field handling
@@ -16,4 +18,6 @@
 // Cache directory methods
 - (NSString *)postersCacheDirectory;
 
-@end 
+@end
+
+#endif // TARGET_OS_OSX 

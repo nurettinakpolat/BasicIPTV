@@ -1,8 +1,15 @@
 #import "VLCOverlayView+EPG.h"
+
+#if TARGET_OS_OSX
 #import "VLCOverlayView_Private.h"
 #import "VLCOverlayView+Utilities.h"
 #import "VLCOverlayView+Caching.h"
 #import "DownloadManager.h"
+#elif TARGET_OS_IOS || TARGET_OS_TV
+#import "VLCChannel.h"
+#import "VLCProgram.h"
+#import "DownloadManager.h"
+#endif
 
 // Global variable to track retry count
 static NSInteger gEpgRetryCount = 0;
@@ -19,7 +26,27 @@ static NSString *gDownloadFilePath = nil;
 static BOOL gEpgMatchingInProgress = NO;
 static NSLock *gEpgMatchingLock = nil;
 
-@implementation VLCOverlayView (EPG) 
+// Global variables for EPG data download and processing
+static NSMutableData *receivedData = nil;
+static long long expectedBytes = 0;
+static NSTimeInterval lastProgressUpdate = 0;
+static dispatch_source_t progressTimer = NULL;
+
+// Progress message globals (shared with UI) - declared as extern since defined in main implementation
+extern NSLock *gProgressMessageLock;
+extern NSString *gProgressMessage;
+
+// XML parsing state variables
+static NSString *currentElement = nil;
+static VLCProgram *currentProgram = nil;
+static NSMutableDictionary *currentChannel = nil;
+static NSMutableString *currentText = nil;
+
+#if TARGET_OS_OSX
+@implementation VLCOverlayView (EPG)
+#elif TARGET_OS_IOS || TARGET_OS_TV
+@implementation VLCUIOverlayView (EPG)
+#endif 
 
 #pragma mark - EPG Loading
 
@@ -45,24 +72,63 @@ static NSLock *gEpgMatchingLock = nil;
     // Set a timeout for the entire operation (5 minutes max)
     [self performSelector:@selector(handleEpgLoadingTimeout) withObject:nil afterDelay:300.0];
     
-    // First try to load from cache - but continue to load from URL regardless
+    // FIXED: Check if we should use cache or download fresh data
+    BOOL shouldDownloadFresh = YES;
+    
+    // First try to load from cache
     if ([self loadEpgDataFromCache]) {
-        //NSLog(@"Successfully loaded EPG data from cache, now updating from URL...");
+        NSLog(@"📅 [EPG] Successfully loaded EPG data from cache");
+        
+        // Check if cache is recent enough (less than 6 hours old)
+        NSString *cachePath = [self epgCacheFilePath];
+        NSFileManager *fileManager = [NSFileManager defaultManager];
+        NSDictionary *attributes = [fileManager attributesOfItemAtPath:cachePath error:nil];
+        if (attributes) {
+            NSDate *modDate = [attributes fileModificationDate];
+            NSTimeInterval timeSinceCache = [[NSDate date] timeIntervalSinceDate:modDate];
+            NSTimeInterval sixHours = 6 * 60 * 60; // 6 hours in seconds
+            
+            if (timeSinceCache < sixHours) {
+                shouldDownloadFresh = NO;
+                NSLog(@"📅 [EPG] Cache is recent (%.1f hours old), skipping download", timeSinceCache / 3600.0);
+                
+                // Update UI to show cache was used
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    self.isLoading = NO;
+                    self.isLoadingEpg = NO;
+                    [self setLoadingStatusText:[NSString stringWithFormat:@"EPG loaded from cache (%.1f hours old)", timeSinceCache / 3600.0]];
+                    [self setNeedsDisplay:YES];
+                    
+                    // Clear status after delay
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                        [self setLoadingStatusText:@""];
+                        [self setNeedsDisplay:YES];
+                    });
+                });
+                return; // Exit early - don't download
+            } else {
+                NSLog(@"📅 [EPG] Cache is old (%.1f hours), will download fresh data", timeSinceCache / 3600.0);
+            }
+        }
     } else {
-        //NSLog(@"No valid EPG cache found, downloading from URL...");
+        NSLog(@"📅 [EPG] No valid EPG cache found, downloading from URL...");
     }
     
-    // Make sure loading indicator is showing with clear initial status
-    dispatch_async(dispatch_get_main_queue(), ^{
-        self.isLoading = YES;
-        self.isLoadingEpg = YES;
-        [self startProgressRedrawTimer];
-        [self setLoadingStatusText:@"Preparing to download EPG data..."];
-        [self setNeedsDisplay:YES];
-    });
-    
-    // Start with retry count 0
-    [self loadEpgDataWithRetryCount:0];
+    if (shouldDownloadFresh) {
+        NSLog(@"📅 [EPG] Starting fresh EPG download from URL");
+        
+        // Make sure loading indicator is showing with clear initial status
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.isLoading = YES;
+            self.isLoadingEpg = YES;
+            [self startProgressRedrawTimer];
+            [self setLoadingStatusText:@"Preparing to download EPG data..."];
+            [self setNeedsDisplay:YES];
+        });
+        
+        // Start with retry count 0
+        [self loadEpgDataWithRetryCount:0];
+    }
 }
 
 - (void)loadEpgDataWithRetryCount:(NSInteger)retryCount {
@@ -337,6 +403,7 @@ static NSLock *gEpgMatchingLock = nil;
                           });
                           
                           // Process the data
+                          NSLog(@"📺 [EPG-DOWNLOAD] ✅ Download completed, starting data processing...");
                           [self handleDownloadComplete];
                           
                           // Clean up the download manager
@@ -611,6 +678,8 @@ static NSLock *gEpgMatchingLock = nil;
 #pragma mark - EPG Data Processing
 
 - (void)matchEpgWithChannels {
+    NSLog(@"📺 [EPG-MATCHING] ✅ matchEpgWithChannels called");
+    
     // Create lock if it doesn't exist
     if (!gEpgMatchingLock) {
         gEpgMatchingLock = [[NSLock alloc] init];
@@ -619,7 +688,7 @@ static NSLock *gEpgMatchingLock = nil;
     // Check if matching is already in progress
     [gEpgMatchingLock lock];
     if (gEpgMatchingInProgress) {
-        //NSLog(@"EPG matching already in progress. Skipping this request.");
+        NSLog(@"📺 [EPG-MATCHING] ⚠️ EPG matching already in progress. Skipping this request.");
         [gEpgMatchingLock unlock];
         return;
     }
@@ -662,7 +731,9 @@ static NSLock *gEpgMatchingLock = nil;
             
             // Create a case-insensitive lookup dictionary for EPG data for faster matching
             NSMutableDictionary *caseInsensitiveEpgData = [NSMutableDictionary dictionary];
-            for (NSString *epgKey in [self.epgData allKeys]) {
+            NSArray *epgKeys = [self.epgData allKeys];
+            
+            for (NSString *epgKey in epgKeys) {
                 if (epgKey) {
                     NSString *lowercaseKey = [epgKey lowercaseString];
                     [caseInsensitiveEpgData setObject:[self.epgData objectForKey:epgKey] 
@@ -850,7 +921,14 @@ static NSLock *gEpgMatchingLock = nil;
                 [self setNeedsDisplay:YES];
                 
                 // Ensure EPG data is marked as loaded
+                NSLog(@"📺 [EPG-MATCHING] ✅ Setting isEpgLoaded = YES - EPG fully loaded!");
                 self.isEpgLoaded = YES;
+                
+                // Save EPG download timestamp for 6-hour caching rule
+                NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+                [defaults setObject:[NSDate date] forKey:@"lastEPGDownloadDate"];
+                [defaults synchronize];
+                NSLog(@"📅 💾 Saved EPG download timestamp for 6-hour caching rule");
                 
                 // Clear loading state after a short delay to show the completion message
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -880,6 +958,8 @@ static NSLock *gEpgMatchingLock = nil;
 #pragma mark - XML Processing
 
 - (void)processEpgXmlData:(NSData *)data {
+    NSLog(@"📺 [EPG-XML] ✅ processEpgXmlData called with %lu bytes", (unsigned long)[data length]);
+    
     // Create lock if it doesn't exist
     if (!gEpgMatchingLock) {
         gEpgMatchingLock = [[NSLock alloc] init];
@@ -888,7 +968,7 @@ static NSLock *gEpgMatchingLock = nil;
     // Only proceed if no matching is already in progress
     [gEpgMatchingLock lock];
     if (gEpgMatchingInProgress) {
-        //NSLog(@"EPG processing already in progress. Skipping this request.");
+        NSLog(@"📺 [EPG-XML] ⚠️ EPG processing already in progress. Skipping this request.");
         [gEpgMatchingLock unlock];
         return;
     }
@@ -898,7 +978,7 @@ static NSLock *gEpgMatchingLock = nil;
     [gEpgMatchingLock unlock];
     
     if (!data) {
-        //NSLog(@"No data to process for EPG");
+        NSLog(@"📺 [EPG-XML] ❌ No data to process for EPG");
         
         // Clear the flag since we're exiting early
         [gEpgMatchingLock lock];
@@ -937,27 +1017,30 @@ static NSLock *gEpgMatchingLock = nil;
         [self setNeedsDisplay:YES];
     });
     
-    // Run the actual parsing in a background thread
+    // Run the actual parsing in a background thread with memory optimization
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        // Check if we have valid XML format - detect encoding
-        NSString *xmlHeader = [[NSString alloc] initWithData:[data subdataWithRange:NSMakeRange(0, MIN(100, data.length))] encoding:NSUTF8StringEncoding];
-        if (xmlHeader) {
-            //NSLog(@"XML header: %@", xmlHeader);
-            [xmlHeader release];
-        } else {
-            //NSLog(@"WARNING: Could not decode XML header - may not be valid UTF-8 text");
-            // Try other encodings
-            xmlHeader = [[NSString alloc] initWithData:[data subdataWithRange:NSMakeRange(0, MIN(100, data.length))] encoding:NSISOLatin1StringEncoding];
+        @autoreleasepool {
+            NSLog(@"📺 [EPG-MEMORY] 🧹 Starting EPG processing with autorelease pool for memory management");
+            
+            // Check if we have valid XML format - detect encoding
+            NSString *xmlHeader = [[NSString alloc] initWithData:[data subdataWithRange:NSMakeRange(0, MIN(100, data.length))] encoding:NSUTF8StringEncoding];
             if (xmlHeader) {
-                //NSLog(@"XML header with Latin1 encoding: %@", xmlHeader);
+                //NSLog(@"XML header: %@", xmlHeader);
                 [xmlHeader release];
+            } else {
+                //NSLog(@"WARNING: Could not decode XML header - may not be valid UTF-8 text");
+                // Try other encodings
+                xmlHeader = [[NSString alloc] initWithData:[data subdataWithRange:NSMakeRange(0, MIN(100, data.length))] encoding:NSISOLatin1StringEncoding];
+                if (xmlHeader) {
+                    //NSLog(@"XML header with Latin1 encoding: %@", xmlHeader);
+                    [xmlHeader release];
+                }
             }
-        }
         
         // Create new parser
         NSXMLParser *parser = [[NSXMLParser alloc] initWithData:data];
         if (!parser) {
-            //NSLog(@"Failed to create XML parser");
+            NSLog(@"📺 [EPG-XML] ❌ Failed to create XML parser");
             // Update UI on main thread
             dispatch_async(dispatch_get_main_queue(), ^{
                 self.isLoadingEpg = NO;
@@ -966,6 +1049,8 @@ static NSLock *gEpgMatchingLock = nil;
             });
             return;
         }
+        
+        NSLog(@"📺 [EPG-XML] ✅ XML parser created successfully, starting parsing...");
         
         // Configure parser
         [parser setDelegate:self];
@@ -989,6 +1074,7 @@ static NSLock *gEpgMatchingLock = nil;
         }
         
         // Clear existing EPG data (synchronized to avoid race conditions)
+        // Debug logging removed - issue resolved
         @synchronized(self.epgData) {
             [self.epgData removeAllObjects];
         }
@@ -1042,7 +1128,9 @@ static NSLock *gEpgMatchingLock = nil;
         dispatch_resume(progressTimer);
         
         // Parse the XML - this is the intensive operation
+        NSLog(@"📺 [EPG-XML] 🔄 Starting XML parsing...");
         BOOL success = [parser parse];
+        NSLog(@"📺 [EPG-XML] %@ XML parsing completed with result: %@", success ? @"✅" : @"❌", success ? @"SUCCESS" : @"FAILED");
         
         // Stop the progress timer
         if (progressTimer) {
@@ -1056,6 +1144,8 @@ static NSLock *gEpgMatchingLock = nil;
         currentText = nil;
         
         if (success) {
+            NSLog(@"📺 [EPG-XML] ✅ XML parsing successful! Processed %d programs from %d channels", totalProgramCount, totalChannelCount);
+            
             // Match EPG data with channels
             dispatch_async(dispatch_get_main_queue(), ^{
                 [self setLoadingStatusText:[NSString stringWithFormat:@"Matching EPG data with channels (%d programs)...", totalProgramCount]];
@@ -1068,6 +1158,7 @@ static NSLock *gEpgMatchingLock = nil;
             gEpgMatchingInProgress = NO;
             [gEpgMatchingLock unlock];
             
+            NSLog(@"📺 [EPG-XML] 🔄 Starting EPG matching with channels...");
             // Call the matching function - it now runs asynchronously and handles its own completion
             [self matchEpgWithChannels];
             
@@ -1076,7 +1167,7 @@ static NSLock *gEpgMatchingLock = nil;
             
             // Note: We don't need to initiate saveEpgDataToCache here anymore, since matchEpgWithChannels will do that when it completes
         } else {
-            //NSLog(@"XML parsing failed");
+            NSLog(@"📺 [EPG-XML] ❌ XML parsing failed");
             
             // Clear the flag since we're done
             [gEpgMatchingLock lock];
@@ -1102,6 +1193,8 @@ static NSLock *gEpgMatchingLock = nil;
                 });
             });
         }
+        } // End autorelease pool for memory management
+        NSLog(@"📺 [EPG-MEMORY] ✅ EPG processing autorelease pool completed");
     });
 }
 
@@ -1181,7 +1274,7 @@ static NSLock *gEpgMatchingLock = nil;
 
 - (void)handleDownloadComplete {
     // Process the received XML data
-    //NSLog(@"EPG download complete, received %lu bytes of data", (unsigned long)[receivedData length]);
+    NSLog(@"📺 [EPG-PROCESSING] ✅ handleDownloadComplete called, received %lu bytes of data", (unsigned long)[receivedData length]);
     
     // Show download complete message - UI updates on main thread
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -1235,6 +1328,7 @@ static NSLock *gEpgMatchingLock = nil;
             });
             
             // Process EPG data - this function is now fully async
+            NSLog(@"📺 [EPG-PROCESSING] ✅ Calling processEpgXmlData with %lu bytes", (unsigned long)[receivedData length]);
             [self processEpgXmlData:receivedData];
             
             // Clean up
@@ -1338,15 +1432,16 @@ static NSLock *gEpgMatchingLock = nil;
 - (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveResponse:(NSURLResponse *)response completionHandler:(void (^)(NSURLSessionResponseDisposition disposition))completionHandler {
     // Get expected content length
     expectedBytes = [response expectedContentLength];
-    //NSLog(@"Received response, expected content length: %lld", expectedBytes);
+    NSLog(@"📺 [EPG-DOWNLOAD] 📥 Received response, expected content length: %lld bytes (%.2f MB)", expectedBytes, (double)expectedBytes / (1024 * 1024));
     
     // Get HTTP status code
     if ([response isKindOfClass:[NSHTTPURLResponse class]]) {
         NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
-        //NSLog(@"HTTP status code: %ld", (long)httpResponse.statusCode);
-        //NSLog(@"Response headers: %@", httpResponse.allHeaderFields);
+        NSLog(@"📺 [EPG-DOWNLOAD] 📋 HTTP status code: %ld", (long)httpResponse.statusCode);
+        NSLog(@"📺 [EPG-DOWNLOAD] 📋 Response headers: %@", httpResponse.allHeaderFields);
         
         if (httpResponse.statusCode != 200) {
+            NSLog(@"📺 [EPG-DOWNLOAD] ❌ HTTP Error: %ld", (long)httpResponse.statusCode);
             NSError *httpError = [NSError errorWithDomain:NSURLErrorDomain 
                                                      code:httpResponse.statusCode 
                                                  userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"HTTP Error: %ld", (long)httpResponse.statusCode]}];
@@ -1390,6 +1485,8 @@ static NSLock *gEpgMatchingLock = nil;
 }
 
 - (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data {
+    NSLog(@"📺 [EPG-DOWNLOAD] 📦 Received data chunk: %lu bytes", (unsigned long)data.length);
+    
     // Write data directly to file
     @try {
         [gDownloadFileHandle writeData:data];
@@ -1450,10 +1547,28 @@ static NSLock *gEpgMatchingLock = nil;
 }
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
+    NSLog(@"📺 [EPG-DOWNLOAD] 🔄 URLSession task completed");
+    
     if (error) {
-        //NSLog(@"Session task error: %@", error);
+        NSLog(@"📺 [EPG-DOWNLOAD] ❌ Session task error: %@", error);
         [self handleDownloadError:error retryCount:gEpgRetryCount];
         return;
+    }
+    
+    // Check the HTTP response status
+    if ([task.response isKindOfClass:[NSHTTPURLResponse class]]) {
+        NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)task.response;
+        NSLog(@"📺 [EPG-DOWNLOAD] ✅ HTTP Status: %ld, Content-Length: %lld", 
+              (long)httpResponse.statusCode, httpResponse.expectedContentLength);
+        
+        if (httpResponse.statusCode != 200) {
+            NSLog(@"📺 [EPG-DOWNLOAD] ❌ Non-200 HTTP status: %ld", (long)httpResponse.statusCode);
+            NSError *httpError = [NSError errorWithDomain:@"EPGDownload" 
+                                                     code:httpResponse.statusCode 
+                                                 userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"HTTP Error: %ld", (long)httpResponse.statusCode]}];
+            [self handleDownloadError:httpError retryCount:gEpgRetryCount];
+            return;
+        }
     }
     
     // Success - close file handle
@@ -1461,12 +1576,44 @@ static NSLock *gEpgMatchingLock = nil;
     [gDownloadFileHandle release];
     gDownloadFileHandle = nil;
     
+    // Check if the file exists and get its size
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    if (![fileManager fileExistsAtPath:gDownloadFilePath]) {
+        NSLog(@"📺 [EPG-DOWNLOAD] ❌ Downloaded file does not exist at path: %@", gDownloadFilePath);
+        NSError *fileError = [NSError errorWithDomain:@"EPGDownload" code:1003 userInfo:@{NSLocalizedDescriptionKey: @"Downloaded file not found"}];
+        [self handleDownloadError:fileError retryCount:gEpgRetryCount];
+        return;
+    }
+    
+    // Get file attributes to check size
+    NSError *attrError = nil;
+    NSDictionary *fileAttributes = [fileManager attributesOfItemAtPath:gDownloadFilePath error:&attrError];
+    if (attrError || !fileAttributes) {
+        NSLog(@"📺 [EPG-DOWNLOAD] ❌ Could not get file attributes: %@", attrError ? attrError.localizedDescription : @"Unknown error");
+    } else {
+        NSNumber *fileSizeNumber = [fileAttributes objectForKey:NSFileSize];
+        unsigned long long fileSize = [fileSizeNumber unsignedLongLongValue];
+        NSLog(@"📺 [EPG-DOWNLOAD] 📄 Downloaded file size: %llu bytes (%.2f MB)", fileSize, (double)fileSize / (1024 * 1024));
+        
+        if (fileSize == 0) {
+            NSLog(@"📺 [EPG-DOWNLOAD] ❌ Downloaded file is empty (0 bytes)!");
+            NSError *emptyError = [NSError errorWithDomain:@"EPGDownload" code:1004 userInfo:@{NSLocalizedDescriptionKey: @"Downloaded file is empty"}];
+            [self handleDownloadError:emptyError retryCount:gEpgRetryCount];
+            
+            // Clean up
+            [[NSFileManager defaultManager] removeItemAtPath:gDownloadFilePath error:nil];
+            [gDownloadFilePath release];
+            gDownloadFilePath = nil;
+            return;
+        }
+    }
+    
     // Load the data from the file
     NSError *readError = nil;
     NSData *downloadedData = [NSData dataWithContentsOfFile:gDownloadFilePath options:NSDataReadingMappedIfSafe error:&readError];
     
     if (readError || !downloadedData) {
-        //NSLog(@"Error reading downloaded file: %@", readError ? [readError localizedDescription] : @"No data");
+        NSLog(@"📺 [EPG-DOWNLOAD] ❌ Error reading downloaded file: %@", readError ? readError.localizedDescription : @"No data");
         NSError *epgError = readError ? readError : [NSError errorWithDomain:@"EPGDownload" code:1002 userInfo:@{NSLocalizedDescriptionKey: @"Failed to read downloaded data"}];
         [self handleDownloadError:epgError retryCount:gEpgRetryCount];
         
@@ -1475,6 +1622,13 @@ static NSLock *gEpgMatchingLock = nil;
         [gDownloadFilePath release];
         gDownloadFilePath = nil;
         return;
+    }
+    
+    NSLog(@"📺 [EPG-DOWNLOAD] ✅ Successfully read %lu bytes from downloaded file", (unsigned long)downloadedData.length);
+    
+    // Initialize receivedData if needed
+    if (!receivedData) {
+        receivedData = [[NSMutableData alloc] init];
     }
     
     // Success - store data and process
@@ -1601,10 +1755,10 @@ static NSLock *gEpgMatchingLock = nil;
 - (void)parser:(NSXMLParser *)parser didEndElement:(NSString *)elementName 
   namespaceURI:(NSString *)namespaceURI 
  qualifiedName:(NSString *)qName {
-    
-    // Trim whitespace from accumulated text
-    NSString *trimmedText = [currentText stringByTrimmingCharactersInSet:
-                            [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    @autoreleasepool {
+        // Trim whitespace from accumulated text
+        NSString *trimmedText = [currentText stringByTrimmingCharactersInSet:
+                                [NSCharacterSet whitespaceAndNewlineCharacterSet]];
     
     // Handle XML TV elements
     if ([elementName isEqualToString:@"display-name"] && currentChannel) {
@@ -1693,6 +1847,7 @@ static NSLock *gEpgMatchingLock = nil;
     
     // Reset the current element name
     currentElement = nil;
+    } // End autorelease pool for XML parsing
 }
 
 - (void)parser:(NSXMLParser *)parser parseErrorOccurred:(NSError *)parseError {
@@ -1824,21 +1979,21 @@ static NSLock *gEpgMatchingLock = nil;
 
 // Force reload EPG data (bypass cache and always download from server)
 - (void)forceReloadEpgData {
-    //NSLog(@"Force reloading EPG data - bypassing cache");
+    NSLog(@"🔧 [FORCE-RELOAD] forceReloadEpgData called - bypassing cache");
     
     // Check if we have a valid EPG URL
     if (!self.epgUrl || [self.epgUrl isEqualToString:@""]) {
-        //NSLog(@"No EPG URL specified for force reload");
+        NSLog(@"🔧 [FORCE-RELOAD] ❌ No EPG URL specified for force reload");
         return;
     }
     
     // First verify that we have channel data - don't load EPG without channels
     if (!self.channels || [self.channels count] == 0) {
-        //NSLog(@"Cannot force reload EPG data - no channels loaded yet. Load channel list first.");
+        NSLog(@"🔧 [FORCE-RELOAD] ❌ Cannot force reload EPG data - no channels loaded yet. Load channel list first.");
         return;
     }
     
-    //NSLog(@"Force reloading EPG data from URL: %@", self.epgUrl);
+    NSLog(@"🔧 [FORCE-RELOAD] ✅ Force reloading EPG data from URL: %@", self.epgUrl);
     
     // Cancel any previous timeout
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleEpgLoadingTimeout) object:nil];
@@ -1847,6 +2002,7 @@ static NSLock *gEpgMatchingLock = nil;
     [self performSelector:@selector(handleEpgLoadingTimeout) withObject:nil afterDelay:300.0];
     
     // Skip cache loading entirely for force reload - go straight to network download
+    NSLog(@"🔧 [FORCE-RELOAD] Bypassing ALL cache logic and going straight to network download");
     
     // Make sure loading indicator is showing with clear initial status
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -1858,6 +2014,7 @@ static NSLock *gEpgMatchingLock = nil;
     });
     
     // Start with retry count 0
+    NSLog(@"🔧 [FORCE-RELOAD] Calling loadEpgDataWithRetryCount:0 directly");
     [self loadEpgDataWithRetryCount:0];
 }
 

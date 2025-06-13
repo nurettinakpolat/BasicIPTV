@@ -5,6 +5,8 @@
 //
 
 #import "VLCSubtitleSettings.h"
+
+#if TARGET_OS_OSX
 #import <VLCKit/VLCKit.h>
 
 // Settings keys for persistence
@@ -288,3 +290,5 @@ static VLCSubtitleSettings *sharedInstance = nil;
 }
 
 @end 
+
+#endif // TARGET_OS_OSX

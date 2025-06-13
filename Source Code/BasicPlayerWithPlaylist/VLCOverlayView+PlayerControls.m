@@ -1,4 +1,6 @@
 #import "VLCOverlayView+PlayerControls.h"
+
+#if TARGET_OS_OSX
 #import "VLCOverlayView_Private.h"
 #import "VLCSubtitleSettings.h"
 #import <objc/runtime.h>
@@ -375,18 +377,8 @@ static NSTimeInterval lastMouseMoveTime = 0;
     // Store the control bar rect for click handling
     self.playerControlsRect = controlsRect;
     
-    // Create beautiful gradient background
-    NSGradient *bgGradient = [[NSGradient alloc] initWithStartingColor:[NSColor colorWithCalibratedRed:0.1 green:0.1 blue:0.1 alpha:0.95]
-                                                            endingColor:[NSColor colorWithCalibratedRed:0.0 green:0.0 blue:0.0 alpha:0.85]];
-    
-    NSBezierPath *bgPath = [NSBezierPath bezierPathWithRoundedRect:controlsRect xRadius:12 yRadius:12];
-    [bgGradient drawInBezierPath:bgPath angle:90];
-    [bgGradient release];
-    
-    // Add subtle border
-    [[NSColor colorWithCalibratedRed:0.3 green:0.3 blue:0.3 alpha:0.6] set];
-    [bgPath setLineWidth:1.0];
-    [bgPath stroke];
+    // Create glassmorphism player controls background
+    [self drawGlassmorphismPanel:controlsRect opacity:0.9 cornerRadius:16];
     
     // Check if we're playing timeshift content
     BOOL isTimeshiftPlaying = [self isCurrentlyPlayingTimeshift];
@@ -1007,39 +999,59 @@ static NSTimeInterval lastMouseMoveTime = 0;
         [progressGradient drawInBezierPath:progressFillPath angle:90];
         [progressGradient release];
         
-    // Draw hover indicator on progress bar
+    // Draw hover indicator on progress bar - only for seekable content
     if (self.isHoveringProgressBar) {
-        // Calculate relative position within progress bar
-        CGFloat relativeX = self.progressBarHoverPoint.x - progressBgRect.origin.x;
-        CGFloat relativePosition = relativeX / progressBgRect.size.width;
-        relativePosition = MIN(1.0, MAX(0.0, relativePosition));
+        // Check if content is seekable before showing hover indicator
+        BOOL canSeek = NO;
         
-        // Draw a bright green vertical line at hover position
-        CGFloat hoverX = progressBgRect.origin.x + (relativePosition * progressBgRect.size.width);
+        // Check if it's movie content (always seekable with normal VLC seeking)
+        BOOL isMovieContent = (self.selectedCategoryIndex == CATEGORY_MOVIES) ||
+                             (self.selectedCategoryIndex == CATEGORY_SERIES) ||
+                             (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]);
         
-        // Make the hover line extend slightly above and below the progress bar
-        NSRect hoverLineRect = NSMakeRect(
-            hoverX - 1, // 2px wide line
-            progressBgRect.origin.y - 2,
-            2,
-            progressBgRect.size.height + 4
-        );
+        // Check if it's timeshift content (needs URL-based seeking)
+        BOOL isTimeshiftContent = [self isCurrentlyPlayingTimeshift];
         
-        // Bright green color for hover indicator
-        [[NSColor colorWithCalibratedRed:0.2 green:1.0 blue:0.2 alpha:0.9] set];
-        NSBezierPath *hoverLine = [NSBezierPath bezierPathWithRoundedRect:hoverLineRect xRadius:1 yRadius:1];
-        [hoverLine fill];
+        // Check if current channel supports timeshift
+        VLCChannel *currentChannel = self.tmpCurrentChannel;
+        BOOL channelSupportsTimeshift = (currentChannel && currentChannel.supportsCatchup);
         
-        // Add a small circle at the top of the hover line for better visibility
-        NSRect hoverDotRect = NSMakeRect(
-            hoverX - 3,
-            progressBgRect.origin.y + progressBgRect.size.height + 1,
-            6,
-            6
-        );
+        canSeek = isMovieContent || isTimeshiftContent || channelSupportsTimeshift;
         
-        NSBezierPath *hoverDot = [NSBezierPath bezierPathWithOvalInRect:hoverDotRect];
-        [hoverDot fill];
+        // Only draw hover indicator if content is seekable
+        if (canSeek) {
+            // Calculate relative position within progress bar
+            CGFloat relativeX = self.progressBarHoverPoint.x - progressBgRect.origin.x;
+            CGFloat relativePosition = relativeX / progressBgRect.size.width;
+            relativePosition = MIN(1.0, MAX(0.0, relativePosition));
+            
+            // Draw a white vertical line at hover position
+            CGFloat hoverX = progressBgRect.origin.x + (relativePosition * progressBgRect.size.width);
+            
+            // Make the hover line extend slightly above and below the progress bar
+            NSRect hoverLineRect = NSMakeRect(
+                hoverX - 1, // 2px wide line
+                progressBgRect.origin.y - 2,
+                2,
+                progressBgRect.size.height + 4
+            );
+            
+            // White color for hover indicator
+            [[NSColor colorWithCalibratedRed:1.0 green:1.0 blue:1.0 alpha:0.9] set];
+            NSBezierPath *hoverLine = [NSBezierPath bezierPathWithRoundedRect:hoverLineRect xRadius:1 yRadius:1];
+            [hoverLine fill];
+            
+            // Add a small circle at the top of the hover line for better visibility
+            NSRect hoverDotRect = NSMakeRect(
+                hoverX - 3,
+                progressBgRect.origin.y + progressBgRect.size.height + 1,
+                6,
+                6
+            );
+            
+            NSBezierPath *hoverDot = [NSBezierPath bezierPathWithOvalInRect:hoverDotRect];
+            [hoverDot fill];
+        }
     }
     
     // Show loading indicator for timeshift seeking
@@ -2029,10 +2041,33 @@ static NSTimeInterval lastMouseMoveTime = 0;
     for (VLCProgram *program in channel.programs) {
         if (!program.endTime) continue;
         
-        // Check if program just ended (became past)
+        // Check if program is currently playing (timeshift available for current program)
+        NSTimeInterval timeSinceStart = [adjustedNow timeIntervalSinceDate:program.startTime];
         NSTimeInterval timeSinceEnd = [adjustedNow timeIntervalSinceDate:program.endTime];
         
-        if (timeSinceEnd > 0 && timeSinceEnd <= catchupWindow) {
+        BOOL isCurrentProgram = (timeSinceStart >= 0 && timeSinceEnd < 0);
+        
+        if (isCurrentProgram) {
+            // Current program - enable timeshift/catchup if channel supports it
+            if (!program.hasArchive) {
+                program.hasArchive = YES;
+                if (program.archiveDays == 0) {
+                    program.archiveDays = channel.catchupDays;
+                }
+                hasUpdates = YES;
+                
+                // Create unique identifier for this program
+                NSString *programKey = [NSString stringWithFormat:@"%@_%@_%@_current", 
+                                       channel.name, program.title, program.startTime];
+                
+                // Only log once per program to avoid spam
+                if (![notifiedPrograms containsObject:programKey]) {
+                    //NSLog(@"RUNTIME TIMESHIFT: Current program '%@' on '%@' now supports timeshift/rewind", 
+                    //      program.title, channel.name);
+                    [notifiedPrograms addObject:programKey];
+                }
+            }
+        } else if (timeSinceEnd > 0 && timeSinceEnd <= catchupWindow) {
             // Program is past and within catch-up window
             if (!program.hasArchive) {
                 // Mark program as having catch-up available
@@ -2080,10 +2115,7 @@ static NSTimeInterval lastMouseMoveTime = 0;
             }
         });
         
-        // Save updated EPG data to cache (async to avoid blocking)
-        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0), ^{
-            [self saveEpgDataToCache];
-        });
+        // EPG caching is handled automatically by VLCEPGManager - no manual save needed
     }
 }
 
@@ -3870,10 +3902,7 @@ NSPoint progressBarishoveringPoint;
             }
         });
         
-        // Save updated EPG data to cache (async)
-        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0), ^{
-            [self saveEpgDataToCache];
-        });
+        // EPG caching is handled automatically by VLCEPGManager - no manual save needed
     }
 }
 
@@ -4315,4 +4344,6 @@ NSPoint progressBarishoveringPoint;
 }
 
 @end 
+
+#endif // TARGET_OS_OSX 
 

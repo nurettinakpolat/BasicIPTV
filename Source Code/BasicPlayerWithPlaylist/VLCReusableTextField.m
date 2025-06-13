@@ -1,5 +1,7 @@
 #import "VLCReusableTextField.h"
 
+#if TARGET_OS_OSX
+
 @interface VLCReusableTextField ()
 @property (nonatomic, retain) NSString *originalValue;
 @end
@@ -11,7 +13,7 @@
 @synthesize isActive;
 @synthesize originalValue = _originalValue;
 
-- (instancetype)initWithFrame:(NSRect)frame identifier:(NSString *)identifier {
+- (instancetype)initWithFrame:(PlatformRect)frame identifier:(NSString *)identifier {
     self = [super initWithFrame:frame];
     if (self) {
         self.identifier = identifier;
@@ -248,3 +250,136 @@
 }
 
 @end 
+
+#else
+// iOS/tvOS implementation
+@interface VLCReusableTextField ()
+@property (nonatomic, strong) NSString *originalValue;
+@end
+
+@implementation VLCReusableTextField
+
+@synthesize textFieldDelegate;
+@synthesize identifier = _identifier;
+@synthesize isActive;
+@synthesize originalValue = _originalValue;
+
+- (instancetype)initWithFrame:(PlatformRect)frame identifier:(NSString *)identifier {
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.identifier = identifier;
+        self.isActive = NO;
+        
+        // Configure the text field appearance
+        self.borderStyle = UITextBorderStyleRoundedRect;
+        self.font = [UIFont systemFontOfSize:14];
+        self.backgroundColor = [UIColor colorWithRed:0.1 green:0.1 blue:0.1 alpha:1.0];
+        self.textColor = [UIColor whiteColor];
+        
+        // Set up target-action for text changes
+        [self addTarget:self action:@selector(handleTextChange:) forControlEvents:UIControlEventEditingChanged];
+    }
+    return self;
+}
+
+- (void)setPlaceholderText:(NSString *)placeholder {
+    self.placeholder = placeholder;
+}
+
+- (void)setTextValue:(NSString *)text {
+    if (self.isActive) {
+        return;
+    }
+    
+    self.text = text ?: @"";
+    self.originalValue = text ?: @"";
+}
+
+- (void)activateField {
+    self.originalValue = self.text;
+    self.isActive = YES;
+    
+    // Update appearance for active state
+    self.backgroundColor = [UIColor colorWithRed:0.2 green:0.3 blue:0.4 alpha:1.0];
+    
+    [self becomeFirstResponder];
+    
+    // Notify delegate
+    if (self.textFieldDelegate && [self.textFieldDelegate respondsToSelector:@selector(textFieldDidBeginEditing:)]) {
+        [self.textFieldDelegate textFieldDidBeginEditing:self.identifier];
+    }
+}
+
+- (void)deactivateField {
+    self.isActive = NO;
+    
+    // Update appearance for inactive state
+    self.backgroundColor = [UIColor colorWithRed:0.1 green:0.1 blue:0.1 alpha:1.0];
+    
+    [self resignFirstResponder];
+    
+    // Notify delegate of final value
+    if (self.textFieldDelegate && [self.textFieldDelegate respondsToSelector:@selector(textFieldDidEndEditing:forIdentifier:)]) {
+        [self.textFieldDelegate textFieldDidEndEditing:self.text forIdentifier:self.identifier];
+    }
+}
+
+- (void)handleTextChange:(id)sender {
+    // Notify delegate of text changes
+    if (self.textFieldDelegate && [self.textFieldDelegate respondsToSelector:@selector(textFieldDidChange:forIdentifier:)]) {
+        [self.textFieldDelegate textFieldDidChange:self.text forIdentifier:self.identifier];
+    }
+}
+
+- (void)textDidChange:(id)sender {
+    [self handleTextChange:sender];
+}
+
+// Copy/Paste support - iOS only (not available on tvOS)
+#if TARGET_OS_IOS
+- (void)copy:(id)sender {
+    UIPasteboard.generalPasteboard.string = self.text;
+}
+
+- (void)cut:(id)sender {
+    UIPasteboard.generalPasteboard.string = self.text;
+    self.text = @"";
+    [self handleTextChange:self];
+}
+
+- (void)paste:(id)sender {
+    if (UIPasteboard.generalPasteboard.string) {
+        self.text = UIPasteboard.generalPasteboard.string;
+        [self handleTextChange:self];
+    }
+}
+#else
+// tvOS stubs - clipboard not available
+- (void)copy:(id)sender {
+    // No-op on tvOS
+}
+
+- (void)cut:(id)sender {
+    // Just clear text on tvOS
+    self.text = @"";
+    [self handleTextChange:self];
+}
+
+- (void)paste:(id)sender {
+    // No-op on tvOS
+}
+#endif
+
+- (void)selectAll:(id)sender {
+    // iOS implementation - select all text
+    if ([self respondsToSelector:@selector(setSelectedTextRange:)]) {
+        UITextPosition *start = [self beginningOfDocument];
+        UITextPosition *end = [self endOfDocument];
+        UITextRange *range = [self textRangeFromPosition:start toPosition:end];
+        [self setSelectedTextRange:range];
+    }
+}
+
+@end
+
+#endif

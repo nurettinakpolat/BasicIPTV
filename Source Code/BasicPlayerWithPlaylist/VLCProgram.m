@@ -76,6 +76,18 @@
            [self formattedTimeRange], _title, _programDescription];
 }
 
++ (BOOL)hasArchiveForProgramObject:(id)programObject {
+    if (!programObject) return NO;
+    
+    if ([programObject isKindOfClass:[VLCProgram class]]) {
+        return [(VLCProgram *)programObject hasArchive];
+    } else if ([programObject isKindOfClass:[NSDictionary class]]) {
+        return [[(NSDictionary *)programObject objectForKey:@"hasArchive"] boolValue];
+    }
+    
+    return NO;
+}
+
 - (void)dealloc {
     [_title release];
     [_programDescription release];

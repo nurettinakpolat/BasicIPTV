@@ -1,5 +1,8 @@
 #import "VLCOverlayView+Theming.h"
+
+#if TARGET_OS_OSX
 #import "VLCOverlayView_Private.h"
+#import "VLCOverlayView+Glassmorphism.h"
 #import <objc/runtime.h>
 
 // Static variable to track initialization state
@@ -68,7 +71,14 @@ static BOOL isInitializingTheme = NO;
     //NSLog(@"Theme System: Updating colors and saving settings for transparency level %ld", (long)level);
     [self updateThemeColors];
     [self saveThemeSettings];
-    [self setNeedsDisplay:YES];
+    
+    // Update glassmorphism effects when transparency changes
+    if ([self glassmorphismEnabled]) {
+        // Glassmorphism effects will automatically use the new themeAlpha value
+        [self setNeedsDisplay:YES];
+    } else {
+        [self setNeedsDisplay:YES];
+    }
 }
 
 - (CGFloat)alphaForTransparencyLevel:(VLCTransparencyLevel)level {
@@ -185,6 +195,12 @@ static BOOL isInitializingTheme = NO;
     if (self.currentTheme != VLC_THEME_CUSTOM) {
         [self updateSelectionColors];
     }
+    
+    // Trigger glassmorphism effects update when theme changes
+    if ([self glassmorphismEnabled]) {
+        // Force a redraw to apply new theme colors to glassmorphism
+        [self setNeedsDisplay:YES];
+    }
 }
 
 - (void)saveThemeSettings {
@@ -203,6 +219,19 @@ static BOOL isInitializingTheme = NO;
     [themeDict setObject:@(self.customSelectionRed) forKey:@"VLCOverlaySelectionRed"];
     [themeDict setObject:@(self.customSelectionGreen) forKey:@"VLCOverlaySelectionGreen"];
     [themeDict setObject:@(self.customSelectionBlue) forKey:@"VLCOverlaySelectionBlue"];
+    
+    // Save glassmorphism settings
+    [themeDict setObject:@([self glassmorphismEnabled]) forKey:@"VLCOverlayGlassmorphismEnabled"];
+    [themeDict setObject:@([self glassmorphismIntensity]) forKey:@"VLCOverlayGlassmorphismIntensity"];
+    [themeDict setObject:@([self glassmorphismHighQuality]) forKey:@"VLCOverlayGlassmorphismHighQuality"];
+    
+    // Save granular glassmorphism settings
+    [themeDict setObject:@([self glassmorphismOpacity]) forKey:@"VLCOverlayGlassmorphismOpacity"];
+    [themeDict setObject:@([self glassmorphismBlurRadius]) forKey:@"VLCOverlayGlassmorphismBlurRadius"];
+    [themeDict setObject:@([self glassmorphismBorderWidth]) forKey:@"VLCOverlayGlassmorphismBorderWidth"];
+    [themeDict setObject:@([self glassmorphismCornerRadius]) forKey:@"VLCOverlayGlassmorphismCornerRadius"];
+    [themeDict setObject:@([self glassmorphismIgnoreTransparency]) forKey:@"VLCOverlayGlassmorphismIgnoreTransparency"];
+    [themeDict setObject:@([self glassmorphismSandedIntensity]) forKey:@"VLCOverlayGlassmorphismSandedIntensity"];
     
     // Write to file
     BOOL success = [themeDict writeToFile:themeSettingsPath atomically:YES];
@@ -265,6 +294,19 @@ static BOOL isInitializingTheme = NO;
         self.customSelectionGreen = 0.4;
         self.customSelectionBlue = 0.9;
         
+        // Set default glassmorphism settings
+        [self setGlassmorphismEnabled:YES];
+        [self setGlassmorphismIntensity:1.0];
+        [self setGlassmorphismHighQuality:NO]; // Default to low quality for performance
+        
+        // Set default granular glassmorphism settings
+        [self setGlassmorphismOpacity:1.2];
+        [self setGlassmorphismBlurRadius:25.0];
+        [self setGlassmorphismBorderWidth:1.0];
+        [self setGlassmorphismCornerRadius:8.0];
+        [self setGlassmorphismIgnoreTransparency:NO];
+        [self setGlassmorphismSandedIntensity:0.0]; // Default no sanded effect
+        
         isInitializingTheme = wasInitializing;
         return;
     }
@@ -324,6 +366,41 @@ static BOOL isInitializingTheme = NO;
     self.customSelectionBlue = loadedSelectionBlue;
     //NSLog(@"Theme System: Loaded selection RGB: %.2f, %.2f, %.2f", 
     //      loadedSelectionRed, loadedSelectionGreen, loadedSelectionBlue);
+    
+    // Load glassmorphism settings (default to enabled with full intensity, low quality)
+    NSNumber *savedGlassEnabled = [themeDict objectForKey:@"VLCOverlayGlassmorphismEnabled"];
+    NSNumber *savedGlassIntensity = [themeDict objectForKey:@"VLCOverlayGlassmorphismIntensity"];
+    NSNumber *savedGlassHighQuality = [themeDict objectForKey:@"VLCOverlayGlassmorphismHighQuality"];
+    
+    BOOL loadedGlassEnabled = savedGlassEnabled ? [savedGlassEnabled boolValue] : YES;
+    CGFloat loadedGlassIntensity = savedGlassIntensity ? [savedGlassIntensity floatValue] : 1.0;
+    BOOL loadedGlassHighQuality = savedGlassHighQuality ? [savedGlassHighQuality boolValue] : NO;
+    
+    [self setGlassmorphismEnabled:loadedGlassEnabled];
+    [self setGlassmorphismIntensity:loadedGlassIntensity];
+    [self setGlassmorphismHighQuality:loadedGlassHighQuality];
+    
+    // Load granular glassmorphism settings
+    NSNumber *savedGlassOpacity = [themeDict objectForKey:@"VLCOverlayGlassmorphismOpacity"];
+    NSNumber *savedGlassBlurRadius = [themeDict objectForKey:@"VLCOverlayGlassmorphismBlurRadius"];
+    NSNumber *savedGlassBorderWidth = [themeDict objectForKey:@"VLCOverlayGlassmorphismBorderWidth"];
+    NSNumber *savedGlassCornerRadius = [themeDict objectForKey:@"VLCOverlayGlassmorphismCornerRadius"];
+    NSNumber *savedGlassIgnoreTransparency = [themeDict objectForKey:@"VLCOverlayGlassmorphismIgnoreTransparency"];
+    NSNumber *savedGlassSandedIntensity = [themeDict objectForKey:@"VLCOverlayGlassmorphismSandedIntensity"];
+    
+            CGFloat loadedGlassOpacity = savedGlassOpacity ? [savedGlassOpacity floatValue] : 1.2;
+            CGFloat loadedGlassBlurRadius = savedGlassBlurRadius ? [savedGlassBlurRadius floatValue] : 25.0;
+    CGFloat loadedGlassBorderWidth = savedGlassBorderWidth ? [savedGlassBorderWidth floatValue] : 1.0;
+    CGFloat loadedGlassCornerRadius = savedGlassCornerRadius ? [savedGlassCornerRadius floatValue] : 8.0;
+    BOOL loadedGlassIgnoreTransparency = savedGlassIgnoreTransparency ? [savedGlassIgnoreTransparency boolValue] : NO;
+    CGFloat loadedGlassSandedIntensity = savedGlassSandedIntensity ? [savedGlassSandedIntensity floatValue] : 0.0;
+    
+    [self setGlassmorphismOpacity:loadedGlassOpacity];
+    [self setGlassmorphismBlurRadius:loadedGlassBlurRadius];
+    [self setGlassmorphismBorderWidth:loadedGlassBorderWidth];
+    [self setGlassmorphismCornerRadius:loadedGlassCornerRadius];
+    [self setGlassmorphismIgnoreTransparency:loadedGlassIgnoreTransparency];
+    [self setGlassmorphismSandedIntensity:loadedGlassSandedIntensity];
     
     // Load custom alpha value (for smooth transparency)
     NSNumber *savedAlpha = [themeDict objectForKey:@"VLCOverlayThemeAlpha"];
@@ -469,16 +546,16 @@ static BOOL isInitializingTheme = NO;
 // Method to update selection colors and calculate hover color
 - (void)updateSelectionColors {
     // Store the values for use throughout the app
-    // The hover color is automatically calculated as a lighter version of the selection color
+    // The hover color is automatically calculated as a darker version of the selection color
     
-    // Hover color calculation: blend with white for a softer hover effect
-    CGFloat blendFactor = 0.5; // 50% blend with white (increased from 0.3 for better visibility)
-    CGFloat hoverRed = self.customSelectionRed + (1.0 - self.customSelectionRed) * blendFactor;
-    CGFloat hoverGreen = self.customSelectionGreen + (1.0 - self.customSelectionGreen) * blendFactor;
-    CGFloat hoverBlue = self.customSelectionBlue + (1.0 - self.customSelectionBlue) * blendFactor;
+    // Hover color calculation: make it darker than the selection color
+    CGFloat darkenFactor = 0.9; // Make it 25% darker (multiply by 0.75)
+    CGFloat hoverRed = self.customSelectionRed * darkenFactor;
+    CGFloat hoverGreen = self.customSelectionGreen * darkenFactor;
+    CGFloat hoverBlue = self.customSelectionBlue * darkenFactor;
     
     // Update the hoverColor property for backward compatibility
-    self.hoverColor = [NSColor colorWithCalibratedRed:hoverRed green:hoverGreen blue:hoverBlue alpha:0.25]; // Increased alpha from 0.15
+    self.hoverColor = [NSColor colorWithCalibratedRed:hoverRed green:hoverGreen blue:hoverBlue alpha:1.0]; // Increased alpha from 0.15
     
     // Save the settings
     [self saveThemeSettings];
@@ -490,3 +567,5 @@ static BOOL isInitializingTheme = NO;
 }
 
 @end 
+
+#endif // TARGET_OS_OSX 

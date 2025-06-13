@@ -669,21 +669,8 @@ BOOL isStackedViewActive = YES; // Start with stacked view
     CGFloat programGuideX = channelListX + channelListWidth;
     NSRect programGuideRect = NSMakeRect(programGuideX, 0, programGuideWidth, self.bounds.size.height);
     
-    // Create darker theme colors for program guide
-    NSColor *programGuideStartColor, *programGuideEndColor;
-    if (self.themeChannelStartColor && self.themeChannelEndColor) {
-        // Make the program guide slightly darker than channel list
-        CGFloat darkAlpha = self.themeAlpha * 0.9; // Slightly more transparent
-        programGuideStartColor = [self.themeChannelStartColor colorWithAlphaComponent:darkAlpha];
-        programGuideEndColor = [self.themeChannelEndColor colorWithAlphaComponent:darkAlpha];
-    } else {
-        programGuideStartColor = [NSColor colorWithCalibratedRed:0.08 green:0.10 blue:0.14 alpha:0.65];
-        programGuideEndColor = [NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.65];
-    }
-    
-    NSGradient *programGuideGradient = [[NSGradient alloc] initWithStartingColor:programGuideStartColor endingColor:programGuideEndColor];
-    [programGuideGradient drawInRect:programGuideRect angle:90];
-    [programGuideGradient release];
+    // Use glassmorphism background instead of solid gradient to match the rest of the interface
+    [self drawGlassmorphismPanel:programGuideRect opacity:0.6 cornerRadius:0];
     
     // Define the content rect for the channel list
     NSRect contentRect = NSMakeRect(channelListX, 0, channelListWidth, self.bounds.size.height);
@@ -5156,24 +5143,11 @@ BOOL isStackedViewActive = YES; // Start with stacked view
     CGFloat guidePanelWidth = programGuideWidth;
     CGFloat guidePanelHeight = self.bounds.size.height;
     
-    // Draw background with consistent semi-transparent black
+    // Draw background with glassmorphism effect to match the rest of the interface
     NSRect guidePanelRect = NSMakeRect(guidePanelX, 0, guidePanelWidth, guidePanelHeight);
     
-    // Use theme colors for program guide background
-    NSColor *programGuideStartColor, *programGuideEndColor;
-    if (self.themeChannelStartColor && self.themeChannelEndColor) {
-        // Make the program guide slightly darker than channel list
-        CGFloat darkAlpha = self.themeAlpha * 0.9; // Slightly more transparent
-        programGuideStartColor = [self.themeChannelStartColor colorWithAlphaComponent:darkAlpha];
-        programGuideEndColor = [self.themeChannelEndColor colorWithAlphaComponent:darkAlpha];
-    } else {
-        programGuideStartColor = [NSColor colorWithCalibratedRed:0.08 green:0.10 blue:0.14 alpha:0.65];
-        programGuideEndColor = [NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.65];
-    }
-    
-    NSGradient *programGuideGradient = [[NSGradient alloc] initWithStartingColor:programGuideStartColor endingColor:programGuideEndColor];
-    [programGuideGradient drawInRect:guidePanelRect angle:90];
-    [programGuideGradient release];
+    // Use glassmorphism background instead of solid gradient
+    [self drawGlassmorphismPanel:guidePanelRect opacity:0.6 cornerRadius:0];
     
     // No header with channel name
     NSMutableParagraphStyle *headerStyle = [[NSMutableParagraphStyle alloc] init];

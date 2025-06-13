@@ -1,4 +1,7 @@
 #import "VLCOverlayView.h"
+#import "PlatformBridge.h"
+
+#if TARGET_OS_OSX
 
 @interface VLCOverlayView (MouseHandling)
 
@@ -25,3 +28,5 @@
 - (void)handleDropdownHover:(NSPoint)point;
 
 @end 
+
+#endif // TARGET_OS_OSX 

@@ -1,0 +1,595 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 55;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		8D11072A0486CEB800E47090 /* MainMenu.nib in Resources */ = {isa = PBXBuildFile; fileRef = 29B97318FDCFA39411CA2CEA /* MainMenu.nib */; };
+		8D11072B0486CEB800E47090 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C165CFE840E0CC02AAC07 /* InfoPlist.strings */; };
+		8D11072D0486CEB800E47090 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 29B97316FDCFA39411CA2CEA /* main.m */; settings = {ATTRIBUTES = (); }; };
+		CF5EDBC92DEDC0AB00C14C04 /* VLCOverlayView+Theming.m in Sources */ = {isa = PBXBuildFile; fileRef = CF5EDBC82DEDC0AB00C14C04 /* VLCOverlayView+Theming.m */; };
+		CF5EDBD22DEE01D700C14C04 /* VLCSliderControl.m in Sources */ = {isa = PBXBuildFile; fileRef = CF5EDBD12DEE01D700C14C04 /* VLCSliderControl.m */; };
+		CF5EDBE42DF0BCE200C14C04 /* VLCOverlayView+MouseHandling.m in Sources */ = {isa = PBXBuildFile; fileRef = CF5EDBDB2DF0BCE200C14C04 /* VLCOverlayView+MouseHandling.m */; };
+		CF5EDBE52DF0BCE200C14C04 /* VLCOverlayView+Drawing.m in Sources */ = {isa = PBXBuildFile; fileRef = CF5EDBD72DF0BCE200C14C04 /* VLCOverlayView+Drawing.m */; };
+		CF5EDBE62DF0BCE200C14C04 /* VLCOverlayView+Globals.m in Sources */ = {isa = PBXBuildFile; fileRef = CF5EDBD92DF0BCE200C14C04 /* VLCOverlayView+Globals.m */; };
+		CF5EDBE72DF0BCE200C14C04 /* VLCOverlayView+Search.m in Sources */ = {isa = PBXBuildFile; fileRef = CF5EDBDD2DF0BCE200C14C04 /* VLCOverlayView+Search.m */; };
+		CF5EDBE92DF0BCE200C14C04 /* VLCOverlayView+ContextMenu.m in Sources */ = {isa = PBXBuildFile; fileRef = CF5EDBD52DF0BCE200C14C04 /* VLCOverlayView+ContextMenu.m */; };
+		CF5EDBEA2DF0BCE200C14C04 /* VLCOverlayView+ViewModes.m in Sources */ = {isa = PBXBuildFile; fileRef = CF5EDBE32DF0BCE200C14C04 /* VLCOverlayView+ViewModes.m */; };
+		CF5EDBEB2DF0BCE200C14C04 /* VLCOverlayView+TextFields.m in Sources */ = {isa = PBXBuildFile; fileRef = CF5EDBDF2DF0BCE200C14C04 /* VLCOverlayView+TextFields.m */; };
+		CF5EDBEC2DF0BCE200C14C04 /* VLCOverlayView_SPLIT_README.md in Resources */ = {isa = PBXBuildFile; fileRef = CF5EDBD32DF0BCE200C14C04 /* VLCOverlayView_SPLIT_README.md */; };
+		CF5EDBF02DF25C6500C14C04 /* VLCOverlayView+Glassmorphism.m in Sources */ = {isa = PBXBuildFile; fileRef = CF5EDBEF2DF25C6500C14C04 /* VLCOverlayView+Glassmorphism.m */; };
+		CF5EDC002DF5EA6900C14C04 /* OpenGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CFF7A26A2DD3E65E009BAC21 /* OpenGL.framework */; };
+		CF5EDC022DF5EA6B00C14C04 /* GLUT.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CFF7A26D2DD3EAEC009BAC21 /* GLUT.framework */; };
+		CF5EDC042DF5EA6E00C14C04 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */; };
+		CF752C672DF5EF6A00083A30 /* VLCKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = CF752C662DF5EF6A00083A30 /* VLCKit.xcframework */; };
+		CF752C682DF5EF6A00083A30 /* VLCKit.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = CF752C662DF5EF6A00083A30 /* VLCKit.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		CF752C6B2DF68AD600083A30 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CF752C6A2DF68AD600083A30 /* UIKit.framework */; platformFilters = (ios, tvos, ); };
+		CFA399A32DDB740A007E36FA /* VLCProgram.m in Sources */ = {isa = PBXBuildFile; fileRef = CFA399A22DDB740A007E36FA /* VLCProgram.m */; };
+		CFA399AA2DDB7424007E36FA /* VLCOverlayView+Utilities.m in Sources */ = {isa = PBXBuildFile; fileRef = CFA399A82DDB7424007E36FA /* VLCOverlayView+Utilities.m */; };
+		CFA399AB2DDB7424007E36FA /* VLCChannel.m in Sources */ = {isa = PBXBuildFile; fileRef = CFA399A52DDB7424007E36FA /* VLCChannel.m */; };
+		CFA399B12DDB7609007E36FA /* VLCOverlayView+Favorites.m in Sources */ = {isa = PBXBuildFile; fileRef = CFA399AF2DDB7609007E36FA /* VLCOverlayView+Favorites.m */; };
+		CFA399B22DDB7609007E36FA /* VLCOverlayView+Caching.m in Sources */ = {isa = PBXBuildFile; fileRef = CFA399AC2DDB7609007E36FA /* VLCOverlayView+Caching.m */; };
+		CFA399B32DDB7609007E36FA /* VLCOverlayView+ChannelManagement.m in Sources */ = {isa = PBXBuildFile; fileRef = CFA399AD2DDB7609007E36FA /* VLCOverlayView+ChannelManagement.m */; };
+		CFA399B42DDB7609007E36FA /* VLCOverlayView+UI.m in Sources */ = {isa = PBXBuildFile; fileRef = CFA399B02DDB7609007E36FA /* VLCOverlayView+UI.m */; };
+		CFA399B52DDB7609007E36FA /* VLCOverlayView+EPG.m in Sources */ = {isa = PBXBuildFile; fileRef = CFA399AE2DDB7609007E36FA /* VLCOverlayView+EPG.m */; };
+		CFA399B72DDCF325007E36FA /* DownloadManager.m in Sources */ = {isa = PBXBuildFile; fileRef = CFA399B62DDCF325007E36FA /* DownloadManager.m */; };
+		CFA399D32DE00228007E36FA /* VLCOverlayView+PlayerControls.m in Sources */ = {isa = PBXBuildFile; fileRef = CFA399D22DE00228007E36FA /* VLCOverlayView+PlayerControls.m */; };
+		CFA399D92DE24FD7007E36FA /* VLCDropdownManager.m in Sources */ = {isa = PBXBuildFile; fileRef = CFA399D82DE24FD7007E36FA /* VLCDropdownManager.m */; };
+		CFA399DC2DE2897C007E36FA /* VLCSubtitleSettings.m in Sources */ = {isa = PBXBuildFile; fileRef = CFA399DB2DE2897C007E36FA /* VLCSubtitleSettings.m */; };
+		CFA399E12DE68DCE007E36FA /* VLCClickableLabel.m in Sources */ = {isa = PBXBuildFile; fileRef = CFA399DE2DE68DCE007E36FA /* VLCClickableLabel.m */; };
+		CFA399E22DE68DCE007E36FA /* VLCReusableTextField.m in Sources */ = {isa = PBXBuildFile; fileRef = CFA399E02DE68DCE007E36FA /* VLCReusableTextField.m */; };
+		CFF7A2692DD3E5B2009BAC21 /* VLCGLVideoView.m in Sources */ = {isa = PBXBuildFile; fileRef = CFF7A2682DD3E5B2009BAC21 /* VLCGLVideoView.m */; };
+		CFF7A27A2DD3F712009BAC21 /* VLCOverlayView.m in Sources */ = {isa = PBXBuildFile; fileRef = CFF7A2792DD3F712009BAC21 /* VLCOverlayView.m */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		CF5EDC0B2DF5EB6F00C14C04 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				CF752C682DF5EF6A00083A30 /* VLCKit.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = /System/Library/Frameworks/Cocoa.framework; sourceTree = "<absolute>"; };
+		13E42FB307B3F0F600E4EEF1 /* CoreData.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreData.framework; path = /System/Library/Frameworks/CoreData.framework; sourceTree = "<absolute>"; };
+		29B97316FDCFA39411CA2CEA /* main.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		29B97324FDCFA39411CA2CEA /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = /System/Library/Frameworks/AppKit.framework; sourceTree = "<absolute>"; };
+		29B97325FDCFA39411CA2CEA /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = /System/Library/Frameworks/Foundation.framework; sourceTree = "<absolute>"; };
+		32CA4F630368D1EE00C91783 /* test_Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = test_Prefix.pch; sourceTree = "<group>"; };
+		8D1107310486CEB800E47090 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		CF5EDBC72DEDC0AB00C14C04 /* VLCOverlayView+Theming.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+Theming.h"; sourceTree = "<group>"; };
+		CF5EDBC82DEDC0AB00C14C04 /* VLCOverlayView+Theming.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+Theming.m"; sourceTree = "<group>"; };
+		CF5EDBD02DEE01D700C14C04 /* VLCSliderControl.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VLCSliderControl.h; sourceTree = "<group>"; };
+		CF5EDBD12DEE01D700C14C04 /* VLCSliderControl.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VLCSliderControl.m; sourceTree = "<group>"; };
+		CF5EDBD32DF0BCE200C14C04 /* VLCOverlayView_SPLIT_README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = VLCOverlayView_SPLIT_README.md; sourceTree = "<group>"; };
+		CF5EDBD42DF0BCE200C14C04 /* VLCOverlayView+ContextMenu.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+ContextMenu.h"; sourceTree = "<group>"; };
+		CF5EDBD52DF0BCE200C14C04 /* VLCOverlayView+ContextMenu.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+ContextMenu.m"; sourceTree = "<group>"; };
+		CF5EDBD62DF0BCE200C14C04 /* VLCOverlayView+Drawing.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+Drawing.h"; sourceTree = "<group>"; };
+		CF5EDBD72DF0BCE200C14C04 /* VLCOverlayView+Drawing.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+Drawing.m"; sourceTree = "<group>"; };
+		CF5EDBD82DF0BCE200C14C04 /* VLCOverlayView+Globals.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+Globals.h"; sourceTree = "<group>"; };
+		CF5EDBD92DF0BCE200C14C04 /* VLCOverlayView+Globals.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+Globals.m"; sourceTree = "<group>"; };
+		CF5EDBDA2DF0BCE200C14C04 /* VLCOverlayView+MouseHandling.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+MouseHandling.h"; sourceTree = "<group>"; };
+		CF5EDBDB2DF0BCE200C14C04 /* VLCOverlayView+MouseHandling.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+MouseHandling.m"; sourceTree = "<group>"; };
+		CF5EDBDC2DF0BCE200C14C04 /* VLCOverlayView+Search.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+Search.h"; sourceTree = "<group>"; };
+		CF5EDBDD2DF0BCE200C14C04 /* VLCOverlayView+Search.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+Search.m"; sourceTree = "<group>"; };
+		CF5EDBDE2DF0BCE200C14C04 /* VLCOverlayView+TextFields.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+TextFields.h"; sourceTree = "<group>"; };
+		CF5EDBDF2DF0BCE200C14C04 /* VLCOverlayView+TextFields.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+TextFields.m"; sourceTree = "<group>"; };
+		CF5EDBE22DF0BCE200C14C04 /* VLCOverlayView+ViewModes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+ViewModes.h"; sourceTree = "<group>"; };
+		CF5EDBE32DF0BCE200C14C04 /* VLCOverlayView+ViewModes.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+ViewModes.m"; sourceTree = "<group>"; };
+		CF5EDBEE2DF25C6500C14C04 /* VLCOverlayView+Glassmorphism.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+Glassmorphism.h"; sourceTree = "<group>"; };
+		CF5EDBEF2DF25C6500C14C04 /* VLCOverlayView+Glassmorphism.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+Glassmorphism.m"; sourceTree = "<group>"; };
+		CF5EDBF32DF49B2B00C14C04 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
+		CF5EDBF72DF5DA5500C14C04 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		CF5EDBF92DF5DA5A00C14C04 /* Base */ = {isa = PBXFileReference; lastKnownFileType = wrapper.nib; name = Base; path = Base.lproj/MainMenu.nib; sourceTree = "<group>"; };
+		CF752C662DF5EF6A00083A30 /* VLCKit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = VLCKit.xcframework; path = ../../VLCKit.xcframework; sourceTree = "<group>"; };
+		CF752C692DF5F0C000083A30 /* BasicIPTV.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BasicIPTV.entitlements; sourceTree = "<group>"; };
+		CF752C6A2DF68AD600083A30 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS18.5.sdk/System/Library/Frameworks/UIKit.framework; sourceTree = DEVELOPER_DIR; };
+		CF87D27A2DEC3A8900D27E30 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		CFA3999A2DD46F3D007E36FA /* BasicIPTV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BasicIPTV.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CFA3999B2DDB740A007E36FA /* VLCOverlayView+Caching.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+Caching.h"; sourceTree = "<group>"; };
+		CFA3999C2DDB740A007E36FA /* VLCOverlayView+ChannelManagement.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+ChannelManagement.h"; sourceTree = "<group>"; };
+		CFA3999D2DDB740A007E36FA /* VLCOverlayView+EPG.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+EPG.h"; sourceTree = "<group>"; };
+		CFA3999E2DDB740A007E36FA /* VLCOverlayView+Favorites.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+Favorites.h"; sourceTree = "<group>"; };
+		CFA3999F2DDB740A007E36FA /* VLCOverlayView+UI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+UI.h"; sourceTree = "<group>"; };
+		CFA399A02DDB740A007E36FA /* VLCOverlayView+Utilities.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+Utilities.h"; sourceTree = "<group>"; };
+		CFA399A12DDB740A007E36FA /* VLCProgram.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VLCProgram.h; sourceTree = "<group>"; };
+		CFA399A22DDB740A007E36FA /* VLCProgram.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VLCProgram.m; sourceTree = "<group>"; };
+		CFA399A42DDB7424007E36FA /* VLCChannel.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VLCChannel.h; sourceTree = "<group>"; };
+		CFA399A52DDB7424007E36FA /* VLCChannel.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VLCChannel.m; sourceTree = "<group>"; };
+		CFA399A62DDB7424007E36FA /* VLCOverlayView_Private.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VLCOverlayView_Private.h; sourceTree = "<group>"; };
+		CFA399A82DDB7424007E36FA /* VLCOverlayView+Utilities.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+Utilities.m"; sourceTree = "<group>"; };
+		CFA399AC2DDB7609007E36FA /* VLCOverlayView+Caching.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+Caching.m"; sourceTree = "<group>"; };
+		CFA399AD2DDB7609007E36FA /* VLCOverlayView+ChannelManagement.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+ChannelManagement.m"; sourceTree = "<group>"; };
+		CFA399AE2DDB7609007E36FA /* VLCOverlayView+EPG.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+EPG.m"; sourceTree = "<group>"; };
+		CFA399AF2DDB7609007E36FA /* VLCOverlayView+Favorites.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+Favorites.m"; sourceTree = "<group>"; };
+		CFA399B02DDB7609007E36FA /* VLCOverlayView+UI.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+UI.m"; sourceTree = "<group>"; };
+		CFA399B62DDCF325007E36FA /* DownloadManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DownloadManager.m; sourceTree = "<group>"; };
+		CFA399BA2DDCF375007E36FA /* DownloadManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DownloadManager.h; sourceTree = "<group>"; };
+		CFA399D12DE00228007E36FA /* VLCOverlayView+PlayerControls.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "VLCOverlayView+PlayerControls.h"; sourceTree = "<group>"; };
+		CFA399D22DE00228007E36FA /* VLCOverlayView+PlayerControls.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "VLCOverlayView+PlayerControls.m"; sourceTree = "<group>"; };
+		CFA399D72DE24FD7007E36FA /* VLCDropdownManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VLCDropdownManager.h; sourceTree = "<group>"; };
+		CFA399D82DE24FD7007E36FA /* VLCDropdownManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VLCDropdownManager.m; sourceTree = "<group>"; };
+		CFA399DA2DE2897C007E36FA /* VLCSubtitleSettings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VLCSubtitleSettings.h; sourceTree = "<group>"; };
+		CFA399DB2DE2897C007E36FA /* VLCSubtitleSettings.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VLCSubtitleSettings.m; sourceTree = "<group>"; };
+		CFA399DD2DE68DCE007E36FA /* VLCClickableLabel.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VLCClickableLabel.h; sourceTree = "<group>"; };
+		CFA399DE2DE68DCE007E36FA /* VLCClickableLabel.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VLCClickableLabel.m; sourceTree = "<group>"; };
+		CFA399DF2DE68DCE007E36FA /* VLCReusableTextField.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VLCReusableTextField.h; sourceTree = "<group>"; };
+		CFA399E02DE68DCE007E36FA /* VLCReusableTextField.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VLCReusableTextField.m; sourceTree = "<group>"; };
+		CFF7A2682DD3E5B2009BAC21 /* VLCGLVideoView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VLCGLVideoView.m; sourceTree = "<group>"; };
+		CFF7A26A2DD3E65E009BAC21 /* OpenGL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGL.framework; path = System/Library/Frameworks/OpenGL.framework; sourceTree = SDKROOT; };
+		CFF7A26C2DD3E803009BAC21 /* VLCGLVideoView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VLCGLVideoView.h; sourceTree = "<group>"; };
+		CFF7A26D2DD3EAEC009BAC21 /* GLUT.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GLUT.framework; path = System/Library/Frameworks/GLUT.framework; sourceTree = SDKROOT; };
+		CFF7A2782DD3F712009BAC21 /* VLCOverlayView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VLCOverlayView.h; sourceTree = "<group>"; };
+		CFF7A2792DD3F712009BAC21 /* VLCOverlayView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VLCOverlayView.m; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		8D11072E0486CEB800E47090 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CF5EDC042DF5EA6E00C14C04 /* Cocoa.framework in Frameworks */,
+				CF5EDC002DF5EA6900C14C04 /* OpenGL.framework in Frameworks */,
+				CF752C672DF5EF6A00083A30 /* VLCKit.xcframework in Frameworks */,
+				CF5EDC022DF5EA6B00C14C04 /* GLUT.framework in Frameworks */,
+				CF752C6B2DF68AD600083A30 /* UIKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		080E96DDFE201D6D7F000001 /* Classes */ = {
+			isa = PBXGroup;
+			children = (
+				CF5EDBEE2DF25C6500C14C04 /* VLCOverlayView+Glassmorphism.h */,
+				CF5EDBEF2DF25C6500C14C04 /* VLCOverlayView+Glassmorphism.m */,
+				CF5EDBD32DF0BCE200C14C04 /* VLCOverlayView_SPLIT_README.md */,
+				CF5EDBD42DF0BCE200C14C04 /* VLCOverlayView+ContextMenu.h */,
+				CF5EDBD52DF0BCE200C14C04 /* VLCOverlayView+ContextMenu.m */,
+				CF5EDBD62DF0BCE200C14C04 /* VLCOverlayView+Drawing.h */,
+				CF5EDBD72DF0BCE200C14C04 /* VLCOverlayView+Drawing.m */,
+				CF5EDBD82DF0BCE200C14C04 /* VLCOverlayView+Globals.h */,
+				CF5EDBD92DF0BCE200C14C04 /* VLCOverlayView+Globals.m */,
+				CF5EDBDA2DF0BCE200C14C04 /* VLCOverlayView+MouseHandling.h */,
+				CF5EDBDB2DF0BCE200C14C04 /* VLCOverlayView+MouseHandling.m */,
+				CF5EDBDC2DF0BCE200C14C04 /* VLCOverlayView+Search.h */,
+				CF5EDBDD2DF0BCE200C14C04 /* VLCOverlayView+Search.m */,
+				CF5EDBDE2DF0BCE200C14C04 /* VLCOverlayView+TextFields.h */,
+				CF5EDBDF2DF0BCE200C14C04 /* VLCOverlayView+TextFields.m */,
+				CF5EDBE22DF0BCE200C14C04 /* VLCOverlayView+ViewModes.h */,
+				CF5EDBE32DF0BCE200C14C04 /* VLCOverlayView+ViewModes.m */,
+				CF5EDBD02DEE01D700C14C04 /* VLCSliderControl.h */,
+				CF5EDBD12DEE01D700C14C04 /* VLCSliderControl.m */,
+				CF5EDBC72DEDC0AB00C14C04 /* VLCOverlayView+Theming.h */,
+				CF5EDBC82DEDC0AB00C14C04 /* VLCOverlayView+Theming.m */,
+				CF87D27A2DEC3A8900D27E30 /* main.m */,
+				CFA399DD2DE68DCE007E36FA /* VLCClickableLabel.h */,
+				CFA399DE2DE68DCE007E36FA /* VLCClickableLabel.m */,
+				CFA399DF2DE68DCE007E36FA /* VLCReusableTextField.h */,
+				CFA399E02DE68DCE007E36FA /* VLCReusableTextField.m */,
+				CFA399DA2DE2897C007E36FA /* VLCSubtitleSettings.h */,
+				CFA399DB2DE2897C007E36FA /* VLCSubtitleSettings.m */,
+				CFA399D72DE24FD7007E36FA /* VLCDropdownManager.h */,
+				CFA399D82DE24FD7007E36FA /* VLCDropdownManager.m */,
+				CFA399D12DE00228007E36FA /* VLCOverlayView+PlayerControls.h */,
+				CFA399D22DE00228007E36FA /* VLCOverlayView+PlayerControls.m */,
+				CFA399AC2DDB7609007E36FA /* VLCOverlayView+Caching.m */,
+				CFA399AD2DDB7609007E36FA /* VLCOverlayView+ChannelManagement.m */,
+				CFA399AE2DDB7609007E36FA /* VLCOverlayView+EPG.m */,
+				CFA399AF2DDB7609007E36FA /* VLCOverlayView+Favorites.m */,
+				CFA399B02DDB7609007E36FA /* VLCOverlayView+UI.m */,
+				CFA399A42DDB7424007E36FA /* VLCChannel.h */,
+				CFA399A52DDB7424007E36FA /* VLCChannel.m */,
+				CFA399A62DDB7424007E36FA /* VLCOverlayView_Private.h */,
+				CFA399A82DDB7424007E36FA /* VLCOverlayView+Utilities.m */,
+				CFA3999B2DDB740A007E36FA /* VLCOverlayView+Caching.h */,
+				CFA3999C2DDB740A007E36FA /* VLCOverlayView+ChannelManagement.h */,
+				CFA3999D2DDB740A007E36FA /* VLCOverlayView+EPG.h */,
+				CFA3999E2DDB740A007E36FA /* VLCOverlayView+Favorites.h */,
+				CFA3999F2DDB740A007E36FA /* VLCOverlayView+UI.h */,
+				CFA399A02DDB740A007E36FA /* VLCOverlayView+Utilities.h */,
+				CFA399A12DDB740A007E36FA /* VLCProgram.h */,
+				CFA399A22DDB740A007E36FA /* VLCProgram.m */,
+				CFF7A2782DD3F712009BAC21 /* VLCOverlayView.h */,
+				CFF7A2792DD3F712009BAC21 /* VLCOverlayView.m */,
+				CFF7A26C2DD3E803009BAC21 /* VLCGLVideoView.h */,
+				CFF7A2682DD3E5B2009BAC21 /* VLCGLVideoView.m */,
+				CFA399B62DDCF325007E36FA /* DownloadManager.m */,
+				CFA399BA2DDCF375007E36FA /* DownloadManager.h */,
+			);
+			name = Classes;
+			sourceTree = "<group>";
+		};
+		1058C7A0FEA54F0111CA2CBB /* Linked Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */,
+			);
+			name = "Linked Frameworks";
+			sourceTree = "<group>";
+		};
+		1058C7A2FEA54F0111CA2CBB /* Other Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				29B97324FDCFA39411CA2CEA /* AppKit.framework */,
+				13E42FB307B3F0F600E4EEF1 /* CoreData.framework */,
+				29B97325FDCFA39411CA2CEA /* Foundation.framework */,
+			);
+			name = "Other Frameworks";
+			sourceTree = "<group>";
+		};
+		19C28FACFE9D520D11CA2CBB /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CFA3999A2DD46F3D007E36FA /* BasicIPTV.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		29B97314FDCFA39411CA2CEA /* test */ = {
+			isa = PBXGroup;
+			children = (
+				CF752C692DF5F0C000083A30 /* BasicIPTV.entitlements */,
+				080E96DDFE201D6D7F000001 /* Classes */,
+				29B97315FDCFA39411CA2CEA /* Other Sources */,
+				29B97317FDCFA39411CA2CEA /* Resources */,
+				29B97323FDCFA39411CA2CEA /* Frameworks */,
+				19C28FACFE9D520D11CA2CBB /* Products */,
+			);
+			name = test;
+			sourceTree = "<group>";
+		};
+		29B97315FDCFA39411CA2CEA /* Other Sources */ = {
+			isa = PBXGroup;
+			children = (
+				32CA4F630368D1EE00C91783 /* test_Prefix.pch */,
+				29B97316FDCFA39411CA2CEA /* main.m */,
+			);
+			name = "Other Sources";
+			sourceTree = "<group>";
+		};
+		29B97317FDCFA39411CA2CEA /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				8D1107310486CEB800E47090 /* Info.plist */,
+				089C165CFE840E0CC02AAC07 /* InfoPlist.strings */,
+				29B97318FDCFA39411CA2CEA /* MainMenu.nib */,
+			);
+			name = Resources;
+			sourceTree = "<group>";
+		};
+		29B97323FDCFA39411CA2CEA /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				CF752C6A2DF68AD600083A30 /* UIKit.framework */,
+				CF752C662DF5EF6A00083A30 /* VLCKit.xcframework */,
+				CF5EDBF32DF49B2B00C14C04 /* AppKit.framework */,
+				CFF7A26D2DD3EAEC009BAC21 /* GLUT.framework */,
+				CFF7A26A2DD3E65E009BAC21 /* OpenGL.framework */,
+				1058C7A0FEA54F0111CA2CBB /* Linked Frameworks */,
+				1058C7A2FEA54F0111CA2CBB /* Other Frameworks */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		8D1107260486CEB800E47090 /* BasicIPTV */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C01FCF4A08A954540054247B /* Build configuration list for PBXNativeTarget "BasicIPTV" */;
+			buildPhases = (
+				8D1107290486CEB800E47090 /* Resources */,
+				8D11072C0486CEB800E47090 /* Sources */,
+				8D11072E0486CEB800E47090 /* Frameworks */,
+				CF5EDC0B2DF5EB6F00C14C04 /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BasicIPTV;
+			productInstallPath = "$(HOME)/Applications";
+			productName = test;
+			productReference = CFA3999A2DD46F3D007E36FA /* BasicIPTV.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		29B97313FDCFA39411CA2CEA /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1640;
+			};
+			buildConfigurationList = C01FCF4E08A954540054247B /* Build configuration list for PBXProject "BasicIPTV" */;
+			compatibilityVersion = "Xcode 2.4";
+			developmentRegion = en;
+			hasScannedForEncodings = 1;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 29B97314FDCFA39411CA2CEA /* test */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				8D1107260486CEB800E47090 /* BasicIPTV */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		8D1107290486CEB800E47090 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8D11072A0486CEB800E47090 /* MainMenu.nib in Resources */,
+				CF5EDBEC2DF0BCE200C14C04 /* VLCOverlayView_SPLIT_README.md in Resources */,
+				8D11072B0486CEB800E47090 /* InfoPlist.strings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		8D11072C0486CEB800E47090 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CFA399AA2DDB7424007E36FA /* VLCOverlayView+Utilities.m in Sources */,
+				CFA399AB2DDB7424007E36FA /* VLCChannel.m in Sources */,
+				CF5EDBD22DEE01D700C14C04 /* VLCSliderControl.m in Sources */,
+				CF5EDBC92DEDC0AB00C14C04 /* VLCOverlayView+Theming.m in Sources */,
+				CFA399D32DE00228007E36FA /* VLCOverlayView+PlayerControls.m in Sources */,
+				CFA399DC2DE2897C007E36FA /* VLCSubtitleSettings.m in Sources */,
+				CFA399A32DDB740A007E36FA /* VLCProgram.m in Sources */,
+				CFF7A2692DD3E5B2009BAC21 /* VLCGLVideoView.m in Sources */,
+				8D11072D0486CEB800E47090 /* main.m in Sources */,
+				CFA399B12DDB7609007E36FA /* VLCOverlayView+Favorites.m in Sources */,
+				CF5EDBE42DF0BCE200C14C04 /* VLCOverlayView+MouseHandling.m in Sources */,
+				CF5EDBE52DF0BCE200C14C04 /* VLCOverlayView+Drawing.m in Sources */,
+				CF5EDBE62DF0BCE200C14C04 /* VLCOverlayView+Globals.m in Sources */,
+				CF5EDBE72DF0BCE200C14C04 /* VLCOverlayView+Search.m in Sources */,
+				CF5EDBE92DF0BCE200C14C04 /* VLCOverlayView+ContextMenu.m in Sources */,
+				CF5EDBEA2DF0BCE200C14C04 /* VLCOverlayView+ViewModes.m in Sources */,
+				CF5EDBEB2DF0BCE200C14C04 /* VLCOverlayView+TextFields.m in Sources */,
+				CFA399B22DDB7609007E36FA /* VLCOverlayView+Caching.m in Sources */,
+				CFA399B32DDB7609007E36FA /* VLCOverlayView+ChannelManagement.m in Sources */,
+				CFA399B42DDB7609007E36FA /* VLCOverlayView+UI.m in Sources */,
+				CFA399B52DDB7609007E36FA /* VLCOverlayView+EPG.m in Sources */,
+				CFF7A27A2DD3F712009BAC21 /* VLCOverlayView.m in Sources */,
+				CFA399D92DE24FD7007E36FA /* VLCDropdownManager.m in Sources */,
+				CF5EDBF02DF25C6500C14C04 /* VLCOverlayView+Glassmorphism.m in Sources */,
+				CFA399B72DDCF325007E36FA /* DownloadManager.m in Sources */,
+				CFA399E12DE68DCE007E36FA /* VLCClickableLabel.m in Sources */,
+				CFA399E22DE68DCE007E36FA /* VLCReusableTextField.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		089C165CFE840E0CC02AAC07 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				CF5EDBF72DF5DA5500C14C04 /* en */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+		29B97318FDCFA39411CA2CEA /* MainMenu.nib */ = {
+			isa = PBXVariantGroup;
+			children = (
+				CF5EDBF92DF5DA5A00C14C04 /* Base */,
+			);
+			name = MainMenu.nib;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		C01FCF4B08A954540054247B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGN_ENTITLEMENTS = BasicIPTV.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(FRAMEWORK_SEARCH_PATHS_QUOTED_FOR_TARGET_1)",
+					../../../build/Release,
+				);
+				FRAMEWORK_SEARCH_PATHS_QUOTED_FOR_TARGET_1 = "\"$(SRCROOT)/../../build/Debug\"";
+				GCC_C_LANGUAGE_STANDARD = c99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				INFOPLIST_FILE = Info.plist;
+				INSTALL_PATH = "$(HOME)/Applications";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				LD_FLAGS_LIBINTL = "-dylib_file @loader_path/../lib/vlc_libintl.dylib:$(VLC_FRAMEWORK)/lib/vlc_libintl.dylib";
+				LD_FLAGS_LIBVLC = "-dylib_file @loader_path/lib/libvlc.dylib:$(VLC_FRAMEWORK)/lib/libvlc.dylib -dylib_file @loader_path/../lib/libvlc.dylib:$(VLC_FRAMEWORK)/lib/libvlc.dylib";
+				LD_FLAGS_LIBVLC_CONTROL = "-dylib_file @loader_path/lib/libvlc-control.dylib:$(VLC_FRAMEWORK)/lib/libvlc-control.dylib";
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				ONLY_ACTIVE_ARCH = NO;
+				OTHER_LDFLAGS = (
+					"$(LD_FLAGS_LIBINTL)",
+					"$(LD_FLAGS_LIBVLC)",
+					"$(LD_FLAGS_LIBVLC_CONTROL)",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nucom.basictv;
+				PRODUCT_NAME = BasicIPTV;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SYMROOT = ../../build;
+				TARGETED_DEVICE_FAMILY = "1,2,3";
+				VLC_FRAMEWORK = "$(TARGET_BUILD_DIR)/VLC.framework";
+				WRAPPER_EXTENSION = app;
+				ZERO_LINK = YES;
+			};
+			name = Debug;
+		};
+		C01FCF4C08A954540054247B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGN_ENTITLEMENTS = BasicIPTV.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				CODE_SIGN_STYLE = Automatic;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(FRAMEWORK_SEARCH_PATHS_QUOTED_FOR_TARGET_1)",
+					../../../build/Release,
+				);
+				FRAMEWORK_SEARCH_PATHS_QUOTED_FOR_TARGET_1 = "\"$(SRCROOT)/../../build/Debug\"";
+				GCC_C_LANGUAGE_STANDARD = c99;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = NO;
+				INFOPLIST_FILE = Info.plist;
+				INSTALL_PATH = "$(HOME)/Applications";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				LD_FLAGS_LIBINTL = "-dylib_file @loader_path/../lib/vlc_libintl.dylib:$(VLC_FRAMEWORK)/lib/vlc_libintl.dylib";
+				LD_FLAGS_LIBVLC = "-dylib_file @loader_path/lib/libvlc.dylib:$(VLC_FRAMEWORK)/lib/libvlc.dylib -dylib_file @loader_path/../lib/libvlc.dylib:$(VLC_FRAMEWORK)/lib/libvlc.dylib";
+				LD_FLAGS_LIBVLC_CONTROL = "-dylib_file @loader_path/lib/libvlc-control.dylib:$(VLC_FRAMEWORK)/lib/libvlc-control.dylib";
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = (
+					"$(LD_FLAGS_LIBINTL)",
+					"$(LD_FLAGS_LIBVLC)",
+					"$(LD_FLAGS_LIBVLC_CONTROL)",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nucom.basictv;
+				PRODUCT_NAME = BasicIPTV;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SYMROOT = ../../build;
+				TARGETED_DEVICE_FAMILY = "1,2,3";
+				VLC_FRAMEWORK = "$(TARGET_BUILD_DIR)/VLC.framework";
+				WRAPPER_EXTENSION = app;
+			};
+			name = Release;
+		};
+		C01FCF4F08A954540054247B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = S2MN45XPA2;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				ONLY_ACTIVE_ARCH = YES;
+			};
+			name = Debug;
+		};
+		C01FCF5008A954540054247B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = S2MN45XPA2;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		C01FCF4A08A954540054247B /* Build configuration list for PBXNativeTarget "BasicIPTV" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C01FCF4B08A954540054247B /* Debug */,
+				C01FCF4C08A954540054247B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C01FCF4E08A954540054247B /* Build configuration list for PBXProject "BasicIPTV" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C01FCF4F08A954540054247B /* Debug */,
+				C01FCF5008A954540054247B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 29B97313FDCFA39411CA2CEA /* Project object */;
+}

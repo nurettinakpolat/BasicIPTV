@@ -22,4 +22,11 @@
  */
 - (NSString *)formattedTimeRangeWithOffset:(NSInteger)offsetHours;
 
+/**
+ * Safely extracts hasArchive value from a program object (VLCProgram or NSDictionary)
+ * @param programObject Either a VLCProgram instance or an NSDictionary containing program data
+ * @return BOOL value indicating if the program has archive/catchup available
+ */
++ (BOOL)hasArchiveForProgramObject:(id)programObject;
+
 @end 

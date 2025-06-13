@@ -1,13 +1,18 @@
 #import "VLCOverlayView+ContextMenu.h"
+
+#if TARGET_OS_OSX
 #import "VLCOverlayView_Private.h"
 #import "VLCOverlayView+PlayerControls.h"
 #import "VLCSubtitleSettings.h"
+#import "VLCDataManager.h"
 #import <objc/runtime.h>
 #import "VLCOverlayView+Utilities.h"
+#import "VLCOverlayView+Glassmorphism.h"
 #import <math.h>
 #import "VLCSliderControl.h"
 #import "VLCOverlayView+Globals.h"
 #import "VLCOverlayView+ViewModes.h"
+#import "VLCProgram.h"
 
 @implementation VLCOverlayView (ContextMenu)
 
@@ -514,22 +519,47 @@
     
     // Handle 'V' key to cycle through views
     if (key == 'v' || key == 'V') {
-        // Cycle through view modes: Stacked, Grid, List
-        currentViewMode = (currentViewMode + 1) % 3;
+        // Get current view mode for this specific category
+        BOOL isCurrentlyGrid = [self isGridViewActiveForCategory:self.selectedCategoryIndex];
+        BOOL isCurrentlyStacked = [self isStackedViewActiveForCategory:self.selectedCategoryIndex];
         
-        // Update view mode based on currentViewMode
-        switch (currentViewMode) {
+        // Debug logging
+        NSLog(@"🔄 V KEY PRESSED: Category %ld, CurrentGrid=%@, CurrentStacked=%@", 
+              (long)self.selectedCategoryIndex, 
+              isCurrentlyGrid ? @"YES" : @"NO", 
+              isCurrentlyStacked ? @"YES" : @"NO");
+        
+        // Determine current mode: 0=Stacked, 1=Grid, 2=List
+        NSInteger currentCategoryViewMode;
+        if (isCurrentlyStacked) {
+            currentCategoryViewMode = 0;
+        } else if (isCurrentlyGrid) {
+            currentCategoryViewMode = 1;
+        } else {
+            currentCategoryViewMode = 2; // List
+        }
+        
+        // Cycle to next view mode: Stacked → Grid → List → Stacked
+        NSInteger nextViewMode = (currentCategoryViewMode + 1) % 3;
+        
+        NSLog(@"🔄 VIEW MODE CYCLE: Current=%ld, Next=%ld", (long)currentCategoryViewMode, (long)nextViewMode);
+        
+        // Apply the new view mode using category-specific methods
+        switch (nextViewMode) {
             case 0: // Stacked
-            isGridViewActive = NO;
-                isStackedViewActive = YES;
+                NSLog(@"🔄 Setting to STACKED mode");
+                [self setGridViewActive:NO forCategory:self.selectedCategoryIndex];
+                [self setStackedViewActive:YES forCategory:self.selectedCategoryIndex];
                 break;
             case 1: // Grid
-                isGridViewActive = YES;
-                isStackedViewActive = NO;
+                NSLog(@"🔄 Setting to GRID mode");
+                [self setGridViewActive:YES forCategory:self.selectedCategoryIndex];
+                [self setStackedViewActive:NO forCategory:self.selectedCategoryIndex];
                 break;
             case 2: // List
-                isGridViewActive = NO;
-                isStackedViewActive = NO;
+                NSLog(@"🔄 Setting to LIST mode");
+                [self setGridViewActive:NO forCategory:self.selectedCategoryIndex];
+                [self setStackedViewActive:NO forCategory:self.selectedCategoryIndex];
                 break;
             }
             
@@ -706,7 +736,7 @@
                     [self saveSettingsState];
                     
                     // Load EPG data
-                    [self loadEpgData];
+                    [[VLCDataManager sharedManager] loadEPGFromURL:self.epgUrl];
                 }
             }
             [self setNeedsDisplay:YES];
@@ -877,6 +907,294 @@
                 [self setNeedsDisplay:YES];
                 break;
                 
+            case NSLeftArrowFunctionKey:
+            case NSRightArrowFunctionKey:
+                // Seeking: ±10 seconds for movies, ±1 minute for timeshift (server limitation)
+                if (self.player) {
+                    // Check if we're playing content that supports seeking
+                    BOOL canSeek = NO;
+                    
+                    // Check if it's movie content (always seekable with normal VLC seeking)
+                    BOOL isMovieContent = (self.selectedCategoryIndex == CATEGORY_MOVIES) ||
+                                         (self.selectedCategoryIndex == CATEGORY_SERIES) ||
+                                         (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]);
+                    
+                    // Check if it's timeshift content (needs URL-based seeking)
+                    BOOL isTimeshiftContent = [self isCurrentlyPlayingTimeshift];
+                    
+                    // Check if current channel supports timeshift
+                    VLCChannel *currentChannel = self.tmpCurrentChannel;
+                    BOOL channelSupportsTimeshift = (currentChannel && currentChannel.supportsCatchup);
+                    
+                    canSeek = isMovieContent || isTimeshiftContent || channelSupportsTimeshift;
+                    
+                    //NSLog(@"🔍 SEEKING: Debug - player exists: %@, canSeek: %@, movie: %@, timeshift: %@, channel supports: %@", 
+                    //      self.player ? @"YES" : @"NO", canSeek ? @"YES" : @"NO",
+                    //      isMovieContent ? @"YES" : @"NO", 
+                    //      isTimeshiftContent ? @"YES" : @"NO", 
+                    //      channelSupportsTimeshift ? @"YES" : @"NO");
+                    
+                    if (canSeek) {
+                        // Determine if we need URL-based seeking (timeshift) or normal VLC seeking (movies)
+                        if (isTimeshiftContent) {
+                            // Use URL-based seeking for timeshift content
+                            NSLog(@"🔄 SEEKING: Using URL-based timeshift seeking");
+                            
+                            // Get current URL
+                            NSString *currentUrl = [self.player.media.url absoluteString];
+                            if (!currentUrl) {
+                                NSLog(@"❌ SEEKING: No current URL for timeshift seeking");
+                                break;
+                            }
+                            
+                            // Extract timeshift start time from URL
+                            NSDate *timeshiftStartTime = [self extractTimeshiftStartTimeFromUrl:currentUrl];
+                            if (!timeshiftStartTime) {
+                                NSLog(@"❌ SEEKING: Could not extract timeshift start time from URL");
+                                break;
+                            }
+                            
+                            // Convert timeshift start time back to local time (for calculation)
+                            NSTimeInterval epgAdjustment = self.epgTimeOffsetHours * 3600.0;
+                            timeshiftStartTime = [timeshiftStartTime dateByAddingTimeInterval:epgAdjustment];
+                            
+                            // Get current playback position
+                            VLCTime *currentTime = [self.player time];
+                            if (!currentTime) {
+                                NSLog(@"❌ SEEKING: No current time from player");
+                                break;
+                            }
+                            
+                            // Calculate current actual play time (local time)
+                            NSTimeInterval currentSeconds = [currentTime intValue] / 1000.0;
+                            NSDate *currentPlayTime = [timeshiftStartTime dateByAddingTimeInterval:currentSeconds];
+                            
+                            // For timeshift, use minute-level increments since server only supports minute precision
+                            NSTimeInterval seekAmount = 60.0; // 1 minute (timeshift servers typically only support minute precision)
+                            NSDate *targetTime;
+                            
+                            if (key == NSLeftArrowFunctionKey) {
+                                targetTime = [currentPlayTime dateByAddingTimeInterval:-seekAmount];
+                                NSLog(@"⏪ SEEKING: Timeshift left arrow - seeking backward 1 minute");
+                            } else {
+                                targetTime = [currentPlayTime dateByAddingTimeInterval:seekAmount];
+                                
+                                // For forward seeking, allow some buffer before live position (2 minutes)
+                                NSDate *currentRealTime = [NSDate date];
+                                NSTimeInterval epgOffsetSeconds = -self.epgTimeOffsetHours * 3600.0;
+                                NSDate *maxAllowedTime = [currentRealTime dateByAddingTimeInterval:epgOffsetSeconds - 120.0]; // 2 minute buffer
+                                
+                                if ([targetTime compare:maxAllowedTime] == NSOrderedDescending) {
+                                    NSLog(@"⚠️ SEEKING: Forward seek target (%@) too close to live position (%@), cannot seek forward", 
+                                          targetTime, maxAllowedTime);
+                                    NSLog(@"❌ SEEKING: Cannot seek forward, too close to live position");
+                                    break;
+                                }
+                                
+                                //NSLog(@"⏩ SEEKING: Timeshift right arrow - seeking forward 1 minute (target: %@, max allowed: %@)", 
+                                //      targetTime, maxAllowedTime);
+                            }
+                            
+                            // Check if the target time is significantly different from current time
+                            NSTimeInterval timeDifference = [targetTime timeIntervalSinceDate:currentPlayTime];
+                            //NSLog(@"🔍 SEEKING: Time difference: %.1f seconds", timeDifference);
+                            
+                            if (ABS(timeDifference) < 5.0) {
+                                NSLog(@"⚠️ SEEKING: Time difference too small (%.1f seconds), skipping seek", timeDifference);
+                                break;
+                            }
+                            
+                            // Apply EPG offset for URL generation
+                            NSTimeInterval epgOffsetForUrl = -self.epgTimeOffsetHours * 3600.0;
+                            NSDate *timeshiftUrlTime = [targetTime dateByAddingTimeInterval:epgOffsetForUrl];
+                            
+                            // Generate new timeshift URL
+                            NSString *newTimeshiftUrl = [self generateNewTimeshiftUrlFromCurrentUrl:currentUrl newStartTime:timeshiftUrlTime];
+                            
+                            //NSLog(@"🔍 SEEKING: URL generation - current: %@", currentUrl);
+                            //NSLog(@"🔍 SEEKING: URL generation - new timeshift time: %@", timeshiftUrlTime);
+                            //NSLog(@"🔍 SEEKING: URL generation - new URL: %@", newTimeshiftUrl);
+                            
+                            if (newTimeshiftUrl) {
+                                NSLog(@"✅ SEEKING: Generated new timeshift URL for seeking");
+                                
+                                // Stop current playback
+                                [self.player stop];
+                                
+                                // Brief pause to allow VLC to reset
+                                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                                    // Create media object with new timeshift URL
+                                    NSURL *url = [NSURL URLWithString:newTimeshiftUrl];
+                                    VLCMedia *media = [VLCMedia mediaWithURL:url];
+                                    
+                                    if (media) {
+                                        // Set the media to the player
+                                        [self.player setMedia:media];
+                                        
+                                        // Start playing
+                                        [self.player play];
+                                        
+                                        // Show player controls briefly
+                                        extern BOOL playerControlsVisible;
+                                        playerControlsVisible = YES;
+                                        [self resetPlayerControlsTimer];
+                                        
+                                        // Save the new timeshift URL
+                                        [self saveLastPlayedChannelUrl:newTimeshiftUrl];
+                                        
+                                        // Trigger UI update
+                                        [self setNeedsDisplay:YES];
+                                        
+                                        NSLog(@"✅ SEEKING: Successfully started timeshift seeking");
+                                    } else {
+                                        NSLog(@"❌ SEEKING: Failed to create media from timeshift URL");
+                                    }
+                                });
+                            } else {
+                                NSLog(@"❌ SEEKING: Failed to generate new timeshift URL");
+                            }
+                        } else {
+                            // Use normal VLC seeking for movie content
+                            NSLog(@"🔄 SEEKING: Using normal VLC seeking for movie content");
+                            
+                            VLCTime *currentTime = [self.player time];
+                            VLCTime *duration = [self.player.media length];
+                            
+                            if (currentTime) {
+                                NSInteger currentMs = currentTime.intValue;
+                                NSInteger seekAmountMs = 10000; // 10 seconds in milliseconds
+                                NSInteger newTimeMs = currentMs;
+                                
+                                if (key == NSLeftArrowFunctionKey) {
+                                    // Seek backward (-10 seconds) - don't go below 0
+                                    newTimeMs = MAX(0, currentMs - seekAmountMs);
+                                    NSLog(@"⏪ SEEKING: Left arrow - seeking backward 10s (from %ld to %ld ms)", (long)currentMs, (long)newTimeMs);
+                                } else if (key == NSRightArrowFunctionKey) {
+                                    // Seek forward (+10 seconds)
+                                    newTimeMs = currentMs + seekAmountMs;
+                                    // For regular content, limit to duration if available
+                                    if (duration && duration.intValue > 0) {
+                                        newTimeMs = MIN(duration.intValue, newTimeMs);
+                                    }
+                                    NSLog(@"⏩ SEEKING: Right arrow - seeking forward 10s (from %ld to %ld ms)", (long)currentMs, (long)newTimeMs);
+                                }
+                                
+                                if (newTimeMs != currentMs) {
+                                    // Perform the seek
+                                    VLCTime *newTime = [VLCTime timeWithInt:(int)newTimeMs];
+                                    [self.player setTime:newTime];
+                                    
+                                    // Show player controls briefly to show seek position
+                                    extern BOOL playerControlsVisible;
+                                    playerControlsVisible = YES;
+                                    [self resetPlayerControlsTimer];
+                                    
+                                    // Trigger UI update
+                                    [self setNeedsDisplay:YES];
+                                    
+                                    NSLog(@"✅ SEEKING: Successfully seeked to %ld ms", (long)newTimeMs);
+                                } else {
+                                    NSLog(@"⚠️ SEEKING: No change needed (same time)");
+                                }
+                            } else {
+                                NSLog(@"❌ SEEKING: No current time available from player");
+                            }
+                        }
+                    } else {
+                        NSLog(@"❌ SEEKING: Content does not support seeking (movie: %@, timeshift: %@, channel supports: %@)", 
+                              isMovieContent ? @"YES" : @"NO", 
+                              isTimeshiftContent ? @"YES" : @"NO", 
+                              channelSupportsTimeshift ? @"YES" : @"NO");
+                    }
+                } else {
+                    NSLog(@"❌ SEEKING: No player available");
+                }
+                break;
+                
+            case NSUpArrowFunctionKey:
+            case NSDownArrowFunctionKey:
+                // Channel navigation - works for TV channels (not movies/series)
+                // Determine if current category/group contains TV channels (not movies)
+                BOOL isInMovieCategory = (self.selectedCategoryIndex == CATEGORY_MOVIES) ||
+                                        (self.selectedCategoryIndex == CATEGORY_SERIES) ||
+                                        (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]);
+                
+                if (!isInMovieCategory) {
+                    // Get current group and its channels
+                    if (self.selectedGroupIndex >= 0 && self.selectedCategoryIndex >= 0) {
+                        NSArray *groups = [self getGroupsForCategoryIndex:self.selectedCategoryIndex];
+                        
+                        if (self.selectedGroupIndex < groups.count) {
+                            NSString *currentGroup = [groups objectAtIndex:self.selectedGroupIndex];
+                            NSArray *channelsInGroup = [self.channelsByGroup objectForKey:currentGroup];
+                            
+                            NSLog(@"🔄 CHANNEL NAV: Category=%ld, Group='%@', Channels=%ld, CurrentIndex=%ld", 
+                                  (long)self.selectedCategoryIndex, currentGroup, (long)channelsInGroup.count, (long)self.selectedChannelIndex);
+                            
+                            if (channelsInGroup && channelsInGroup.count > 0) {
+                                NSInteger currentIndex = self.selectedChannelIndex;
+                                NSInteger newIndex = currentIndex;
+                                
+                                if (key == NSUpArrowFunctionKey) {
+                                    // Go to previous channel
+                                    newIndex = currentIndex - 1;
+                                    if (newIndex < 0) {
+                                        newIndex = channelsInGroup.count - 1; // Wrap to last channel
+                                    }
+                                } else if (key == NSDownArrowFunctionKey) {
+                                    // Go to next channel
+                                    newIndex = currentIndex + 1;
+                                    if (newIndex >= channelsInGroup.count) {
+                                        newIndex = 0; // Wrap to first channel
+                                    }
+                                }
+                                
+                                if (newIndex != currentIndex && newIndex >= 0 && newIndex < channelsInGroup.count) {
+                                    // Update selection and play the new channel
+                                    self.selectedChannelIndex = newIndex;
+                                    VLCChannel *newChannel = [channelsInGroup objectAtIndex:newIndex];
+                                    
+                                    NSLog(@"🔄 CHANNEL NAV: %@ arrow pressed, switching from index %ld to %ld (%@)", 
+                                          (key == NSUpArrowFunctionKey) ? @"UP" : @"DOWN", 
+                                          (long)currentIndex, (long)newIndex, newChannel.name);
+                                    
+                                    // Set flag to indicate we're doing arrow key navigation
+                                    // This will prevent the channel list fade-out animation in playChannelWithUrl
+                                    self.isArrowKeyNavigating = YES;
+                                    
+                                    // Ensure channel list stays hidden and player controls stay visible
+                                    self.isChannelListVisible = NO;
+                                    extern BOOL playerControlsVisible;
+                                    playerControlsVisible = YES;
+                                    
+                                    [self playChannelWithUrl:newChannel.url];
+                                    
+                                    // Reset flag after a brief delay to allow playChannelWithUrl to complete
+                                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                                        self.isArrowKeyNavigating = NO;
+                                    });
+                                    
+                                    // Reset auto-hide timer for player controls
+                                    [self resetPlayerControlsTimer];
+                                    
+                                    [self setNeedsDisplay:YES];
+                                } else {
+                                    NSLog(@"🔄 CHANNEL NAV: No navigation needed (same index or invalid)");
+                                }
+                            } else {
+                                NSLog(@"🔄 CHANNEL NAV: No channels in group '%@'", currentGroup);
+                            }
+                        } else {
+                            NSLog(@"🔄 CHANNEL NAV: Invalid group index %ld (max: %ld)", (long)self.selectedGroupIndex, (long)groups.count);
+                        }
+                    } else {
+                        NSLog(@"🔄 CHANNEL NAV: Invalid state - categoryIndex=%ld, groupIndex=%ld", (long)self.selectedCategoryIndex, (long)self.selectedGroupIndex);
+                    }
+                } else {
+                    NSLog(@"🔄 CHANNEL NAV: Arrow keys disabled - current category contains movies (category: %ld)", (long)self.selectedCategoryIndex);
+                }
+                break;
+                
             default:
                 break;
         }
@@ -1013,6 +1331,99 @@
                     [self setNeedsDisplay:YES];
                 }
                 return;
+            }
+            
+            // Handle glassmorphism sliders dragging (only when glassmorphism is enabled)
+            if ([self glassmorphismEnabled]) {
+                // Glassmorphism intensity slider dragging
+                if ([VLCSliderControl handleMouseDragged:point sliderRect:self.glassmorphismIntensitySliderRect sliderHandle:@"glassmorphismIntensity"]) {
+                    CGFloat value = [VLCSliderControl valueForPoint:point
+                                                       sliderRect:self.glassmorphismIntensitySliderRect
+                                                        minValue:0.0
+                                                        maxValue:1.0];
+                    
+                    if ([self glassmorphismIntensity] != value) {
+                        [self setGlassmorphismIntensity:value];
+                        [self saveThemeSettings];
+                        [self setNeedsDisplay:YES];
+                    }
+                    return;
+                }
+                
+                // Glassmorphism opacity slider dragging
+                if ([VLCSliderControl handleMouseDragged:point sliderRect:self.glassmorphismOpacitySliderRect sliderHandle:@"glassmorphismOpacity"]) {
+                    CGFloat value = [VLCSliderControl valueForPoint:point
+                                                       sliderRect:self.glassmorphismOpacitySliderRect
+                                                        minValue:0.0
+                                                        maxValue:2.0];
+                    
+                    if ([self glassmorphismOpacity] != value) {
+                        [self setGlassmorphismOpacity:value];
+                        [self saveThemeSettings];
+                        [self setNeedsDisplay:YES];
+                    }
+                    return;
+                }
+                
+                // Glassmorphism blur radius slider dragging
+                if ([VLCSliderControl handleMouseDragged:point sliderRect:self.glassmorphismBlurSliderRect sliderHandle:@"glassmorphismBlur"]) {
+                    CGFloat value = [VLCSliderControl valueForPoint:point
+                                                       sliderRect:self.glassmorphismBlurSliderRect
+                                                        minValue:0.0
+                                                        maxValue:50.0];
+                    
+                    if ([self glassmorphismBlurRadius] != value) {
+                        [self setGlassmorphismBlurRadius:value];
+                        [self saveThemeSettings];
+                        [self setNeedsDisplay:YES];
+                    }
+                    return;
+                }
+                
+                // Glassmorphism border width slider dragging
+                if ([VLCSliderControl handleMouseDragged:point sliderRect:self.glassmorphismBorderSliderRect sliderHandle:@"glassmorphismBorder"]) {
+                    CGFloat value = [VLCSliderControl valueForPoint:point
+                                                       sliderRect:self.glassmorphismBorderSliderRect
+                                                        minValue:0.0
+                                                        maxValue:5.0];
+                    
+                    if ([self glassmorphismBorderWidth] != value) {
+                        [self setGlassmorphismBorderWidth:value];
+                        [self saveThemeSettings];
+                        [self setNeedsDisplay:YES];
+                    }
+                    return;
+                }
+                
+                // Glassmorphism corner radius slider dragging
+                if ([VLCSliderControl handleMouseDragged:point sliderRect:self.glassmorphismCornerSliderRect sliderHandle:@"glassmorphismCorner"]) {
+                    CGFloat value = [VLCSliderControl valueForPoint:point
+                                                       sliderRect:self.glassmorphismCornerSliderRect
+                                                        minValue:0.0
+                                                        maxValue:20.0];
+                    
+                    if ([self glassmorphismCornerRadius] != value) {
+                        [self setGlassmorphismCornerRadius:value];
+                        [self saveThemeSettings];
+                        [self setNeedsDisplay:YES];
+                    }
+                    return;
+                }
+                
+                // Glassmorphism sanded effect slider dragging
+                if ([VLCSliderControl handleMouseDragged:point sliderRect:self.glassmorphismSandedSliderRect sliderHandle:@"glassmorphismSanded"]) {
+                    CGFloat value = [VLCSliderControl valueForPoint:point
+                                                       sliderRect:self.glassmorphismSandedSliderRect
+                                                        minValue:0.0
+                                                        maxValue:3.0];
+                    
+                    if ([self glassmorphismSandedIntensity] != value) {
+                        [self setGlassmorphismSandedIntensity:value];
+                        [self saveThemeSettings];
+                        [self setNeedsDisplay:YES];
+                    }
+                    return;
+                }
             }
         }
         
@@ -1339,24 +1750,11 @@
     CGFloat guidePanelWidth = programGuideWidth;
     CGFloat guidePanelHeight = self.bounds.size.height;
     
-    // Draw background with consistent semi-transparent black
+    // Draw background with glassmorphism effect to match the rest of the interface
     NSRect guidePanelRect = NSMakeRect(guidePanelX, 0, guidePanelWidth, guidePanelHeight);
     
-    // Use theme colors for program guide background
-    NSColor *programGuideStartColor, *programGuideEndColor;
-    if (self.themeChannelStartColor && self.themeChannelEndColor) {
-        // Make the program guide slightly darker than channel list
-        CGFloat darkAlpha = self.themeAlpha * 0.9; // Slightly more transparent
-        programGuideStartColor = [self.themeChannelStartColor colorWithAlphaComponent:darkAlpha];
-        programGuideEndColor = [self.themeChannelEndColor colorWithAlphaComponent:darkAlpha];
-    } else {
-        programGuideStartColor = [NSColor colorWithCalibratedRed:0.08 green:0.10 blue:0.14 alpha:0.65];
-        programGuideEndColor = [NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.65];
-    }
-    
-    NSGradient *programGuideGradient = [[NSGradient alloc] initWithStartingColor:programGuideStartColor endingColor:programGuideEndColor];
-    [programGuideGradient drawInRect:guidePanelRect angle:90];
-    [programGuideGradient release];
+    // Use glassmorphism background instead of solid gradient
+    [self drawGlassmorphismPanel:guidePanelRect opacity:0.6 cornerRadius:0];
     
     // No header with channel name
     NSMutableParagraphStyle *headerStyle = [[NSMutableParagraphStyle alloc] init];
@@ -1416,9 +1814,25 @@
         return;
     }
     
-    // Sort programs by start time
-    NSArray *sortedPrograms = [channel.programs sortedArrayUsingComparator:^NSComparisonResult(VLCProgram *a, VLCProgram *b) {
-        return [a.startTime compare:b.startTime];
+    // Sort programs by start time - safely handle both VLCProgram objects and dictionaries
+    NSArray *sortedPrograms = [channel.programs sortedArrayUsingComparator:^NSComparisonResult(id a, id b) {
+        NSDate *startTimeA = nil;
+        NSDate *startTimeB = nil;
+        
+        if ([a isKindOfClass:[VLCProgram class]]) {
+            startTimeA = [(VLCProgram *)a startTime];
+        } else if ([a isKindOfClass:[NSDictionary class]]) {
+            startTimeA = [(NSDictionary *)a objectForKey:@"startTime"];
+        }
+        
+        if ([b isKindOfClass:[VLCProgram class]]) {
+            startTimeB = [(VLCProgram *)b startTime];
+        } else if ([b isKindOfClass:[NSDictionary class]]) {
+            startTimeB = [(NSDictionary *)b objectForKey:@"startTime"];
+        }
+        
+        if (!startTimeA || !startTimeB) return NSOrderedSame;
+        return [startTimeA compare:startTimeB];
     }];
     
     // Get current time to highlight current program
@@ -1438,11 +1852,24 @@
         timeshiftPlayingProgram = [self getCurrentTimeshiftPlayingProgram];
         
         // Find the index of the timeshift playing program
-        if (timeshiftPlayingProgram && channel.programs) {
-            for (NSInteger i = 0; i < channel.programs.count; i++) {
-                VLCProgram *program = [channel.programs objectAtIndex:i];
-                if ([program.title isEqualToString:timeshiftPlayingProgram.title] &&
-                    [program.startTime isEqualToDate:timeshiftPlayingProgram.startTime]) {
+        // CRITICAL FIX: Search in sortedPrograms array, not unsorted channel.programs
+        if (timeshiftPlayingProgram && sortedPrograms) {
+            for (NSInteger i = 0; i < sortedPrograms.count; i++) {
+                id program = [sortedPrograms objectAtIndex:i];
+                NSString *programTitle = nil;
+                NSDate *programStartTime = nil;
+                
+                if ([program isKindOfClass:[VLCProgram class]]) {
+                    programTitle = [(VLCProgram *)program title];
+                    programStartTime = [(VLCProgram *)program startTime];
+                } else if ([program isKindOfClass:[NSDictionary class]]) {
+                    programTitle = [(NSDictionary *)program objectForKey:@"title"];
+                    programStartTime = [(NSDictionary *)program objectForKey:@"startTime"];
+                }
+                
+                if (programTitle && programStartTime &&
+                    [programTitle isEqualToString:timeshiftPlayingProgram.title] &&
+                    [programStartTime isEqualToDate:timeshiftPlayingProgram.startTime]) {
                     timeshiftProgramIndex = i;
                     break;
                 }
@@ -1451,12 +1878,24 @@
     }
     
     // Find current live program index (for non-timeshift highlighting)
-    if (channel.programs && channel.programs.count > 0) {
-        for (NSInteger i = 0; i < channel.programs.count; i++) {
-            VLCProgram *program = [channel.programs objectAtIndex:i];
-            if (program.startTime && program.endTime) {
-                if ([adjustedNow compare:program.startTime] != NSOrderedAscending && 
-                    [adjustedNow compare:program.endTime] == NSOrderedAscending) {
+    // CRITICAL FIX: Search in sortedPrograms array, not unsorted channel.programs
+    if (sortedPrograms && sortedPrograms.count > 0) {
+        for (NSInteger i = 0; i < sortedPrograms.count; i++) {
+            id program = [sortedPrograms objectAtIndex:i];
+            NSDate *programStartTime = nil;
+            NSDate *programEndTime = nil;
+            
+            if ([program isKindOfClass:[VLCProgram class]]) {
+                programStartTime = [(VLCProgram *)program startTime];
+                programEndTime = [(VLCProgram *)program endTime];
+            } else if ([program isKindOfClass:[NSDictionary class]]) {
+                programStartTime = [(NSDictionary *)program objectForKey:@"startTime"];
+                programEndTime = [(NSDictionary *)program objectForKey:@"endTime"];
+            }
+            
+            if (programStartTime && programEndTime) {
+                if ([adjustedNow compare:programStartTime] != NSOrderedAscending && 
+                    [adjustedNow compare:programEndTime] == NSOrderedAscending) {
                     currentProgramIndex = i;
                     break;
                 }
@@ -1467,8 +1906,16 @@
     // If we couldn't find current program, find the next program
     if (currentProgramIndex == -1) {
         for (NSInteger i = 0; i < [sortedPrograms count]; i++) {
-            VLCProgram *program = [sortedPrograms objectAtIndex:i];
-            if ([adjustedNow compare:program.startTime] == NSOrderedAscending) {
+            id program = [sortedPrograms objectAtIndex:i];
+            NSDate *programStartTime = nil;
+            
+            if ([program isKindOfClass:[VLCProgram class]]) {
+                programStartTime = [(VLCProgram *)program startTime];
+            } else if ([program isKindOfClass:[NSDictionary class]]) {
+                programStartTime = [(NSDictionary *)program objectForKey:@"startTime"];
+            }
+            
+            if (programStartTime && [adjustedNow compare:programStartTime] == NSOrderedAscending) {
                 currentProgramIndex = i;
                 break;
             }
@@ -1591,7 +2038,7 @@
             descColor = [NSColor colorWithCalibratedWhite:0.9 alpha:1.0];
         } else if (i == currentProgramIndex) {
             // Current live program gets theme-based highlight colors
-            if (program.hasArchive) {
+            if ([VLCProgram hasArchiveForProgramObject:program]) {
                 // Current program with catch-up: use theme colors with green tint
                 if (self.currentTheme == VLC_THEME_GREEN) {
                     cardBgColor = [NSColor colorWithCalibratedRed:0.08 green:0.25 blue:0.15 alpha:0.6];
@@ -1627,7 +2074,7 @@
             timeColor = [NSColor colorWithCalibratedRed:0.6 green:0.9 blue:1.0 alpha:1.0];
             titleColor = [NSColor whiteColor];
             descColor = [NSColor colorWithCalibratedWhite:0.85 alpha:1.0];
-        } else if (program.hasArchive) {
+        } else if ([VLCProgram hasArchiveForProgramObject:program]) {
             // Non-current program with catch-up: theme-based light tint
             if (self.currentTheme == VLC_THEME_GREEN) {
                 cardBgColor = [NSColor colorWithCalibratedRed:0.08 green:0.18 blue:0.12 alpha:0.5];
@@ -1695,7 +2142,22 @@
         CGFloat descHeight = 18;
         
         // Draw time at the top
-        NSString *timeString = [program formattedTimeRangeWithOffset:self.epgTimeOffsetHours];
+        NSString *timeString = nil;
+        if ([program isKindOfClass:[VLCProgram class]]) {
+            timeString = [(VLCProgram *)program formattedTimeRangeWithOffset:self.epgTimeOffsetHours];
+        } else if ([program isKindOfClass:[NSDictionary class]]) {
+            // For dictionary objects, create a basic time string
+            NSDate *startTime = [(NSDictionary *)program objectForKey:@"startTime"];
+            NSDate *endTime = [(NSDictionary *)program objectForKey:@"endTime"];
+            if (startTime && endTime) {
+                NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+                [formatter setDateFormat:@"HH:mm"];
+                NSString *startStr = [formatter stringFromDate:startTime];
+                NSString *endStr = [formatter stringFromDate:endTime];
+                timeString = [NSString stringWithFormat:@"%@ - %@", startStr, endStr];
+                [formatter release];
+            }
+        }
         if (!timeString) {
             timeString = @"";
         }
@@ -1713,17 +2175,29 @@
             NSParagraphStyleAttributeName: timeStyle
         };
         
+        // Reserve space for catchup icon if this program has archive
+        CGFloat timeRectWidth = entryRect.size.width - (padding * 2);
+        if ([VLCProgram hasArchiveForProgramObject:program]) {
+            timeRectWidth -= 35; // Reserve 35px for the clock icon and some spacing
+        }
+        
         NSRect timeRect = NSMakeRect(
             entryRect.origin.x + padding,
             entryRect.origin.y + entryHeight - timeHeight - padding,
-            entryRect.size.width - (padding * 2),
+            timeRectWidth,
             timeHeight
         );
         
         [timeString drawInRect:timeRect withAttributes:timeAttrs];
         
         // Draw title below time
-        NSString *titleString = program.title ? program.title : @"Unknown Program";
+        NSString *titleString = nil;
+        if ([program isKindOfClass:[VLCProgram class]]) {
+            titleString = [(VLCProgram *)program title];
+        } else if ([program isKindOfClass:[NSDictionary class]]) {
+            titleString = [(NSDictionary *)program objectForKey:@"title"];
+        }
+        if (!titleString) titleString = @"Unknown Program";
         
         NSDictionary *titleAttrs = @{
             NSFontAttributeName: [NSFont fontWithName:@"HelveticaNeue-Bold" size:14] ?: [NSFont boldSystemFontOfSize:14],
@@ -1741,7 +2215,12 @@
         [titleString drawInRect:titleRect withAttributes:titleAttrs];
         
         // Draw description at the bottom with extra padding from title
-        NSString *descText = program.programDescription;
+        NSString *descText = nil;
+        if ([program isKindOfClass:[VLCProgram class]]) {
+            descText = [(VLCProgram *)program programDescription];
+        } else if ([program isKindOfClass:[NSDictionary class]]) {
+            descText = [(NSDictionary *)program objectForKey:@"programDescription"];
+        }
         if (!descText) descText = @"No description available";
         if ([descText length] > 110) { // Allow longer descriptions
             descText = [[descText substringToIndex:107] stringByAppendingString:@"..."];
@@ -1777,34 +2256,56 @@
         [descText drawInRect:descRect withAttributes:descAttrs];
         
         // Draw catch-up indicator if available
-        if (program.hasArchive) {
-            // Draw a small "C" indicator in the top-right corner
+        if ([VLCProgram hasArchiveForProgramObject:program]) {
+            // Draw clock icon positioned near top of entry
             NSRect catchupIndicatorRect = NSMakeRect(
-                entryRect.origin.x + entryRect.size.width - 25,
+                entryRect.origin.x + entryRect.size.width - 30,
                 entryRect.origin.y + entryHeight - 20,
-                18,
-                15
+                20,
+                16
             );
             
-            // Draw background circle for the indicator
-            NSBezierPath *indicatorBg = [NSBezierPath bezierPathWithOvalInRect:catchupIndicatorRect];
-            [[NSColor colorWithCalibratedRed:0.2 green:0.6 blue:0.3 alpha:0.8] set];
+            // Check if this program is being hovered for catchup
+            extern NSInteger hoveredCatchupProgramIndex;
+            BOOL isHovered = (hoveredCatchupProgramIndex == i);
+            
+            // Draw background with hover effect
+            NSColor *bgColor, *borderColor, *iconColor;
+            if (isHovered) {
+                // Hover state - brighter and more prominent
+                bgColor = [NSColor colorWithCalibratedRed:0.3 green:0.7 blue:0.4 alpha:1.0];
+                borderColor = [NSColor colorWithWhite:1.0 alpha:1.0];
+                iconColor = [NSColor whiteColor];
+            } else {
+                // Normal state - completely opaque
+                bgColor = [NSColor colorWithCalibratedRed:0.2 green:0.6 blue:0.3 alpha:1.0];
+                borderColor = [NSColor colorWithWhite:1.0 alpha:1.0];
+                iconColor = [NSColor whiteColor];
+            }
+            
+            // Draw background
+            NSBezierPath *indicatorBg = [NSBezierPath bezierPathWithRoundedRect:catchupIndicatorRect xRadius:3 yRadius:3];
+            [bgColor set];
             [indicatorBg fill];
             
-            // Draw "C" text
+            // Draw border
+            [borderColor set];
+            NSBezierPath *borderPath = [NSBezierPath bezierPathWithRoundedRect:catchupIndicatorRect xRadius:3 yRadius:3];
+            [borderPath setLineWidth:isHovered ? 1.5 : 1.0];
+            [borderPath stroke];
+            
+            // Draw clock symbol inside
+            NSMutableParagraphStyle *iconStyle = [[NSMutableParagraphStyle alloc] init];
+            [iconStyle setAlignment:NSTextAlignmentCenter];
+            
             NSDictionary *catchupTextAttrs = @{
-                NSFontAttributeName: [NSFont fontWithName:@"HelveticaNeue-Bold" size:10] ?: [NSFont boldSystemFontOfSize:10],
-                NSForegroundColorAttributeName: [NSColor whiteColor]
+                NSFontAttributeName: [NSFont systemFontOfSize:isHovered ? 13 : 12],
+                NSForegroundColorAttributeName: iconColor,
+                NSParagraphStyleAttributeName: iconStyle
             };
             
-            NSRect catchupTextRect = NSMakeRect(
-                catchupIndicatorRect.origin.x + 5,
-                catchupIndicatorRect.origin.y + 2,
-                catchupIndicatorRect.size.width - 10,
-                catchupIndicatorRect.size.height - 4
-            );
-            
-            [@"C" drawInRect:catchupTextRect withAttributes:catchupTextAttrs];
+            [@"⏱" drawInRect:catchupIndicatorRect withAttributes:catchupTextAttrs];
+            [iconStyle release];
         }
         
         // If it's the current program, draw a little indicator
@@ -1816,7 +2317,7 @@
                 entryHeight
             );
             
-            if (program.hasArchive) {
+            if ([VLCProgram hasArchiveForProgramObject:program]) {
                 // Current program with catch-up: green-blue indicator
                 [[NSColor colorWithCalibratedRed:0.3 green:0.8 blue:0.6 alpha:0.8] set];
             } else {
@@ -2613,6 +3114,7 @@
 }
 // Improved simpleChannelIndexAtPoint method with exact boundary calculations
 - (NSInteger)simpleChannelIndexAtPoint:(NSPoint)point {
+    //NSLog(@"🚨 CONTEXTMENU DEBUG: simpleChannelIndexAtPoint called with point=(%.1f,%.1f), category=%ld", point.x, point.y, (long)self.selectedCategoryIndex);
     // Determine which region the mouse is in
     CGFloat catWidth = 200;
     CGFloat groupWidth = 250;
@@ -2623,7 +3125,10 @@
     CGFloat movieInfoX;
     
     // Check if we're displaying movies in grid or stacked view (which should take full width)
-    BOOL isMovieViewMode = (isGridViewActive || isStackedViewActive) && 
+    // Use category-specific view modes instead of global flags (same as drawing code)
+    BOOL currentCategoryUsesGridView = [self isGridViewActiveForCategory:self.selectedCategoryIndex];
+    BOOL currentCategoryUsesStackedView = [self isStackedViewActiveForCategory:self.selectedCategoryIndex];
+    BOOL isMovieViewMode = (currentCategoryUsesGridView || currentCategoryUsesStackedView) && 
                           ((self.selectedCategoryIndex == CATEGORY_MOVIES) ||
                            (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]));
     
@@ -2646,15 +3151,17 @@
     
     // Check if the mouse is actually within the channel list area
     if (point.x < channelListStartX || point.x >= channelListEndX) {
-        //NSLog(@"🚫 Point outside channel list area - returning -1");
+        //NSLog(@"🚫 Point (%.1f,%.1f) outside channel list area [%.1f, %.1f] - returning -1", point.x, point.y, channelListStartX, channelListEndX);
         return -1; // Mouse is outside channel list area
+    } else {
+        //NSLog(@"✅ Point (%.1f,%.1f) IS within channel list area [%.1f, %.1f]", point.x, point.y, channelListStartX, channelListEndX);
     }
     
     // Use the correct row height based on view mode
     CGFloat rowHeight = 40; // Default for regular list view
     
     // Check if we're in stacked view mode for movies
-    if (isStackedViewActive && isMovieViewMode) {
+    if (currentCategoryUsesStackedView && isMovieViewMode) {
         rowHeight = 400; // Default stacked view row height
         
         // Apply the same row height adjustment logic as in drawStackedView
@@ -2666,7 +3173,11 @@
         }
     }
     
-    if (isStackedViewActive) {
+    //NSLog(@"🔍 VIEW MODE CHECK: currentCategoryUsesStackedView=%@, isMovieViewMode=%@", currentCategoryUsesStackedView ? @"YES" : @"NO", isMovieViewMode ? @"YES" : @"NO");
+    
+    // CRITICAL FIX: Search results should ALWAYS use regular list view, never stacked view
+    if (currentCategoryUsesStackedView && self.selectedCategoryIndex != CATEGORY_SEARCH) {
+        //NSLog(@"🔍 TAKING STACKED VIEW PATH");
         // Use the exact positioning logic from drawStackedView for stacked view
         NSRect stackedRect = NSMakeRect(channelListStartX, 0, channelListWidth, self.bounds.size.height);
         
@@ -2701,6 +3212,7 @@
         
         return -1;
     } else {
+        //NSLog(@"🔍 TAKING REGULAR LIST VIEW PATH");
         // Regular list view calculation - must match exactly how drawChannelList positions items
         
         // Get the appropriate scroll position (same logic as drawChannelList)
@@ -2711,31 +3223,66 @@
             currentScrollPosition = channelScrollPosition;
         }
         
-        // Get current channels
-        NSArray *channels = [self getChannelsForCurrentGroup];
+        // Get current channels - FIXED: Use search results when in search mode
+        NSArray *channels;
+        if (self.selectedCategoryIndex == CATEGORY_SEARCH) {
+            // Use search results instead of regular channels
+            channels = self.searchChannelResults;
+            //NSLog(@"🔍 SEARCH CHANNELS: Using searchChannelResults with %lu items", (unsigned long)(channels ? channels.count : 0));
+        } else {
+            channels = [self getChannelsForCurrentGroup];
+            //NSLog(@"🔍 REGULAR CHANNELS: Using getChannelsForCurrentGroup with %lu items", (unsigned long)(channels ? channels.count : 0));
+        }
+        
         if (!channels || channels.count == 0) {
-            //NSLog(@"🚫 No channels available");
+            //NSLog(@"🚫 No channels available - returning -1");
             return -1;
         }
         
         //NSLog(@"📋 Found %ld channels, using scroll position %.1f", (long)channels.count, currentScrollPosition);
         
-        // Calculate which channel the mouse is over using simplified Y calculation
-        // This matches exactly how channels are drawn in the drawChannelList method
-        CGFloat totalY = self.bounds.size.height - point.y + currentScrollPosition;
-        NSInteger channelIndex = (NSInteger)(totalY / rowHeight);
+        // Calculate which channel the mouse is over using the exact same logic as drawChannelList
+        // This must match exactly how channels are positioned in the drawing code
         
-        //NSLog(@"🎯 Calculated channel index: %ld (totalY=%.1f, rowHeight=%.1f)", 
-        //      (long)channelIndex, totalY, rowHeight);
+        // Apply scroll limit (same as drawing code)
+        CGFloat totalContentHeight = channels.count * rowHeight;
+        totalContentHeight += rowHeight; // Add extra space at bottom - EXACTLY like drawing code
         
-        // Validate the calculated index
-        if (channelIndex >= 0 && channelIndex < channels.count) {
-            //NSLog(@"✅ Found valid channel at index %ld", (long)channelIndex);
-            return channelIndex;
-        } else {
-            //NSLog(@"❌ Channel index %ld out of range (0-%ld)", (long)channelIndex, (long)(channels.count - 1));
-            return -1;
+        // Use EXACT same calculation as drawChannelList in TextFields.m
+        NSRect contentRect = NSMakeRect(channelListStartX, 0, channelListWidth, self.bounds.size.height);
+        CGFloat maxScroll = MAX(0, totalContentHeight - contentRect.size.height);
+        CGFloat scrollPosition = MIN(currentScrollPosition, maxScroll);
+        
+        // Check each channel's calculated position to find which one the mouse is over
+        //NSLog(@"🔧 MOUSE DEBUG: totalContentHeight=%.1f, maxScroll=%.1f, scrollPosition=%.1f", totalContentHeight, maxScroll, scrollPosition);
+        //NSLog(@"🔧 MOUSE DEBUG: contentRect={{%.1f, %.1f}, {%.1f, %.1f}}", contentRect.origin.x, contentRect.origin.y, contentRect.size.width, contentRect.size.height);
+        //NSLog(@"🔧 MOUSE DEBUG: point=(%.1f, %.1f), channels.count=%ld", point.x, point.y, (long)channels.count);
+        
+        for (NSInteger i = 0; i < channels.count; i++) {
+            // Use the EXACT same calculation as TextFields.m drawChannelList
+            CGFloat itemY = contentRect.origin.y + contentRect.size.height - ((i + 1) * rowHeight) + scrollPosition;
+            NSRect itemRect = NSMakeRect(channelListStartX, itemY, channelListWidth, rowHeight);
+            
+            // Only log the first few and the ones near the mouse
+            BOOL shouldLog = (i < 5) || (itemRect.origin.y <= point.y && point.y <= (itemRect.origin.y + rowHeight));
+            
+            if (shouldLog) {
+                //NSLog(@"🔍 Channel %ld (%@): itemY=%.1f, itemRect={{%.1f, %.1f}, {%.1f, %.1f}}", 
+                //      (long)i, 
+                //      (i < channels.count && [channels[i] respondsToSelector:@selector(name)]) ? [(VLCChannel*)channels[i] name] : @"Unknown",
+                //      itemY, itemRect.origin.x, itemRect.origin.y, itemRect.size.width, itemRect.size.height);
+            }
+            
+            // Check if the mouse point is within this channel's rect
+            if (NSPointInRect(point, itemRect)) {
+                //NSLog(@"🎯 FOUND MATCH! Channel %ld at itemRect={{%.1f, %.1f}, {%.1f, %.1f}}", 
+                //      (long)i, itemRect.origin.x, itemRect.origin.y, itemRect.size.width, itemRect.size.height);
+                return i;
+            }
         }
+        
+        //NSLog(@"❌ No channel found at point (%.1f, %.1f) after checking all %ld channels", point.x, point.y, (long)channels.count);
+        return -1;
     }
 }
 
@@ -2992,14 +3539,17 @@
         } else if (self.showEpgPanel) {
             [self drawEpgPanel:dirtyRect];
         } else {
-            // For content categories, either draw grid or channel list
-            if (isGridViewActive && ((self.selectedCategoryIndex == CATEGORY_MOVIES) || 
+            // For content categories, decide view mode using category-specific flags
+            BOOL currentCategoryUsesGridView = [self isGridViewActiveForCategory:self.selectedCategoryIndex];
+            BOOL currentCategoryUsesStackedView = [self isStackedViewActiveForCategory:self.selectedCategoryIndex];
+            
+            if (currentCategoryUsesGridView && ((self.selectedCategoryIndex == CATEGORY_MOVIES) || 
                                    (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]))) {
                 [self drawGridView:dirtyRect];
                 
                 // When movies become visible in grid view, check cache and fetch missing info
                 [self validateMovieInfoForVisibleItems];
-            } else if (isStackedViewActive && ((self.selectedCategoryIndex == CATEGORY_MOVIES) || 
+            } else if (currentCategoryUsesStackedView && ((self.selectedCategoryIndex == CATEGORY_MOVIES) || 
                                              (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]))) {
                 [self drawStackedView:dirtyRect];
                 
@@ -3106,25 +3656,9 @@
     CGFloat gridX = catWidth + groupWidth; // Start after categories and groups
     CGFloat gridWidth = self.bounds.size.width - gridX;
     
-    // Draw background for grid area using theme colors
+    // Draw glassmorphism background for grid area
     NSRect gridBackground = NSMakeRect(gridX, 0, gridWidth, self.bounds.size.height);
-    
-    // Use theme colors for grid background (consistent with other panels)
-    NSColor *gridStartColor, *gridEndColor;
-    if (self.themeChannelStartColor && self.themeChannelEndColor) {
-        // Use theme colors with proper alpha adjustment
-        CGFloat gridAlpha = self.themeAlpha * 0.85;
-        gridStartColor = [self.themeChannelStartColor colorWithAlphaComponent:gridAlpha];
-        gridEndColor = [self.themeChannelEndColor colorWithAlphaComponent:gridAlpha];
-    } else {
-        // Fallback colors consistent with theme system defaults
-        gridStartColor = [NSColor colorWithCalibratedRed:0.08 green:0.10 blue:0.14 alpha:0.7];
-        gridEndColor = [NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.7];
-    }
-    
-    NSGradient *gridGradient = [[NSGradient alloc] initWithStartingColor:gridStartColor endingColor:gridEndColor];
-    [gridGradient drawInRect:gridBackground angle:90];
-    [gridGradient release];
+    [self drawGlassmorphismPanel:gridBackground opacity:0.6 cornerRadius:0];
     
     // Define the content area (accounts for header space)
     NSRect contentRect = NSMakeRect(gridX, 0, gridWidth, self.bounds.size.height - 40);
@@ -3243,22 +3777,10 @@
 
 // Helper method to draw a single grid item
 - (void)drawGridItem:(VLCChannel *)channel atRect:(NSRect)itemRect highlight:(BOOL)highlight {
-    // Draw background
+    // Draw glassmorphism card background
     NSRect bgRect = NSInsetRect(itemRect, 1, 1);
-    if (highlight) {
-        [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.3] set];
-    } else {
-        [[NSColor colorWithCalibratedRed:0.15 green:0.15 blue:0.15 alpha:1.0] set];
-    }
-    
-    // Use rounded rect for better appearance
-    NSBezierPath *bgPath = [NSBezierPath bezierPathWithRoundedRect:bgRect xRadius:5 yRadius:5];
-    [bgPath fill];
-    
-    // Draw border
-    [[NSColor colorWithCalibratedWhite:0.4 alpha:1.0] set];
-    [bgPath setLineWidth:1.0];
-    [bgPath stroke];
+    CGFloat opacity = highlight ? 0.8 : 0.6;
+    [self drawGlassmorphismCard:bgRect opacity:opacity cornerRadius:12 borderWidth:1.0];
     
     // Calculate poster area (top part of the item)
     CGFloat posterHeight = itemRect.size.height * 0.8;
@@ -3367,7 +3889,7 @@
             [NSGraphicsContext saveGraphicsState];
             NSBezierPath *clipPath = [NSBezierPath bezierPathWithRoundedRect:posterRect xRadius:5 yRadius:5];
             [clipPath setClip];
-            [posterImage drawInRect:drawRect fromRect:NSZeroRect operation:NSCompositeSourceOver fraction:1.0];
+            [posterImage drawInRect:drawRect fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1.0];
             // Restore graphics state instead of resetting clip on the path
             [NSGraphicsContext restoreGraphicsState];
         }
@@ -3558,8 +4080,8 @@
         }
         
         if (channel.programs && channel.programs.count > 0) {
-            for (VLCProgram *program in channel.programs) {
-                if (program.hasArchive) {
+            for (id program in channel.programs) {
+                if ([VLCProgram hasArchiveForProgramObject:program]) {
                     return YES; // EPG-based catch-up support
                 }
             }
@@ -4084,8 +4606,24 @@
     
     // Check if catch-up is available for this program
     if (program.hasArchive) {
-        // Add "Play CatchUp" option
-        NSMenuItem *catchupItem = [[NSMenuItem alloc] initWithTitle:@"Play CatchUp" 
+        // Determine if this is the current program or a past program
+        NSDate *now = [NSDate date];
+        NSTimeInterval offsetSeconds = -self.epgTimeOffsetHours * 3600;
+        NSDate *adjustedNow = [now dateByAddingTimeInterval:offsetSeconds];
+        
+        NSTimeInterval timeSinceStart = [adjustedNow timeIntervalSinceDate:program.startTime];
+        NSTimeInterval timeSinceEnd = [adjustedNow timeIntervalSinceDate:program.endTime];
+        BOOL isCurrentProgram = (timeSinceStart >= 0 && timeSinceEnd < 0);
+        
+        // Choose appropriate menu text based on whether it's current or past program
+        NSString *menuTitle;
+        if (isCurrentProgram) {
+            menuTitle = @"Restart Program (Timeshift)";
+        } else {
+            menuTitle = @"Play CatchUp";
+        }
+        
+        NSMenuItem *catchupItem = [[NSMenuItem alloc] initWithTitle:menuTitle 
                                                             action:@selector(playCatchUpFromMenu:) 
                                                      keyEquivalent:@""];
         [catchupItem setTarget:self];
@@ -4287,3 +4825,5 @@
 }
 
 @end 
+
+#endif // TARGET_OS_OSX 

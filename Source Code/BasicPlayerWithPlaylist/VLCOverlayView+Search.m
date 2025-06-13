@@ -1,4 +1,6 @@
 #import "VLCOverlayView+Search.h"
+
+#if TARGET_OS_OSX
 #import "VLCOverlayView_Private.h"
 #import "VLCOverlayView+PlayerControls.h"
 #import "VLCSubtitleSettings.h"
@@ -179,5 +181,7 @@
 }
 
 @end
+
+#endif // TARGET_OS_OSX
 
 

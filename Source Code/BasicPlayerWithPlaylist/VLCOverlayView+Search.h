@@ -1,6 +1,8 @@
 #import "VLCOverlayView.h"
 #import "VLCChannel.h"
 
+#if TARGET_OS_OSX
+
 @interface VLCOverlayView (Search)
 
 // Search methods
@@ -19,3 +21,5 @@
 - (void)restoreOriginalLocationOfSearchedChannel;
 
 @end 
+
+#endif // TARGET_OS_OSX 

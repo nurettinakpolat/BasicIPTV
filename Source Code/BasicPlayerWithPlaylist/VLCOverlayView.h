@@ -1,10 +1,13 @@
+#import "PlatformBridge.h"
+
+#if TARGET_OS_OSX
+
 #import <Cocoa/Cocoa.h>
 
 @class VLCMediaPlayer;
 @class VLCChannel;
 @class VLCProgram;
 
-// Forward declarations to avoid circular imports
 @interface VLCOverlayView : NSView
 
 // Player instance
@@ -50,10 +53,10 @@
 @property (nonatomic, assign) NSInteger selectedGroupIndex;
 
 // UI components
-@property (nonatomic, retain) NSColor *backgroundColor;
-@property (nonatomic, retain) NSColor *hoverColor;
-@property (nonatomic, retain) NSColor *textColor;
-@property (nonatomic, retain) NSColor *groupColor;
+@property (nonatomic, retain) PlatformColor *backgroundColor;
+@property (nonatomic, retain) PlatformColor *hoverColor;
+@property (nonatomic, retain) PlatformColor *textColor;
+@property (nonatomic, retain) PlatformColor *groupColor;
 
 // Selection color customization
 @property (nonatomic, assign) CGFloat customSelectionRed;
@@ -61,14 +64,32 @@
 @property (nonatomic, assign) CGFloat customSelectionBlue;
 
 // Selection color slider rects for interaction
-@property (nonatomic, assign) NSRect selectionRedSliderRect;
-@property (nonatomic, assign) NSRect selectionGreenSliderRect;
-@property (nonatomic, assign) NSRect selectionBlueSliderRect;
+@property (nonatomic, assign) PlatformRect selectionRedSliderRect;
+@property (nonatomic, assign) PlatformRect selectionGreenSliderRect;
+@property (nonatomic, assign) PlatformRect selectionBlueSliderRect;
 
 // URL input
 @property (nonatomic, retain) NSString *inputUrlString;
 @property (nonatomic, assign) BOOL isTextFieldActive;
 @property (nonatomic, retain) VLCChannel *tmpCurrentChannel;
+
+// Arrow key navigation state
+@property (nonatomic, assign) BOOL isArrowKeyNavigating;
+
+#pragma mark - Startup Progress System (macOS)
+
+// Startup progress window and components
+@property (nonatomic, retain) NSView *startupProgressWindow;
+@property (nonatomic, retain) NSTextField *startupProgressTitle;
+@property (nonatomic, retain) NSTextField *startupProgressStep;
+@property (nonatomic, retain) NSProgressIndicator *startupProgressBar;
+@property (nonatomic, retain) NSTextField *startupProgressPercent;
+@property (nonatomic, retain) NSTextField *startupProgressDetails;
+
+// Startup progress tracking
+@property (nonatomic, assign) float currentStartupProgress;
+@property (nonatomic, retain) NSString *currentStartupStep;
+@property (nonatomic, assign) BOOL isStartupInProgress;
 
 // Main public methods
 - (void)loadChannelsFromM3uFile:(NSString *)path; 
@@ -81,17 +102,24 @@
 - (void)loadSettings;
 
 // Initialize with frame
-- (id)initWithFrame:(NSRect)frame;
+- (id)initWithFrame:(PlatformRect)frame;
+
+// Startup progress methods
+- (void)showStartupProgressWindow;
+- (void)hideStartupProgressWindow;
+- (void)updateStartupProgress:(float)progress step:(NSString *)step details:(NSString *)details;
+- (void)setStartupPhase:(NSString *)phase;
 
 @end
 
 // Import all the categories
 #import "VLCOverlayView+UI.h"
 #import "VLCOverlayView+ChannelManagement.h"
-#import "VLCOverlayView+EPG.h"
+// #import "VLCOverlayView+EPG.h" - REMOVED: Old EPG system eliminated
 #import "VLCOverlayView+Favorites.h"
-#import "VLCOverlayView+Caching.h"
 #import "VLCOverlayView+Utilities.h"
 #import "VLCOverlayView+PlayerControls.h"
+
+#endif // TARGET_OS_OSX
 
 

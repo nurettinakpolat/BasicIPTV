@@ -1,5 +1,7 @@
 #import "VLCOverlayView+Globals.h"
 
+#if TARGET_OS_OSX
+
 // Global variable definitions (from the original VLCOverlayView+UI.m)
 BOOL isFadingOut = NO;
 NSTimeInterval lastFadeOutTime = 0;
@@ -7,9 +9,12 @@ NSTimer *playerControlsTimer = nil;
 BOOL playerControlsVisible = NO; // Start with controls hidden
 
 // Grid view and UI state variables
-BOOL isGridViewActive = NO;
+BOOL isGridViewActive = NO; // Legacy global - will be phased out
 NSMutableDictionary *gridLoadingQueue = nil;
 NSOperationQueue *coverDownloadQueue = nil;
+
+// Category-specific view modes - Initialize with default values
+NSMutableDictionary *categoryViewModes = nil;
 
 // Hover state tracking
 BOOL isPersistingHoverState = NO;
@@ -25,4 +30,6 @@ BOOL isStackedViewActive = YES; // Start with stacked view
 
 // Scroll bar variables
 NSTimer *scrollBarFadeTimer = nil;
-float scrollBarAlpha = 0.0; 
+float scrollBarAlpha = 0.0;
+
+#endif // TARGET_OS_OSX 

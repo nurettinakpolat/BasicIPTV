@@ -1,4 +1,6 @@
 #import "VLCOverlayView+Utilities.h"
+
+#if TARGET_OS_OSX
 #import "VLCOverlayView_Private.h"
 
 @implementation VLCOverlayView (Utilities)
@@ -15,22 +17,26 @@
         
         // First very basic check - if pointer is NULL or invalid
         if (self.groupsByCategory == nil) {
+            NSLog(@"⚠️ [SAFE-ACCESS] groupsByCategory is nil, using fallback");
             return emptyGroups;
         }
         
-        // Check if it's a dictionary using respondsToSelector
-        if ([self.groupsByCategory respondsToSelector:@selector(objectForKey:)]) {
-            id groups = [self.groupsByCategory objectForKey:category];
-            
-            // Check if we got a valid array
-            if (groups && [groups respondsToSelector:@selector(count)]) {
-                return groups;
-            }
+        // Check if it's a dictionary using isKindOfClass - safer than respondsToSelector
+        if (![self.groupsByCategory isKindOfClass:[NSDictionary class]]) {
+            NSLog(@"⚠️ [SAFE-ACCESS] groupsByCategory is not a valid dictionary (class: %@), using fallback", [self.groupsByCategory class]);
+            return emptyGroups;
+        }
+        
+        id groups = [self.groupsByCategory objectForKey:category];
+        
+        // Check if we got a valid array
+        if (groups && [groups isKindOfClass:[NSArray class]]) {
+            return groups;
         }
         
         return emptyGroups;
     } @catch (NSException *exception) {
-        //NSLog(@"Exception in safeGroupsForCategory: %@", exception);
+        NSLog(@"Exception in safeGroupsForCategory: %@", exception);
         return emptyGroups;
     }
 }
@@ -45,11 +51,13 @@
     }
     
     @try {
-        if ([dict respondsToSelector:@selector(objectForKey:)]) {
+        if ([dict isKindOfClass:[NSDictionary class]]) {
             return [dict objectForKey:key];
+        } else {
+            NSLog(@"⚠️ [SAFE-ACCESS] Dictionary parameter is not a valid dictionary (class: %@)", [dict class]);
         }
     } @catch (NSException *exception) {
-        //NSLog(@"Exception getting value for key %@: %@", key, exception);
+        NSLog(@"Exception getting value for key %@: %@", key, exception);
     }
     
     return nil;
@@ -122,6 +130,72 @@
 }
 
 - (void)ensureDataStructuresInitialized {
+    NSLog(@"📺 macOS ensureDataStructuresInitialized - ensuring basic menu structure");
+    
+    // VLCDataManager handles the complex channel data, but we still need basic menu structure
+    @synchronized(self) {
+        @try {
+            // Initialize basic data structures even if VLCDataManager hasn't loaded data yet
+            if (!self.categories || [self.categories count] == 0) {
+                self.categories = @[@"SEARCH", @"FAVORITES", @"TV", @"MOVIES", @"SERIES", @"SETTINGS"];
+            }
+            
+            // Initialize groupsByCategory if empty
+            if (!self.groupsByCategory) {
+                self.groupsByCategory = [NSMutableDictionary dictionary];
+            }
+            
+            // Initialize empty arrays for categories (only if not already set)
+            for (NSString *category in self.categories) {
+                if (![self.groupsByCategory objectForKey:category]) {
+                    [self.groupsByCategory setObject:[NSMutableArray array] forKey:category];
+                }
+            }
+            
+            // Initialize other data structures if needed
+            if (!self.channels) self.channels = [NSMutableArray array];
+            if (!self.groups) self.groups = [NSMutableArray array];
+            if (!self.channelsByGroup) self.channelsByGroup = [NSMutableDictionary dictionary];
+            
+            // Initialize default values for selection
+            if (self.selectedCategoryIndex <= 0) {
+                self.selectedCategoryIndex = CATEGORY_FAVORITES;  // Default to FAVORITES category
+            }
+            if (self.selectedGroupIndex < 0) {
+                self.selectedGroupIndex = -1;
+            }
+            
+            // Initialize empty arrays for channel lists
+            if (!self.simpleChannelNames) self.simpleChannelNames = [NSArray array];
+            if (!self.simpleChannelUrls) self.simpleChannelUrls = [NSArray array];
+            
+            // Always ensure the Settings category structure
+            [self ensureSettingsGroups];
+            
+            NSLog(@"📺 Basic menu structure initialized - Categories: %lu, Settings groups available", 
+                  (unsigned long)[self.categories count]);
+            
+        } @catch (NSException *exception) {
+            NSLog(@"Exception in ensureDataStructuresInitialized: %@", exception);
+            
+            // Emergency fallback
+            self.channels = [NSMutableArray array];
+            self.groups = [NSMutableArray array];
+            self.channelsByGroup = [NSMutableDictionary dictionary];
+            self.groupsByCategory = [NSMutableDictionary dictionary];
+            self.categories = @[@"SEARCH", @"FAVORITES", @"TV", @"MOVIES", @"SERIES", @"SETTINGS"];
+            self.selectedCategoryIndex = CATEGORY_FAVORITES;
+            self.selectedGroupIndex = -1;
+            self.simpleChannelNames = [NSArray array];
+            self.simpleChannelUrls = [NSArray array];
+            
+            // Even in emergency, ensure Settings exists
+            [self ensureSettingsGroups];
+        }
+    }
+    return;
+    
+    /* OLD IMPLEMENTATION - NOW HANDLED BY VLCDataManager
     @synchronized(self) {
         @try {
             // Save existing Settings groups if available
@@ -216,6 +290,7 @@
             //NSLog(@"Emergency recreation of data structures");
         }
     }
+    */
 }
 
 // File paths
@@ -582,7 +657,8 @@
                             channel.group = [channelDict objectForKey:@"group"];
                             channel.logo = [channelDict objectForKey:@"logo"];
                             channel.channelId = [channelDict objectForKey:@"channelId"];
-                            channel.category = @"FAVORITES";
+                            // CRITICAL: Preserve original category (MOVIES, SERIES, TV) to maintain display format
+                            channel.category = [channelDict objectForKey:@"category"] ?: @"TV";
                             channel.programs = [NSMutableArray array];
                             
                             // Add to appropriate group
@@ -617,102 +693,7 @@
     }
 }
 
-- (NSInteger)simpleChannelIndexAtPoint:(NSPoint)point {
-    @try {
-        // This updated method will consider our three-panel layout
-        CGFloat mainMenuWidth = 200;
-        CGFloat submenuWidth = 250;
-        CGFloat rowHeight = 40;
-        
-        // FIXED: Handle search mode differently
-        if (self.selectedCategoryIndex == CATEGORY_SEARCH) {
-            // For search mode, check if we have search results and if point is in channel list area
-            if (point.x < mainMenuWidth + submenuWidth) {
-                return -1;
-            }
-            
-            // Use search channel results count instead of regular channel list
-            NSUInteger count = 0;
-            if (self.searchChannelResults && [self.searchChannelResults count] > 0) {
-                count = [self.searchChannelResults count];
-            } else {
-                // No search results - return -1
-                return -1;
-            }
-            
-            // Calculate which search result was hovered
-            CGFloat effectiveY = self.bounds.size.height - point.y;
-            NSInteger itemsScrolled = (NSInteger)floor(self.searchChannelScrollPosition / rowHeight);
-            NSInteger visibleIndex = (NSInteger)floor(effectiveY / rowHeight);
-            NSInteger index = visibleIndex + itemsScrolled;
-            
-            // Check the index bounds
-            if (index < 0 || index >= (NSInteger)count) {
-                return -1;
-            }
-            
-            return index;
-        }
-        
-        // If we don't have a selected group or not in the channel list area, return -1
-        if ((self.selectedCategoryIndex != CATEGORY_FAVORITES && self.selectedCategoryIndex != CATEGORY_TV && self.selectedCategoryIndex != CATEGORY_MOVIES && self.selectedCategoryIndex != CATEGORY_SERIES) || 
-            self.selectedGroupIndex < 0 || point.x < mainMenuWidth + submenuWidth) {
-            return -1;
-        }
-        
-        // Get appropriate groups based on category
-        NSArray *groups;
-        if (self.selectedCategoryIndex == CATEGORY_FAVORITES) {
-            groups = [self safeGroupsForCategory:@"FAVORITES"]; // Favorites groups
-        } else {
-            groups = [self safeTVGroups]; // TV groups
-        }
-        
-        // Validate the selected group index
-        if (self.selectedGroupIndex >= (NSInteger)groups.count) {
-            return -1;
-        }
-    
-        // Skip title area
-        if (point.y > self.bounds.size.height - rowHeight) {
-            return -1;
-        }
-        
-        // Calculate which channel was clicked - with proper scrolling adjustment
-        // We need to be precise about our calculations to avoid floating point precision issues
-        CGFloat effectiveY = self.bounds.size.height - point.y - rowHeight;
-        NSInteger itemsScrolled = (NSInteger)floor(channelScrollPosition / rowHeight);
-        NSInteger visibleIndex = (NSInteger)floor(effectiveY / rowHeight);
-        NSInteger index = visibleIndex + itemsScrolled;
-        
-        // Make sure the array and index are valid - defensively
-        if (self.simpleChannelNames == nil) {
-            return -1;
-        }
-    
-        if (![self.simpleChannelNames respondsToSelector:@selector(count)]) {
-            return -1;
-        }
-        
-        NSUInteger count = 0;
-        @try {
-            count = [self.simpleChannelNames count];
-        } @catch (NSException *exception) {
-            //NSLog(@"Exception getting channel names count: %@", exception);
-            return -1;
-        }
-        
-        // Check the index
-        if (index < 0 || index >= (NSInteger)count) {
-            return -1;
-        }
-        
-        return index;
-    } @catch (NSException *exception) {
-        //NSLog(@"Exception in simpleChannelIndexAtPoint: %@", exception);
-        return -1;
-    }
-}
+// REMOVED: Duplicate implementation - using the comprehensive one in ContextMenu.m instead
 
 - (CGFloat)totalChannelsHeight {
     CGFloat rowHeight = 40;
@@ -1090,7 +1071,31 @@
                     [channelDict setObject:(channel.group ? channel.group : @"") forKey:@"group"];
                     if (channel.logo) [channelDict setObject:channel.logo forKey:@"logo"];
                     if (channel.channelId) [channelDict setObject:channel.channelId forKey:@"channelId"];
-                    [channelDict setObject:@"FAVORITES" forKey:@"category"];
+                    // CRITICAL: Preserve original category (MOVIES, SERIES, TV) to maintain display format
+                    [channelDict setObject:(channel.category ? channel.category : @"TV") forKey:@"category"];
+                    
+                    // CRITICAL FIX: Save ALL timeshift/catchup properties
+                    if (channel.supportsCatchup) {
+                        [channelDict setObject:@(channel.supportsCatchup) forKey:@"supportsCatchup"];
+                        [channelDict setObject:@(channel.catchupDays) forKey:@"catchupDays"];
+                        if (channel.catchupSource) [channelDict setObject:channel.catchupSource forKey:@"catchupSource"];
+                        if (channel.catchupTemplate) [channelDict setObject:channel.catchupTemplate forKey:@"catchupTemplate"];
+                        
+                        // Debug: Log timeshift property saving
+                        NSLog(@"💾 [FAVORITES-TIMESHIFT] Saving timeshift properties for '%@': supportsCatchup=%@, catchupDays=%ld", 
+                              channel.name, channel.supportsCatchup ? @"YES" : @"NO", (long)channel.catchupDays);
+                    }
+                    
+                    // CRITICAL FIX: Save movie metadata properties
+                    if (channel.movieId) [channelDict setObject:channel.movieId forKey:@"movieId"];
+                    if (channel.movieDescription) [channelDict setObject:channel.movieDescription forKey:@"movieDescription"];
+                    if (channel.movieGenre) [channelDict setObject:channel.movieGenre forKey:@"movieGenre"];
+                    if (channel.movieDuration) [channelDict setObject:channel.movieDuration forKey:@"movieDuration"];
+                    if (channel.movieYear) [channelDict setObject:channel.movieYear forKey:@"movieYear"];
+                    if (channel.movieRating) [channelDict setObject:channel.movieRating forKey:@"movieRating"];
+                    if (channel.movieDirector) [channelDict setObject:channel.movieDirector forKey:@"movieDirector"];
+                    if (channel.movieCast) [channelDict setObject:channel.movieCast forKey:@"movieCast"];
+                    [channelDict setObject:@(channel.hasLoadedMovieInfo) forKey:@"hasLoadedMovieInfo"];
                     
                     [favoriteChannels addObject:channelDict];
                 }
@@ -1195,8 +1200,35 @@
                 channel.group = [channelDict objectForKey:@"group"];
                 channel.logo = [channelDict objectForKey:@"logo"];
                 channel.channelId = [channelDict objectForKey:@"channelId"];
-                channel.category = @"FAVORITES";
+                // CRITICAL: Preserve original category (MOVIES, SERIES, TV) to maintain display format
+                channel.category = [channelDict objectForKey:@"category"] ?: @"TV";
                 channel.programs = [NSMutableArray array];
+                
+                // CRITICAL FIX: Restore ALL timeshift/catchup properties
+                NSNumber *supportsCatchup = [channelDict objectForKey:@"supportsCatchup"];
+                if (supportsCatchup) {
+                    channel.supportsCatchup = [supportsCatchup boolValue];
+                    NSNumber *catchupDays = [channelDict objectForKey:@"catchupDays"];
+                    if (catchupDays) channel.catchupDays = [catchupDays integerValue];
+                    channel.catchupSource = [channelDict objectForKey:@"catchupSource"];
+                    channel.catchupTemplate = [channelDict objectForKey:@"catchupTemplate"];
+                    
+                    // Debug: Log timeshift property restoration
+                    NSLog(@"📺 [FAVORITES-TIMESHIFT] Restored timeshift properties for '%@': supportsCatchup=%@, catchupDays=%ld", 
+                          channel.name, channel.supportsCatchup ? @"YES" : @"NO", (long)channel.catchupDays);
+                }
+                
+                // CRITICAL FIX: Restore movie metadata properties
+                channel.movieId = [channelDict objectForKey:@"movieId"];
+                channel.movieDescription = [channelDict objectForKey:@"movieDescription"];
+                channel.movieGenre = [channelDict objectForKey:@"movieGenre"];
+                channel.movieDuration = [channelDict objectForKey:@"movieDuration"];
+                channel.movieYear = [channelDict objectForKey:@"movieYear"];
+                channel.movieRating = [channelDict objectForKey:@"movieRating"];
+                channel.movieDirector = [channelDict objectForKey:@"movieDirector"];
+                channel.movieCast = [channelDict objectForKey:@"movieCast"];
+                NSNumber *hasLoadedMovieInfo = [channelDict objectForKey:@"hasLoadedMovieInfo"];
+                if (hasLoadedMovieInfo) channel.hasLoadedMovieInfo = [hasLoadedMovieInfo boolValue];
                 
                 // Add to appropriate group
                 NSMutableArray *groupChannels = [self.channelsByGroup objectForKey:channel.group];
@@ -1358,4 +1390,27 @@
     return [string rangeOfCharacterFromSet:nonDigits].location == NSNotFound;
 }
 
+// Helper method to detect if a channel is a movie based on URL extensions
+- (BOOL)isMovieChannel:(VLCChannel *)channel {
+    if (!channel || !channel.url || channel.url.length == 0) return NO;
+    
+    NSString *lowerURL = [channel.url lowercaseString];
+    
+    // Common movie file extensions (same as VLCChannelManager and iOS version)
+    NSArray *movieExtensions = @[@".mp4", @".mkv", @".avi", @".mov", @".m4v", @".wmv", @".flv", 
+                                @".webm", @".ogv", @".3gp", @".m2ts", @".ts", @".vob", @".divx", 
+                                @".xvid", @".rmvb", @".asf", @".mpg", @".mpeg", @".m2v", @".mts"];
+    
+    // Check if URL ends with any movie extension (case insensitive)
+    for (NSString *extension in movieExtensions) {
+        if ([lowerURL hasSuffix:extension]) {
+            return YES;
+        }
+    }
+    
+    return NO;
+}
+
 @end 
+
+#endif // TARGET_OS_OSX 

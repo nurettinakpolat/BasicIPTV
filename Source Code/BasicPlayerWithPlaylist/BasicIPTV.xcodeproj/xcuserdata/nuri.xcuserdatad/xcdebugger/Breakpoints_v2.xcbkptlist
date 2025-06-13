@@ -142,9 +142,9 @@
             filePath = "VLCOverlayView+ChannelManagement.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1671"
-            endingLineNumber = "1671"
-            landmarkName = "-constructMovieApiUrlForChannel:"
+            startingLineNumber = "1670"
+            endingLineNumber = "1670"
+            landmarkName = "-extractMovieIdFromUrl:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -158,9 +158,9 @@
             filePath = "VLCOverlayView+ChannelManagement.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1674"
-            endingLineNumber = "1674"
-            landmarkName = "-constructMovieApiUrlForChannel:"
+            startingLineNumber = "1673"
+            endingLineNumber = "1673"
+            landmarkName = "-extractMovieIdFromUrl:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -174,9 +174,9 @@
             filePath = "VLCOverlayView+ChannelManagement.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1673"
-            endingLineNumber = "1673"
-            landmarkName = "-constructMovieApiUrlForChannel:"
+            startingLineNumber = "1672"
+            endingLineNumber = "1672"
+            landmarkName = "-extractMovieIdFromUrl:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -236,8 +236,8 @@
             filePath = "VLCOverlayView+ChannelManagement.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "803"
-            endingLineNumber = "803"
+            startingLineNumber = "802"
+            endingLineNumber = "802"
             landmarkName = "-processM3uContent:sourcePath:"
             landmarkType = "7">
          </BreakpointContent>
@@ -252,8 +252,8 @@
             filePath = "VLCOverlayView+ChannelManagement.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "806"
-            endingLineNumber = "806"
+            startingLineNumber = "805"
+            endingLineNumber = "805"
             landmarkName = "-processM3uContent:sourcePath:"
             landmarkType = "7">
          </BreakpointContent>
@@ -268,8 +268,8 @@
             filePath = "VLCOverlayView+ChannelManagement.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "823"
-            endingLineNumber = "823"
+            startingLineNumber = "822"
+            endingLineNumber = "822"
             landmarkName = "-processM3uContent:sourcePath:"
             landmarkType = "7">
          </BreakpointContent>
@@ -284,9 +284,9 @@
             filePath = "VLCOverlayView+ChannelManagement.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "2230"
-            endingLineNumber = "2230"
-            landmarkName = "-startEarlyPlaybackIfAvailable"
+            startingLineNumber = "2229"
+            endingLineNumber = "2229"
+            landmarkName = "-startMovieInfoRefresh"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -300,9 +300,9 @@
             filePath = "VLCOverlayView+ChannelManagement.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "2234"
-            endingLineNumber = "2234"
-            landmarkName = "-startEarlyPlaybackIfAvailable"
+            startingLineNumber = "2233"
+            endingLineNumber = "2233"
+            landmarkName = "-startMovieInfoRefresh"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -316,9 +316,9 @@
             filePath = "VLCOverlayView+ChannelManagement.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "2782"
-            endingLineNumber = "2782"
-            landmarkName = "-generateCatchupUrlForProgram:channel:"
+            startingLineNumber = "2781"
+            endingLineNumber = "2781"
+            landmarkName = "-saveCurrentPlaybackPosition"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -332,9 +332,9 @@
             filePath = "VLCOverlayView+ChannelManagement.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "2932"
-            endingLineNumber = "2932"
-            landmarkName = "-processCatchupInfoFromAPI:"
+            startingLineNumber = "2931"
+            endingLineNumber = "2931"
+            landmarkName = "-playCatchupUrl:seekToTime:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -348,9 +348,9 @@
             filePath = "VLCOverlayView+ChannelManagement.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "2935"
-            endingLineNumber = "2935"
-            landmarkName = "-processCatchupInfoFromAPI:"
+            startingLineNumber = "2934"
+            endingLineNumber = "2934"
+            landmarkName = "-playCatchupUrl:seekToTime:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -364,9 +364,9 @@
             filePath = "VLCOverlayView+ChannelManagement.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "2941"
-            endingLineNumber = "2941"
-            landmarkName = "-processCatchupInfoFromAPI:"
+            startingLineNumber = "2940"
+            endingLineNumber = "2940"
+            landmarkName = "-playCatchupUrl:seekToTime:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -380,9 +380,9 @@
             filePath = "VLCOverlayView+ChannelManagement.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "2940"
-            endingLineNumber = "2940"
-            landmarkName = "-processCatchupInfoFromAPI:"
+            startingLineNumber = "2939"
+            endingLineNumber = "2939"
+            landmarkName = "-playCatchupUrl:seekToTime:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -396,9 +396,9 @@
             filePath = "VLCOverlayView+ChannelManagement.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "2946"
-            endingLineNumber = "2946"
-            landmarkName = "-processCatchupInfoFromAPI:"
+            startingLineNumber = "2945"
+            endingLineNumber = "2945"
+            landmarkName = "-playCatchupUrl:seekToTime:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -412,9 +412,9 @@
             filePath = "VLCOverlayView+ChannelManagement.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "2969"
-            endingLineNumber = "2969"
-            landmarkName = "-processCatchupInfoFromAPI:"
+            startingLineNumber = "2968"
+            endingLineNumber = "2968"
+            landmarkName = "-constructLiveStreamsApiUrl"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -428,8 +428,8 @@
             filePath = "VLCOverlayView+ChannelManagement.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "819"
-            endingLineNumber = "819"
+            startingLineNumber = "818"
+            endingLineNumber = "818"
             landmarkName = "-processM3uContent:sourcePath:"
             landmarkType = "7">
          </BreakpointContent>
@@ -438,6 +438,38 @@
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
             uuid = "326D619A-021D-4D99-89EB-D6BA8DAB6F56"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCOverlayView+ChannelManagement.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "810"
+            endingLineNumber = "810"
+            landmarkName = "-processM3uContent:sourcePath:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "7022644E-9FBC-4F75-A252-57AA813B8231"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCOverlayView+ChannelManagement.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "2971"
+            endingLineNumber = "2971"
+            landmarkName = "-constructLiveStreamsApiUrl"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "81033BD2-9A2E-400A-BC2A-BEB3CEE8C95C"
             shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
@@ -453,32 +485,624 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "7022644E-9FBC-4F75-A252-57AA813B8231"
+            uuid = "5027428F-9F85-42CD-B91C-DD15543EC620"
             shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "VLCOverlayView+ChannelManagement.m"
+            filePath = "VLCUIOverlayView.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "2972"
-            endingLineNumber = "2972"
-            landmarkName = "-processCatchupInfoFromAPI:"
+            startingLineNumber = "712"
+            endingLineNumber = "712"
+            landmarkName = "-drawMacStyleChannelLogoiOS:channel:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "81033BD2-9A2E-400A-BC2A-BEB3CEE8C95C"
+            uuid = "5CC2D0E3-A718-4F85-8CA6-228A6199F608"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "526"
+            endingLineNumber = "526"
+            landmarkName = "-handlePlayerControlsTap:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "1BCFFAB6-A3C1-4BA0-8014-D975ADF18949"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "530"
+            endingLineNumber = "530"
+            landmarkName = "-handlePlayerControlsTap:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "602EE89A-F5CD-4A92-9BB0-442C4D776BAB"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "590"
+            endingLineNumber = "590"
+            landmarkName = "-drawGlassmorphismPaneliOS:opacity:cornerRadius:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "90CC5F34-11AF-460D-BFAA-7236C07A01D3"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "630"
+            endingLineNumber = "630"
+            landmarkName = "-getMacStyleChannelAndProgram:program:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "046C8E6A-4B39-4599-8291-95A90FF94531"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "666"
+            endingLineNumber = "666"
+            landmarkName = "-getMacStyleChannelAndProgram:program:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "CB276361-C3C4-4C34-846F-EA62D28512C3"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "665"
+            endingLineNumber = "665"
+            landmarkName = "-getMacStyleChannelAndProgram:program:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "E3CCCD51-7CEF-4127-AEE4-A41185674989"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "668"
+            endingLineNumber = "668"
+            landmarkName = "-getMacStyleChannelAndProgram:program:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "6529AE87-75D0-4CD6-A076-9876908C8D76"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "667"
+            endingLineNumber = "667"
+            landmarkName = "-getMacStyleChannelAndProgram:program:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "3F72BE03-B386-46FA-92AF-B10A27D151E7"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "681"
+            endingLineNumber = "681"
+            landmarkName = "-getMacStyleChannelAndProgram:program:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "A9BF9542-ED41-4998-B2BF-7003ECEA4202"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "680"
+            endingLineNumber = "680"
+            landmarkName = "-getMacStyleChannelAndProgram:program:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "0E301765-D60B-422F-B96D-63E6CB056A78"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "682"
+            endingLineNumber = "682"
+            landmarkName = "-getMacStyleChannelAndProgram:program:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "F29773F5-019E-4737-98D7-F19FEB9C4D47"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "679"
+            endingLineNumber = "679"
+            landmarkName = "-getMacStyleChannelAndProgram:program:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "50B762E9-BC8A-483A-AC9A-B72B2FA99843"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "635"
+            endingLineNumber = "635"
+            landmarkName = "-getMacStyleChannelAndProgram:program:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "B5F451F3-D4D4-4627-87A2-57A7D84C60E6"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "686"
+            endingLineNumber = "686"
+            landmarkName = "-getMacStyleChannelAndProgram:program:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "A64D8892-5A48-41A8-B71F-AB9E8FA4493E"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "5944"
+            endingLineNumber = "5944"
+            landmarkName = "-loadUrlButtonTapped:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "633058AF-1D5A-4EB6-8386-D6B3E248C442"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "631"
+            endingLineNumber = "631"
+            landmarkName = "-getMacStyleChannelAndProgram:program:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "99103DE7-9453-437B-8C86-10A6842465FC"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "669"
+            endingLineNumber = "669"
+            landmarkName = "-getMacStyleChannelAndProgram:program:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "2E76CFEA-FB78-4943-8210-80ADA5E4B659"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "1270"
+            endingLineNumber = "1270"
+            landmarkName = "-drawMacStyleControlButtonsiOS:contentStart:contentWidth:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "60DE2BA2-FB47-4285-94A2-6E65B2928106"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "1271"
+            endingLineNumber = "1271"
+            landmarkName = "-drawMacStyleControlButtonsiOS:contentStart:contentWidth:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "F6F495AD-CB37-4F35-BBEB-0687E557CEB1"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "1265"
+            endingLineNumber = "1265"
+            landmarkName = "-drawMacStyleControlButtonsiOS:contentStart:contentWidth:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "4193658E-7D3B-4805-8316-546504D6551F"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "1263"
+            endingLineNumber = "1263"
+            landmarkName = "-drawMacStyleControlButtonsiOS:contentStart:contentWidth:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "F6157A80-826A-42EB-B147-8461D7EB5074"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "661"
+            endingLineNumber = "661"
+            landmarkName = "-getMacStyleChannelAndProgram:program:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "66800C8E-9679-4E5A-88F6-F35E57EACD40"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "660"
+            endingLineNumber = "660"
+            landmarkName = "-getMacStyleChannelAndProgram:program:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "DE9A4611-C7A0-4C52-8C52-9A6919810BF5"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "617"
+            endingLineNumber = "617"
+            landmarkName = "-getMacStyleChannelAndProgram:program:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "D0D66AFA-B321-45B8-8583-D63AABC1D8BB"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "2863"
+            endingLineNumber = "2863"
+            landmarkName = "-setupView"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "D95BE993-A031-48D8-AF1A-C94EEF206909"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "2871"
+            endingLineNumber = "2871"
+            landmarkName = "-setupView"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "298878D0-C480-4608-9C5B-125BE66FDF78"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "8171"
+            endingLineNumber = "8171"
+            landmarkName = "-startAutoAlignmentTimer"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "A31EBE58-34F6-4631-B3BF-CC032ABD6634"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "2368"
+            endingLineNumber = "2368"
+            landmarkName = "-groupWidth"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "5735D163-DF67-4022-9E22-8612D21B1174"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "5855"
+            endingLineNumber = "5855"
+            landmarkName = "-createOrUpdateEPGLabel:inParent:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "69935E71-60DB-4990-A6CA-8A3F400D84FD"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "5804"
+            endingLineNumber = "5804"
+            landmarkName = "-createOrUpdateM3UTextField:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "0A3DE438-E5B3-45BB-9E8E-BFA7FFD2B09E"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "5892"
+            endingLineNumber = "5892"
+            landmarkName = "-createOrUpdateTimeOffsetButton:inParent:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "95E72D38-9227-4EE7-B40B-51AD1D4CA7FA"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "8033"
+            endingLineNumber = "8033"
+            landmarkName = "-handleChannelSwitchingGesture:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "4F445F68-D0C8-4DB1-86EA-C5F29984E7E1"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "12527"
+            endingLineNumber = "12527"
+            landmarkName = "-updateThemeColorsiOS"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "CF212348-168D-4E7D-B812-5533FDC81035"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "2545"
+            endingLineNumber = "2545"
+            landmarkName = "-getCachedChannelFont"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "CB60ACCB-B358-4107-9FB7-D02C1975EAB4"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCUIOverlayView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "15203"
+            endingLineNumber = "15203"
+            landmarkName = "-constructMovieApiUrlForChannel:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "6438F95B-2261-45B4-8A98-FB2DD19583C5"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCChannelManager.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "967"
+            endingLineNumber = "967"
+            landmarkName = "-updateInternalDataFromCachedChannels:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "3A8B8CDA-191B-4D27-A07F-57004FDC6030"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "VLCOverlayView+ChannelManagement.m"
+            filePath = "VLCUIOverlayView.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "812"
-            endingLineNumber = "812"
-            landmarkName = "-processM3uContent:sourcePath:"
+            startingLineNumber = "9170"
+            endingLineNumber = "9170"
+            landmarkName = "-ensureDataStructuresInitialized"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "A2B79899-BF81-4795-B953-537F4569676B"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VLCOverlayView+Utilities.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "139"
+            endingLineNumber = "139"
+            landmarkName = "-ensureDataStructuresInitialized"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import "PlatformBridge.h"
 
 @class VLCProgram;
 
@@ -30,7 +31,11 @@
 @property (nonatomic, retain) NSString *movieCast;
 @property (nonatomic, assign) BOOL hasLoadedMovieInfo;
 @property (nonatomic, assign) BOOL hasStartedFetchingMovieInfo;
+#if TARGET_OS_OSX
 @property (nonatomic, retain) NSImage *cachedPosterImage;
+#else
+@property (nonatomic, retain) UIImage *cachedPosterImage;
+#endif
 
 /**
  * Returns the program that's currently airing on this channel

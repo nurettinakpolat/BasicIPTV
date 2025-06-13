@@ -1,10 +1,13 @@
 #import "VLCOverlayView+ChannelManagement.h"
+
+#if TARGET_OS_OSX
 #import "VLCOverlayView_Private.h"
 #import "VLCOverlayView+Utilities.h"
-#import "VLCOverlayView+Caching.h"
 #import "DownloadManager.h"
 #import "VLCSubtitleSettings.h"
+#import "VLCDataManager.h"
 #import <objc/runtime.h>
+#import <CommonCrypto/CommonDigest.h>
 
 // Global variable to track channel loading retry count
 static NSInteger gChannelLoadRetryCount = 0;
@@ -17,17 +20,108 @@ static char tempEarlyPlaybackChannelKey;
 
 @implementation VLCOverlayView (ChannelManagement)
 
+#pragma mark - Cache Loading Method (Compatibility)
+
+- (BOOL)loadChannelsFromCache:(NSString *)sourcePath {
+    NSLog(@"📺 macOS loadChannelsFromCache for: %@ - delegating to universal VLCDataManager", sourcePath);
+    
+    // UNIVERSAL APPROACH: Delegate entirely to VLCDataManager instead of duplicating logic
+    VLCDataManager *dataManager = [VLCDataManager sharedManager];
+    if (!dataManager.delegate) {
+        dataManager.delegate = self;
+    }
+    
+    // Use the universal channel loading method which handles caching internally
+    [dataManager loadChannelsFromURL:sourcePath];
+    
+    return YES; // Loading initiated via universal manager
+}
+
+- (NSString *)md5HashForString:(NSString *)string {
+    // Create a hash of the string for filename use
+    NSData *data = [string dataUsingEncoding:NSUTF8StringEncoding];
+    unsigned char result[16]; // MD5 result size is 16 bytes
+    CC_MD5(data.bytes, (CC_LONG)data.length, result);
+    
+    // Convert the MD5 hash to a hex string
+    NSMutableString *hash = [NSMutableString stringWithCapacity:32];
+    for (int i = 0; i < 16; i++) {
+        [hash appendFormat:@"%02x", result[i]];
+    }
+    
+    return hash;
+}
+
+- (NSString *)channelCacheFilePath:(NSString *)sourcePath {
+    // Create a unique cache path based on the source path
+    NSString *appSupportDir = [self applicationSupportDirectory];
+    NSString *cacheFileName;
+    
+    // For URLs (especially with query parameters), create a sanitized filename
+    if ([sourcePath hasPrefix:@"http://"] || [sourcePath hasPrefix:@"https://"]) {
+        // Create a hash of the URL to use as the filename
+        NSString *hash = [self md5HashForString:sourcePath];
+        cacheFileName = [NSString stringWithFormat:@"channels_%@.plist", hash];
+    } else {
+        // For local files, use a sanitized version of the filename
+        NSString *lastComponent = [sourcePath lastPathComponent];
+        if ([lastComponent length] == 0) {
+            cacheFileName = @"default_channels_cache.plist";
+        } else {
+            // Replace any invalid filename characters
+            NSCharacterSet *invalidChars = [NSCharacterSet characterSetWithCharactersInString:@":/\\?%*|\"<>"];
+            NSString *sanitized = [[lastComponent componentsSeparatedByCharactersInSet:invalidChars] componentsJoinedByString:@"_"];
+            cacheFileName = [NSString stringWithFormat:@"%@_cache.plist", sanitized];
+        }
+    }
+    
+    NSString *cachePath = [appSupportDir stringByAppendingPathComponent:cacheFileName];
+    return cachePath;
+}
+
+- (NSString *)applicationSupportDirectory {
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES);
+    NSString *appSupportDir = [paths firstObject];
+    
+    // Create app-specific subdirectory
+    NSString *appName = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleName"];
+    if (!appName) appName = @"BasicIPTV";
+    
+    NSString *appSpecificDir = [appSupportDir stringByAppendingPathComponent:appName];
+    
+    // Ensure the directory exists
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    if (![fileManager fileExistsAtPath:appSpecificDir]) {
+        NSError *error = nil;
+        [fileManager createDirectoryAtPath:appSpecificDir 
+               withIntermediateDirectories:YES 
+                                attributes:nil 
+                                     error:&error];
+        if (error) {
+            NSLog(@"Error creating Application Support directory: %@", error);
+        }
+    }
+    
+    return appSpecificDir;
+}
+
 #pragma mark - Channel Loading
 
 - (void)loadChannelsFile {
-    // Show loading indicator
-    self.isLoading = YES;
-    [self setNeedsDisplay:YES];
-    
-    // Start the progress redraw timer to ensure UI updates
-    [self startProgressRedrawTimer];
+    // Show startup progress window
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self showStartupProgressWindow];
+        [self updateStartupProgress:0.05 step:@"Initializing" details:@"Starting BasicIPTV..."];
+        
+        self.isLoading = YES;
+        [self setNeedsDisplay:YES];
+        
+        // Start the progress redraw timer to ensure UI updates
+        [self startProgressRedrawTimer];
+    });
     
     // First load any saved settings
+    [self updateStartupProgress:0.10 step:@"Loading Settings" details:@"Reading saved preferences..."];
     [self loadSettings];
     
     // Check if m3uFilePath is already set
@@ -125,12 +219,12 @@ static char tempEarlyPlaybackChannelKey;
             // Load EPG data with a slight delay to avoid overwhelming network
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), 
                 dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-                    [self loadEpgDataAtStartup];
+                    [[VLCDataManager sharedManager] loadEPGFromURL:self.epgUrl];
             });
         } else {
             //NSLog(@"Using cached EPG data (updated within the last 6 hours)");
             // Try to load existing EPG data from cache
-            [self loadEpgFromCacheOnly];
+            // Load EPG via VLCDataManager if available, otherwise skip cache-only loading
         }
     }
 }
@@ -149,6 +243,7 @@ static char tempEarlyPlaybackChannelKey;
     
     // Log which file we're loading from
     //NSLog(@"Attempting to load channels from: %@", filePath);
+    [self updateStartupProgress:0.15 step:@"Checking Cache" details:@"Looking for cached channel data..."];
     [self setLoadingStatusText:@"Checking for cached channels..."];
     
     // First, check if this is a URL path and if there's a cache file for it
@@ -213,44 +308,26 @@ static char tempEarlyPlaybackChannelKey;
 }
 
 - (void)loadChannelsFromUrl:(NSString *)urlStr retryCount:(NSInteger)retryCount {
-    // Maximum retry attempts
-    const NSInteger MAX_RETRIES = 3;
+    NSLog(@"🔄 [MAC] loadChannelsFromUrl called - delegating to VLCDataManager: %@", urlStr);
     
-    // Store retry count in global variable
-    gChannelLoadRetryCount = retryCount;
-    
-    // Create a clean URL with properly escaped characters
-    NSString *escapedUrlStr = [urlStr stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
-    NSURL *url = [NSURL URLWithString:escapedUrlStr];
-    
-    if (!url) {
-        //NSLog(@"Invalid URL format: %@", urlStr);
+    // Validate URL first
+    if (!urlStr || [urlStr length] == 0) {
+        NSLog(@"❌ [MAC] Invalid URL string passed to loadChannelsFromUrl");
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self setLoadingStatusText:@"Error: Invalid URL format"];
+            [self setLoadingStatusText:@"Error: Invalid URL"];
             self.isLoading = NO;
             [self setNeedsDisplay:YES];
-            
-            // Clear error message after a delay
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                if (gProgressMessageLock) {
-                    [gProgressMessageLock lock];
-                    [gProgressMessage release];
-                    gProgressMessage = nil;
-                    [gProgressMessageLock unlock];
-                }
-                [self setNeedsDisplay:YES];
-            });
         });
         return;
     }
     
-    // Store download timestamp in Application Support settings file instead of UserDefaults
-    NSString *settingsPath = [self settingsFilePath];
-    NSMutableDictionary *settingsDict = [NSMutableDictionary dictionaryWithContentsOfFile:settingsPath];
-    if (!settingsDict) settingsDict = [NSMutableDictionary dictionary];
-    [settingsDict setObject:[NSDate date] forKey:@"LastM3UDownloadDate"];
-    [settingsDict writeToFile:settingsPath atomically:YES];
+    // Use VLCDataManager to load channels (delegate callbacks will handle results)
+    [self.dataManager loadChannelsFromURL:urlStr];
+    NSLog(@"✅ [MAC] Channel loading initiated via VLCDataManager - results will come via delegate");
     
+    return; // Skip the old implementation completely
+
+    /* OLD IMPLEMENTATION COMMENTED OUT - NOW USING VLCDataManager
     // Set up temporary file
     NSString *tempFileName = [NSString stringWithFormat:@"temp_channels_%@.m3u", [[NSUUID UUID] UUIDString]];
     NSString *tempFilePath = [NSTemporaryDirectory() stringByAppendingPathComponent:tempFileName];
@@ -544,6 +621,7 @@ static char tempEarlyPlaybackChannelKey;
                       [manager release];
                   }
                   destinationPath:tempFilePath];
+    */ // END OLD IMPLEMENTATION COMMENT
 }
 
 - (void)loadChannelsFromLocalFile:(NSString *)filePath {
@@ -572,11 +650,17 @@ static char tempEarlyPlaybackChannelKey;
         return;
     }
     
-    // Process the M3U content
-    [self processM3uContent:fileContents sourcePath:filePath];
+    // Process the M3U content - now handled by VLCDataManager
+    NSLog(@"📺 macOS: Delegating M3U content processing to VLCDataManager");
+    [self.dataManager loadChannelsFromURL:filePath];
 }
 
 - (void)processM3uContent:(NSString *)content sourcePath:(NSString *)sourcePath {
+    NSLog(@"📺 macOS processM3uContent - now handled by VLCDataManager/VLCChannelManager");
+    // VLCDataManager/VLCChannelManager now handles all M3U processing universally
+    return;
+    
+    /* OLD IMPLEMENTATION - NOW HANDLED BY VLCDataManager/VLCChannelManager
     // Split content into lines and validate
     NSArray *lines = [content componentsSeparatedByString:@"\n"];
     NSUInteger lineCount = [lines count];
@@ -636,21 +720,22 @@ static char tempEarlyPlaybackChannelKey;
     NSString *currentTitle = nil;
     NSString *currentTvgId = nil;
     
-    // Initialize data structures
-    [self ensureDataStructuresInitialized];
+    // Initialize data structures - now handled by VLCDataManager
+    NSLog(@"🔧 Data structures initialized by VLCDataManager automatically");
     
     // Progress update
     [self setLoadingStatusText:@"Processing channels..."];
     
     // Process lines
     for (NSUInteger lineIndex = 0; lineIndex < lineCount; lineIndex++) {
-        // Update progress periodically (every 500 lines)
-        if (lineIndex % 500 == 0) {
+        // Update progress periodically (every 100 lines for more detailed updates)
+        if (lineIndex % 100 == 0) {
             NSUInteger percentage = (lineIndex * 100) / lineCount;
-            [self setLoadingStatusText:[NSString stringWithFormat:@"Processing: %lu%% (%lu/%lu)", 
+            [self setLoadingStatusText:[NSString stringWithFormat:@"Processing: %lu%% (%lu/%lu) - %lu channels found", 
                                        (unsigned long)percentage, 
                                        (unsigned long)lineIndex, 
-                                       (unsigned long)lineCount]];
+                                       (unsigned long)lineCount,
+                                       (unsigned long)totalChannelsFound]];
         }
         
         NSString *line = [lines objectAtIndex:lineIndex];
@@ -670,8 +755,9 @@ static char tempEarlyPlaybackChannelKey;
             currentTitle = nil;
             currentTvgId = nil;
             
-            // Extract TV-G ID attribute if present
-            currentTvgId = [self extractTvgIdFromExtInfLine:line];
+            // Extract TV-G ID attribute if present - now handled by VLCChannelManager
+            // currentTvgId = [self extractTvgIdFromExtInfLine:line]; // DISABLED - VLCChannelManager handles this
+            currentTvgId = nil; // VLCChannelManager will handle tvg-id extraction
             
             // Extract attributes from line
             NSString *attributePart = nil;
@@ -698,6 +784,14 @@ static char tempEarlyPlaybackChannelKey;
                     if (endQuoteRange.location != NSNotFound) {
                         NSString *groupName = [line substringWithRange:NSMakeRange(startPos, endQuoteRange.location - startPos)];
                         [currentExtInfo setObject:groupName forKey:@"group"];
+                        
+                        // Debug: Log unique groups as we find them
+                        static NSMutableSet *seenGroups = nil;
+                        if (!seenGroups) seenGroups = [[NSMutableSet alloc] init];
+                        if (![seenGroups containsObject:groupName]) {
+                            [seenGroups addObject:groupName];
+                            //NSLog(@"🔧 Found new group: '%@' (total unique groups so far: %lu)", groupName, (unsigned long)[seenGroups count]);
+                        }
                     }
                 }
                 
@@ -889,6 +983,7 @@ static char tempEarlyPlaybackChannelKey;
             // Add to groups list if needed
             if (![self.groups containsObject:groupName]) {
                 [self.groups addObject:groupName];
+                NSLog(@"🔧 Added group to groups: '%@' (total groups: %lu)", groupName, (unsigned long)[self.groups count]);
             }
             
             // Add to category groups
@@ -921,7 +1016,13 @@ static char tempEarlyPlaybackChannelKey;
         }
     }
     
-    // Final progress update
+    // Final progress update and debug logging
+    NSLog(@"🔧 CHANNEL PROCESSING COMPLETE: Found %lu channels in %lu groups", 
+          (unsigned long)totalChannelsFound, (unsigned long)self.groups.count);
+    NSLog(@"🔧 Data structure sizes: channels=%lu, groups=%lu, channelsByGroup=%lu, groupsByCategory=%lu", 
+          (unsigned long)[self.channels count], (unsigned long)[self.groups count], 
+          (unsigned long)[self.channelsByGroup count], (unsigned long)[self.groupsByCategory count]);
+    
     [self setLoadingStatusText:[NSString stringWithFormat:@"Loaded %lu channels in %lu groups", 
                                 (unsigned long)totalChannelsFound, (unsigned long)self.groups.count]];
     
@@ -933,12 +1034,8 @@ static char tempEarlyPlaybackChannelKey;
     // Make sure we're using the original URL as the source path for the cache
     // instead of the temporary file path
     NSString *cacheSourcePath = self.m3uFilePath;
-    if ([sourcePath hasPrefix:NSTemporaryDirectory()]) {
-        //NSLog(@"Using original URL for cache instead of temp file: %@", cacheSourcePath);
-    } else {
-        cacheSourcePath = sourcePath;
-    }
-    [self saveChannelsToCache:cacheSourcePath];
+    // Cache saving is now handled automatically by VLCDataManager/VLCCacheManager
+    NSLog(@"📺 Cache saving delegated to VLCDataManager - no manual caching needed");
     
     // Ensure favorites category
     [self ensureFavoritesCategory];
@@ -979,7 +1076,8 @@ static char tempEarlyPlaybackChannelKey;
                 channel.group = [channelDict objectForKey:@"group"];
                 channel.logo = [channelDict objectForKey:@"logo"];
                 channel.channelId = [channelDict objectForKey:@"channelId"];
-                channel.category = @"FAVORITES";
+                // CRITICAL: Preserve original category (MOVIES, SERIES, TV) to maintain display format
+                channel.category = [channelDict objectForKey:@"category"] ?: @"TV";
                 channel.programs = [NSMutableArray array];
                 
                 // Add to appropriate group
@@ -1018,6 +1116,9 @@ static char tempEarlyPlaybackChannelKey;
         self.isLoading = NO;
         [self setNeedsDisplay:YES];
         
+        // Load movie info from cache for all movie channels immediately after loading
+        [self loadAllMovieInfoFromCache];
+        
         // Auto-fetch catch-up information from API after M3U loading completes
         [self autoFetchCatchupInfo];
         
@@ -1037,7 +1138,7 @@ static char tempEarlyPlaybackChannelKey;
                 });
                 
                 // Force reload EPG data (bypass cache)
-                [self loadEpgData];
+                [[VLCDataManager sharedManager] loadEPGFromURL:self.epgUrl];
             });
         } else {
             //NSLog(@"M3U processing complete - no EPG URL configured");
@@ -1052,9 +1153,15 @@ static char tempEarlyPlaybackChannelKey;
             //NSLog(@"📱 Movie info loading optimized: Will load only for visible items on demand");
         });
     });
+    */
 }
 
 - (NSString *)extractTitleFromExtInfLine:(NSString *)line {
+    NSLog(@"📺 macOS extractTitleFromExtInfLine - now handled by VLCChannelManager");
+    // VLCChannelManager now handles all M3U parsing universally
+    return @"Unknown Channel";
+    
+    /* OLD IMPLEMENTATION - NOW HANDLED BY VLCChannelManager
     // Look for the last comma in the line - after that is the title
     NSRange commaRange = [line rangeOfString:@"," options:NSBackwardsSearch];
     if (commaRange.location != NSNotFound) {
@@ -1072,9 +1179,15 @@ static char tempEarlyPlaybackChannelKey;
     }
     
     return @"Unknown Channel";
+    */
 }
 
 - (NSString *)extractGroupFromExtInfLine:(NSString *)line {
+    NSLog(@"📺 macOS extractGroupFromExtInfLine - now handled by VLCChannelManager");
+    // VLCChannelManager now handles all M3U parsing universally
+    return nil;
+    
+    /* OLD IMPLEMENTATION - NOW HANDLED BY VLCChannelManager
     NSString *group = nil;
     
     // Look for group-title attribute
@@ -1106,9 +1219,15 @@ static char tempEarlyPlaybackChannelKey;
     }
     
     return group;
+    */
 }
 
 - (NSString *)extractTvgIdFromExtInfLine:(NSString *)line {
+    NSLog(@"📺 macOS extractTvgIdFromExtInfLine - now handled by VLCChannelManager");
+    // VLCChannelManager now handles all M3U parsing universally
+    return nil;
+    
+    /* OLD IMPLEMENTATION - NOW HANDLED BY VLCChannelManager
     NSString *tvgId = nil;
     
     // Look for tvg-id attribute
@@ -1125,6 +1244,7 @@ static char tempEarlyPlaybackChannelKey;
     }
     
     return tvgId;
+    */
 }
 
 - (BOOL)safeAddGroupToCategory:(NSString *)group category:(NSString *)category {
@@ -1400,53 +1520,56 @@ static char tempEarlyPlaybackChannelKey;
     // Clear any temporary early playback channel since we're now playing new content
     objc_setAssociatedObject(self, &tempEarlyPlaybackChannelKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     
-    // Cancel any ongoing fade animations
-    extern BOOL isFadingOut;
-    extern NSTimeInterval lastFadeOutTime;
-    
-    if (isFadingOut) {
-        // If we're in the middle of a fade, stop it
-        [[self animator] setAlphaValue:1.0];
-        [[NSAnimationContext currentContext] setDuration:0.0];
-    }
-    
-    // First, we need to make sure the menu is visible
-    self.isChannelListVisible = YES;
-    [self setAlphaValue:1.0];
-    
-    // Set fading out flag to prevent mouse movements from showing menu during fade
-    isFadingOut = YES;
-    
-    // Use shorter delay and animation time
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        // Start a quicker fade out animation
-        [NSAnimationContext beginGrouping];
-        [[NSAnimationContext currentContext] setDuration:0.5]; // Shorter fade
-        [[self animator] setAlphaValue:0.0];
-        [NSAnimationContext endGrouping];
+    // Skip fade-out animation if we're navigating with arrow keys
+    if (!self.isArrowKeyNavigating) {
+        // Cancel any ongoing fade animations
+        extern BOOL isFadingOut;
+        extern NSTimeInterval lastFadeOutTime;
         
-        // After the fade completes, reset everything cleanly
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            // Ensure menu is hidden
-            self.isChannelListVisible = NO;
-            [self setAlphaValue:1.0]; // Reset alpha for next time
+        if (isFadingOut) {
+            // If we're in the middle of a fade, stop it
+            [[self animator] setAlphaValue:1.0];
+            [[NSAnimationContext currentContext] setDuration:0.0];
+        }
+        
+        // First, we need to make sure the menu is visible
+        self.isChannelListVisible = YES;
+        [self setAlphaValue:1.0];
+        
+        // Set fading out flag to prevent mouse movements from showing menu during fade
+        isFadingOut = YES;
+        
+        // Use shorter delay and animation time
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            // Start a quicker fade out animation
+            [NSAnimationContext beginGrouping];
+            [[NSAnimationContext currentContext] setDuration:0.5]; // Shorter fade
+            [[self animator] setAlphaValue:0.0];
+            [NSAnimationContext endGrouping];
             
-            // Set the last fade-out time to record when we hid the menu
-            NSTimeInterval currentTime = [NSDate timeIntervalSinceReferenceDate];
-            lastFadeOutTime = currentTime;
-            
-            // Reset the interaction flags
-            isFadingOut = NO;
-            isUserInteracting = NO;
-            
-            // Set interaction time to current time
-            lastInteractionTime = currentTime;
-            
-            // Refresh tracking area
-            [self setupTrackingArea];
-            [self setNeedsDisplay:YES];
+            // After the fade completes, reset everything cleanly
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                // Ensure menu is hidden
+                self.isChannelListVisible = NO;
+                [self setAlphaValue:1.0]; // Reset alpha for next time
+                
+                // Set the last fade-out time to record when we hid the menu
+                NSTimeInterval currentTime = [NSDate timeIntervalSinceReferenceDate];
+                lastFadeOutTime = currentTime;
+                
+                // Reset the interaction flags
+                isFadingOut = NO;
+                isUserInteracting = NO;
+                
+                // Set interaction time to current time
+                lastInteractionTime = currentTime;
+                
+                // Refresh tracking area
+                [self setupTrackingArea];
+                [self setNeedsDisplay:YES];
+            });
         });
-    });
+    }
 }
 
 - (void)saveLastPlayedChannelUrl:(NSString *)urlString {
@@ -1475,20 +1598,18 @@ static char tempEarlyPlaybackChannelKey;
     
     // Start the progress redraw timer to ensure UI updates
     [self startProgressRedrawTimer];
-    [self setLoadingStatusText:@"Reloading channel list from URL..."];
+    [self setLoadingStatusText:@"Force downloading fresh channel list from URL..."];
     
     // Check if m3uFilePath is a URL
     if ([self.m3uFilePath hasPrefix:@"http://"] || [self.m3uFilePath hasPrefix:@"https://"]) {
-        //NSLog(@"Force reloading channel list from URL: %@", self.m3uFilePath);
+        NSLog(@"🚀 [FORCE-RELOAD] Force downloading fresh channels from URL (bypassing cache): %@", self.m3uFilePath);
         
-        // Always load from URL - run in background
-        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-            // Download directly and skip cache check
-            [self loadChannelsFromUrl:self.m3uFilePath retryCount:0];
-            
-            // DON'T load EPG here - it will be loaded after M3U processing is complete
-            // The EPG loading will be triggered from processM3uContent when it completes
-        });
+        // CRITICAL FIX: Use VLCDataManager's force reload method to bypass cache
+        [self.dataManager forceReloadChannelsFromURL:self.m3uFilePath];
+        NSLog(@"✅ [FORCE-RELOAD] Force reload initiated via VLCDataManager - results will come via delegate");
+        
+        // DON'T load EPG here - it will be loaded after M3U processing is complete
+        // The EPG loading will be triggered from processM3uContent when it completes
     } else {
         // Not a URL - just do regular load
         [self loadChannelsFile];
@@ -1686,6 +1807,12 @@ static char tempEarlyPlaybackChannelKey;
 - (void)fetchMovieInfoForChannel:(VLCChannel *)channel {
     if (!channel || channel.hasLoadedMovieInfo) return;
     
+    // Try to load from cache first before making network request
+    if ([self loadMovieInfoFromCacheForChannel:channel]) {
+        //NSLog(@"✅ Loaded movie info from cache for: %@", channel.name);
+        return; // Successfully loaded from cache, no need to fetch from network
+    }
+    
     NSString *apiUrl = [self constructMovieApiUrlForChannel:channel];
     if (!apiUrl) {
         //NSLog(@"Failed to construct movie API URL for channel: %@", channel.name);
@@ -1865,6 +1992,9 @@ static char tempEarlyPlaybackChannelKey;
             
             channel.hasLoadedMovieInfo = YES;
             //NSLog(@"Successfully loaded movie info for: %@", channel.name);
+            
+            // Save the movie info to cache after successful fetching
+            [self saveMovieInfoToCache:channel];
             
             // Trigger UI update if this channel is being displayed
             if (self.hoveredChannelIndex >= 0) {
@@ -2882,11 +3012,11 @@ static char tempEarlyPlaybackChannelKey;
 - (void)fetchCatchupInfoFromAPI {
     NSString *apiUrl = [self constructLiveStreamsApiUrl];
     if (!apiUrl) {
-        //NSLog(@"Failed to construct live streams API URL");
+        NSLog(@"❌ Failed to construct live streams API URL");
         return;
     }
     
-    //NSLog(@"Fetching catch-up info from API: %@", apiUrl);
+    NSLog(@"🔄 Fetching catch-up info from API: %@", apiUrl);
     
     // Create the URL request
     NSURL *url = [NSURL URLWithString:apiUrl];
@@ -2899,11 +3029,11 @@ static char tempEarlyPlaybackChannelKey;
     NSURLSessionDataTask *dataTask = [session dataTaskWithRequest:request 
                                                completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         if (error || !data) {
-            //NSLog(@"Error fetching catch-up info from API: %@", error);
+            NSLog(@"❌ Error fetching catch-up info from API: %@", error);
             return;
         }
         
-        //NSLog(@"Received catch-up data (%lu bytes)", (unsigned long)[data length]);
+        NSLog(@"✅ Received catch-up data (%lu bytes)", (unsigned long)[data length]);
         
         // Parse the JSON response
         NSError *jsonError = nil;
@@ -2912,11 +3042,11 @@ static char tempEarlyPlaybackChannelKey;
                                                                     error:&jsonError];
         
         if (jsonError || !channelsArray || ![channelsArray isKindOfClass:[NSArray class]]) {
-            //NSLog(@"Error parsing catch-up info JSON: %@", jsonError);
+            NSLog(@"❌ Error parsing catch-up info JSON: %@", jsonError);
             return;
         }
         
-        //NSLog(@"Successfully parsed %lu channels from API", (unsigned long)[channelsArray count]);
+        NSLog(@"✅ Successfully parsed %lu channels from API", (unsigned long)[channelsArray count]);
         
         // Process the catch-up information on the main thread
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -2975,7 +3105,7 @@ static char tempEarlyPlaybackChannelKey;
                 channel.catchupSource = @"default";
                 channel.catchupTemplate = @""; // Will be constructed dynamically
                 updatedChannels++;
-                NSLog(@"Updated catch-up for channel '%@': %d days", channel.name, (int)channel.catchupDays);
+                NSLog(@"✅ Updated catch-up for channel '%@': %d days (API)", channel.name, (int)channel.catchupDays);
             }
         }
     }
@@ -2984,14 +3114,8 @@ static char tempEarlyPlaybackChannelKey;
     
     // Save the updated channel information to cache (including catch-up properties)
     if (updatedChannels > 0 && self.m3uFilePath) {
-        //NSLog(@"Saving updated catch-up information to cache...");
-        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-            [self saveChannelsToCache:self.m3uFilePath];
-            
-            dispatch_async(dispatch_get_main_queue(), ^{
-                //NSLog(@"Successfully saved catch-up information to cache");
-            });
-        });
+        NSLog(@"📺 Catch-up info updated for %ld channels - cache will be updated automatically by VLCDataManager", (long)updatedChannels);
+        // Cache saving is now handled automatically by VLCDataManager/VLCCacheManager
     }
     
     // Trigger UI update to show catch-up indicators
@@ -3123,21 +3247,37 @@ static char tempEarlyPlaybackChannelKey;
 
 // Auto-fetch catch-up info when loading M3U (called from loadChannelsFromM3U)
 - (void)autoFetchCatchupInfo {
-    // Only fetch if we have channels and haven't fetched catch-up info yet
+    NSLog(@"🔄 autoFetchCatchupInfo called with %lu channels", (unsigned long)self.channels.count);
+    
+    // Only fetch if we have channels
     if (self.channels.count > 0) {
         // Check if any channel already has catch-up info
         BOOL hasCatchupInfo = NO;
+        NSInteger catchupChannels = 0;
+        
         for (VLCChannel *channel in self.channels) {
-            if (channel.supportsCatchup) {
+            if (channel.supportsCatchup && channel.catchupDays > 0) {
                 hasCatchupInfo = YES;
-                break;
+                catchupChannels++;
             }
         }
         
-        if (!hasCatchupInfo) {
-            //NSLog(@"Auto-fetching catch-up info from API...");
+        NSLog(@"🔄 Found %ld channels with existing catchup info (hasCatchupInfo=%d)", 
+              (long)catchupChannels, hasCatchupInfo);
+        
+        // Calculate percentage of channels with catchup info
+        float catchupPercentage = (float)catchupChannels / (float)self.channels.count;
+        
+        if (!hasCatchupInfo || catchupPercentage < 0.1) { // Less than 10% have catchup info
+            NSLog(@"🔄 Insufficient catchup info (%.1f%% of channels) - calling fetchCatchupInfoFromAPI", 
+                  catchupPercentage * 100);
             [self fetchCatchupInfoFromAPI];
+        } else {
+            NSLog(@"🔄 Sufficient catchup info found (%.1f%% of channels) - skipping API fetch", 
+                  catchupPercentage * 100);
         }
+    } else {
+        NSLog(@"❌ No channels loaded - cannot fetch catchup info");
     }
 }
 
@@ -3476,3 +3616,5 @@ static char tempEarlyPlaybackChannelKey;
 }
 
 @end 
+
+#endif // TARGET_OS_OSX 

@@ -1,9 +1,12 @@
 #import "VLCOverlayView+ViewModes.h"
+
+#if TARGET_OS_OSX
 #import "VLCOverlayView_Private.h"
 #import "VLCOverlayView+PlayerControls.h"
 #import "VLCSubtitleSettings.h"
 #import <objc/runtime.h>
 #import "VLCOverlayView+Utilities.h"
+#import "VLCOverlayView+Glassmorphism.h"
 #import <math.h>
 #import "VLCSliderControl.h"
 #import "VLCOverlayView+Globals.h"
@@ -20,12 +23,9 @@
     CGFloat stackedViewWidth = self.bounds.size.width - stackedViewX;
     CGFloat rowHeight = 400; // Reduced height for better fit - can show more movies
     
-    // Draw background using theme colors
+    // Draw glassmorphism background for stacked view
     NSRect stackedRect = NSMakeRect(stackedViewX, 0, stackedViewWidth, self.bounds.size.height);
-    NSGradient *backgroundGradient = [[NSGradient alloc] initWithStartingColor:self.themeChannelStartColor ? self.themeChannelStartColor : [NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.7]
-                                                                   endingColor:self.themeChannelEndColor ? self.themeChannelEndColor : [NSColor colorWithCalibratedRed:0.12 green:0.14 blue:0.18 alpha:0.7]];
-    [backgroundGradient drawInRect:stackedRect angle:90];
-    [backgroundGradient release];
+    [self drawGlassmorphismPanel:stackedRect opacity:0.6 cornerRadius:0];
     
     // Get current movies for the selected group
     NSArray *moviesInCurrentGroup = [self getChannelsForCurrentGroup];
@@ -118,6 +118,8 @@
             [selectionPath stroke];
         } else if (i == self.hoveredChannelIndex) {
             // Hovered movie - use exact same style as categories/groups
+            //NSLog(@"🎨 STACKED DEBUG: Drawing hover highlight for movie %ld, hoveredChannelIndex: %ld", (long)i, (long)self.hoveredChannelIndex);
+            
             NSBezierPath *hoverPath = [NSBezierPath bezierPathWithRoundedRect:
                                      NSInsetRect(clippedRect, 4, 2)
                                                                      xRadius:6
@@ -629,19 +631,19 @@
 }
 
 - (void)applyViewMode:(NSInteger)viewMode {
-    // Apply the view mode settings
+    // Apply the view mode settings using category-specific methods ONLY
     switch (viewMode) {
         case 0: // Stacked
-            isGridViewActive = NO;
-            isStackedViewActive = YES;
+            [self setGridViewActive:NO forCategory:self.selectedCategoryIndex];
+            [self setStackedViewActive:YES forCategory:self.selectedCategoryIndex];
             break;
         case 1: // Grid
-            isGridViewActive = YES;
-            isStackedViewActive = NO;
+            [self setGridViewActive:YES forCategory:self.selectedCategoryIndex];
+            [self setStackedViewActive:NO forCategory:self.selectedCategoryIndex];
             break;
         case 2: // List
-            isGridViewActive = NO;
-            isStackedViewActive = NO;
+            [self setGridViewActive:NO forCategory:self.selectedCategoryIndex];
+            [self setStackedViewActive:NO forCategory:self.selectedCategoryIndex];
             break;
     }
     
@@ -946,3 +948,5 @@
 }
 
 @end 
+
+#endif // TARGET_OS_OSX 

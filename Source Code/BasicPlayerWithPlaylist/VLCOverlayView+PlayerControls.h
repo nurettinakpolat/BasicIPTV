@@ -1,5 +1,7 @@
 #import "VLCOverlayView.h"
 
+#if TARGET_OS_OSX
+
 @interface VLCOverlayView (PlayerControls)
 
 // Properties for player controls
@@ -54,3 +56,5 @@
 - (void)clearCachedTimeshiftChannel;
 
 @end 
+
+#endif // TARGET_OS_OSX 

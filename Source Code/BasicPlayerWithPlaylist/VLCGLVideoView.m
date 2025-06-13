@@ -1,4 +1,6 @@
 #import "VLCGLVideoView.h"
+
+#if TARGET_OS_OSX
 #import <OpenGL/gl.h>
 
 @implementation VLCGLVideoView
@@ -25,3 +27,5 @@
 }
 
 @end
+
+#endif

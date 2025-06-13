@@ -1,5 +1,7 @@
 #import "VLCClickableLabel.h"
 
+#if TARGET_OS_OSX
+
 @interface VLCClickableLabel ()
 @property (nonatomic, retain) NSTrackingArea *trackingArea;
 @end
@@ -156,3 +158,5 @@
 }
 
 @end 
+
+#endif // TARGET_OS_OSX 

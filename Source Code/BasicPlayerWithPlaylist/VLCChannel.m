@@ -71,20 +71,56 @@
     
     NSDate *now = [NSDate date];
     
-    for (VLCProgram *program in self.programs) {
-        if ([now compare:program.startTime] != NSOrderedAscending && 
-            [now compare:program.endTime] == NSOrderedAscending) {
+    for (id program in self.programs) {
+        NSDate *startTime = nil;
+        NSDate *endTime = nil;
+        
+        if ([program isKindOfClass:[VLCProgram class]]) {
+            VLCProgram *vlcProgram = (VLCProgram *)program;
+            startTime = vlcProgram.startTime;
+            endTime = vlcProgram.endTime;
+        } else if ([program isKindOfClass:[NSDictionary class]]) {
+            NSDictionary *programDict = (NSDictionary *)program;
+            startTime = [programDict objectForKey:@"startTime"];
+            endTime = [programDict objectForKey:@"endTime"];
+        }
+        
+        if (startTime && endTime && [now compare:startTime] != NSOrderedAscending && 
+            [now compare:endTime] == NSOrderedAscending) {
             return program;
         }
     }
     
     // If no current program, return the next upcoming one
-    NSArray *sortedPrograms = [self.programs sortedArrayUsingComparator:^NSComparisonResult(VLCProgram *a, VLCProgram *b) {
-        return [a.startTime compare:b.startTime];
+    NSArray *sortedPrograms = [self.programs sortedArrayUsingComparator:^NSComparisonResult(id a, id b) {
+        NSDate *startTimeA = nil;
+        NSDate *startTimeB = nil;
+        
+        if ([a isKindOfClass:[VLCProgram class]]) {
+            startTimeA = [(VLCProgram *)a startTime];
+        } else if ([a isKindOfClass:[NSDictionary class]]) {
+            startTimeA = [(NSDictionary *)a objectForKey:@"startTime"];
+        }
+        
+        if ([b isKindOfClass:[VLCProgram class]]) {
+            startTimeB = [(VLCProgram *)b startTime];
+        } else if ([b isKindOfClass:[NSDictionary class]]) {
+            startTimeB = [(NSDictionary *)b objectForKey:@"startTime"];
+        }
+        
+        if (!startTimeA || !startTimeB) return NSOrderedSame;
+        return [startTimeA compare:startTimeB];
     }];
     
-    for (VLCProgram *program in sortedPrograms) {
-        if ([now compare:program.startTime] == NSOrderedAscending) {
+    for (id program in sortedPrograms) {
+        NSDate *startTime = nil;
+        if ([program isKindOfClass:[VLCProgram class]]) {
+            startTime = [(VLCProgram *)program startTime];
+        } else if ([program isKindOfClass:[NSDictionary class]]) {
+            startTime = [(NSDictionary *)program objectForKey:@"startTime"];
+        }
+        
+        if (startTime && [now compare:startTime] == NSOrderedAscending) {
             return program;
         }
     }
@@ -111,28 +147,65 @@
     //NSLog(@"currentProgramWithTimeOffset: offsetHours=%ld, now=%@, adjustedNow=%@", 
     //      (long)offsetHours, now, adjustedNow);
     
-    for (VLCProgram *program in self.programs) {
-        if (program.startTime && program.endTime) {
+    for (id program in self.programs) {
+        // Safety check: handle both VLCProgram objects and dictionaries
+        NSDate *startTime = nil;
+        NSDate *endTime = nil;
+        
+        if ([program isKindOfClass:[VLCProgram class]]) {
+            VLCProgram *vlcProgram = (VLCProgram *)program;
+            startTime = vlcProgram.startTime;
+            endTime = vlcProgram.endTime;
+        } else if ([program isKindOfClass:[NSDictionary class]]) {
+            NSDictionary *programDict = (NSDictionary *)program;
+            startTime = [programDict objectForKey:@"startTime"];
+            endTime = [programDict objectForKey:@"endTime"];
+        }
+        
+        if (startTime && endTime) {
             // Check if the adjusted current time falls within this program's time range
-            if ([adjustedNow compare:program.startTime] != NSOrderedAscending && 
-                [adjustedNow compare:program.endTime] == NSOrderedAscending) {
+            if ([adjustedNow compare:startTime] != NSOrderedAscending && 
+                [adjustedNow compare:endTime] == NSOrderedAscending) {
                 
                 //NSLog(@"Found current program: %@ (%@ - %@)", 
-                //      program.title, program.startTime, program.endTime);
+                //      program.title, startTime, endTime);
                 return program;
             }
         }
     }
     
     // If no current program, return the next upcoming one
-    NSArray *sortedPrograms = [self.programs sortedArrayUsingComparator:^NSComparisonResult(VLCProgram *a, VLCProgram *b) {
-        return [a.startTime compare:b.startTime];
+    NSArray *sortedPrograms = [self.programs sortedArrayUsingComparator:^NSComparisonResult(id a, id b) {
+        NSDate *startTimeA = nil;
+        NSDate *startTimeB = nil;
+        
+        if ([a isKindOfClass:[VLCProgram class]]) {
+            startTimeA = [(VLCProgram *)a startTime];
+        } else if ([a isKindOfClass:[NSDictionary class]]) {
+            startTimeA = [(NSDictionary *)a objectForKey:@"startTime"];
+        }
+        
+        if ([b isKindOfClass:[VLCProgram class]]) {
+            startTimeB = [(VLCProgram *)b startTime];
+        } else if ([b isKindOfClass:[NSDictionary class]]) {
+            startTimeB = [(NSDictionary *)b objectForKey:@"startTime"];
+        }
+        
+        if (!startTimeA || !startTimeB) return NSOrderedSame;
+        return [startTimeA compare:startTimeB];
     }];
     
-    for (VLCProgram *program in sortedPrograms) {
-        if ([adjustedNow compare:program.startTime] == NSOrderedAscending) {
+    for (id program in sortedPrograms) {
+        NSDate *startTime = nil;
+        if ([program isKindOfClass:[VLCProgram class]]) {
+            startTime = [(VLCProgram *)program startTime];
+        } else if ([program isKindOfClass:[NSDictionary class]]) {
+            startTime = [(NSDictionary *)program objectForKey:@"startTime"];
+        }
+        
+        if (startTime && [adjustedNow compare:startTime] == NSOrderedAscending) {
             //NSLog(@"Found next program: %@ (%@ - %@)", 
-                  //program.title, program.startTime, program.endTime);
+                  //program.title, startTime, endTime);
             return program;
         }
     }
@@ -152,9 +225,16 @@
     VLCProgram *nextProgram = nil;
     NSTimeInterval shortestDiff = DBL_MAX;
     
-    for (VLCProgram *program in _programs) {
-        if ([program.startTime compare:now] == NSOrderedDescending) {
-            NSTimeInterval diff = [program.startTime timeIntervalSinceDate:now];
+    for (id program in _programs) {
+        NSDate *startTime = nil;
+        if ([program isKindOfClass:[VLCProgram class]]) {
+            startTime = [(VLCProgram *)program startTime];
+        } else if ([program isKindOfClass:[NSDictionary class]]) {
+            startTime = [(NSDictionary *)program objectForKey:@"startTime"];
+        }
+        
+        if (startTime && [startTime compare:now] == NSOrderedDescending) {
+            NSTimeInterval diff = [startTime timeIntervalSinceDate:now];
             if (diff < shortestDiff) {
                 shortestDiff = diff;
                 nextProgram = program;

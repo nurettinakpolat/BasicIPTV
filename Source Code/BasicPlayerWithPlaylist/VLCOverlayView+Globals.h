@@ -13,9 +13,12 @@ extern BOOL isFadingOut;
 extern NSTimeInterval lastFadeOutTime;
 extern NSTimer *playerControlsTimer;
 extern BOOL playerControlsVisible;
-extern BOOL isGridViewActive;
+extern BOOL isGridViewActive; // Legacy global - will be phased out
 extern NSMutableDictionary *gridLoadingQueue;
 extern NSOperationQueue *coverDownloadQueue;
+
+// Category-specific view modes
+extern NSMutableDictionary *categoryViewModes; // Stores view mode for each category
 extern BOOL isPersistingHoverState;
 extern NSInteger lastValidHoveredChannelIndex;
 extern NSInteger lastValidHoveredGroupIndex;

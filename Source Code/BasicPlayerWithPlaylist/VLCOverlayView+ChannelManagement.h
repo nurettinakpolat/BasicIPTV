@@ -2,6 +2,8 @@
 
 @class VLCChannel;
 
+#if TARGET_OS_OSX
+
 @interface VLCOverlayView (ChannelManagement)
 
 // Channel loading methods
@@ -56,4 +58,6 @@
 - (void)forceRefreshAllMovieInfoAndCovers;
 - (void)startMovieInfoRefresh;
 
-@end 
+@end
+
+#endif // TARGET_OS_OSX 

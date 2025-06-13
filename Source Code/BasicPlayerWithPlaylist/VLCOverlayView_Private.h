@@ -4,7 +4,10 @@
 #import "VLCDropdownManager.h"
 #import "VLCReusableTextField.h"
 #import "VLCClickableLabel.h"
+#import "VLCDataManager.h"
 #import <VLCKit/VLCKit.h>
+
+#if TARGET_OS_OSX
 
 // Global progress message for loading indicator
 extern NSString *gProgressMessage;
@@ -47,11 +50,15 @@ static void LogObjectType(NSString *label, id obj) {
     }
 }
 
+// Global variable for EPG catchup icon hover tracking
+extern NSInteger hoveredCatchupProgramIndex;
+
 // Private interface for VLCOverlayView
 // Shared variables that can be accessed from multiple categories
 extern int totalProgramCount;
 
-@interface VLCOverlayView () <VLCReusableTextFieldDelegate, VLCClickableLabelDelegate> {
+@interface VLCOverlayView () <VLCReusableTextFieldDelegate, VLCClickableLabelDelegate, VLCDataManagerDelegate> {
+    VLCDataManager *_dataManager;
     NSTrackingArea *trackingArea;
     NSTimer *autoHideTimer;
     NSPoint lastMousePosition;
@@ -114,6 +121,9 @@ extern int totalProgramCount;
     VLCProgram *rightClickedProgram;
     VLCChannel *rightClickedProgramChannel;
     
+    // EPG catchup icon hover tracking
+    NSInteger hoveredCatchupProgramIndex;
+    
     // Theme initialization flag to prevent recursion
     BOOL isInitializingTheme;
 }
@@ -165,6 +175,9 @@ extern int totalProgramCount;
 // Dropdown Manager
 @property (nonatomic, retain) VLCDropdownManager *dropdownManager;
 
+// Universal Data Manager
+@property (nonatomic, readonly) VLCDataManager *dataManager;
+
 // New UI Components
 @property (nonatomic, retain) VLCReusableTextField *m3uTextField;
 @property (nonatomic, retain) VLCReusableTextField *searchTextField;
@@ -178,6 +191,9 @@ extern int totalProgramCount;
 @property (nonatomic, assign) CGFloat searchChannelScrollPosition;
 @property (nonatomic, assign) CGFloat searchMovieScrollPosition;
 
+// Settings panel scroll position  
+@property (nonatomic, assign) CGFloat settingsScrollPosition;
+
 // Theme Settings UI Components - using dropdown manager
 @property (nonatomic, assign) NSRect themeDropdownRect;
 @property (nonatomic, assign) NSRect transparencyDropdownRect;
@@ -186,6 +202,22 @@ extern int totalProgramCount;
 @property (nonatomic, assign) NSRect redSliderRect;
 @property (nonatomic, assign) NSRect greenSliderRect;
 @property (nonatomic, assign) NSRect blueSliderRect;
+@property (nonatomic, assign) NSRect glassmorphismIntensitySliderRect;
+@property (nonatomic, assign) NSRect glassmorphismEnabledToggleRect;
+@property (nonatomic, assign) NSRect glassmorphismHighQualityToggleRect;
+@property (nonatomic, assign) NSRect glassmorphismIgnoreTransparencyToggleRect;
+
+// New granular glassmorphism control slider rects
+@property (nonatomic, assign) NSRect glassmorphismOpacitySliderRect;
+@property (nonatomic, assign) NSRect glassmorphismBlurSliderRect;
+@property (nonatomic, assign) NSRect glassmorphismBorderSliderRect;
+@property (nonatomic, assign) NSRect glassmorphismCornerSliderRect;
+@property (nonatomic, assign) NSRect glassmorphismSandedSliderRect;
+
+// Background color slider rects (separate from selection colors)
+@property (nonatomic, assign) NSRect glassmorphismBackgroundRedSliderRect;
+@property (nonatomic, assign) NSRect glassmorphismBackgroundGreenSliderRect;
+@property (nonatomic, assign) NSRect glassmorphismBackgroundBlueSliderRect;
 
 // Add property to track which slider is currently being dragged
 @property (nonatomic, assign) NSInteger activeSliderType; // 0=none, 1=transparency, 2=red, 3=green, 4=blue, 5=subtitle
@@ -269,4 +301,13 @@ extern int totalProgramCount;
 @property (nonatomic, assign) BOOL isPendingMovieInfoFetch;
 @property (nonatomic, assign) BOOL isHoveringMovieInfoPanel;
 
-@end 
+// Category-specific view mode management
+- (void)initializeCategoryViewModes;
+- (BOOL)isGridViewActiveForCategory:(NSInteger)categoryIndex;
+- (void)setGridViewActive:(BOOL)active forCategory:(NSInteger)categoryIndex;
+- (BOOL)isStackedViewActiveForCategory:(NSInteger)categoryIndex;
+- (void)setStackedViewActive:(BOOL)active forCategory:(NSInteger)categoryIndex;
+
+@end
+
+#endif // TARGET_OS_OSX 

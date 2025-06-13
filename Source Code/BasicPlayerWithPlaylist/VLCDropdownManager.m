@@ -1,5 +1,7 @@
 #import "VLCDropdownManager.h"
 
+#if TARGET_OS_OSX
+
 #pragma mark - VLCDropdownItem Implementation
 
 @implementation VLCDropdownItem
@@ -581,3 +583,5 @@ static VLCDropdownManager *sharedInstance = nil;
 }
 
 @end 
+
+#endif // TARGET_OS_OSX 

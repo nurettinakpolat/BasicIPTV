@@ -5,6 +5,8 @@
 //
 
 #import <Foundation/Foundation.h>
+
+#if TARGET_OS_OSX
 #import <AppKit/AppKit.h>
 
 @class VLCMediaPlayer;
@@ -38,6 +40,9 @@
 
 @end
 
+#endif // TARGET_OS_OSX
+
+#if TARGET_OS_OSX
 // Reusable UI Controls for Settings
 @interface VLCSettingsControl : NSObject
 
@@ -74,3 +79,5 @@
                                tag:(NSInteger)tag;
 
 @end 
+
+#endif // TARGET_OS_OSX

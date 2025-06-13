@@ -1,13 +1,17 @@
 #import "VLCOverlayView+MouseHandling.h"
+
+#if TARGET_OS_OSX
 #import "VLCOverlayView_Private.h"
 #import "VLCOverlayView+PlayerControls.h"
 #import "VLCSubtitleSettings.h"
+#import "VLCDataManager.h"
 #import <objc/runtime.h>
 #import "VLCOverlayView+Utilities.h"
 #import <math.h>
 #import "VLCSliderControl.h"
 #import "VLCOverlayView+Globals.h"
 #import "VLCOverlayView+ContextMenu.h"
+#import "VLCOverlayView+Glassmorphism.h"
 
 // File-level static variable for scroll state tracking
 static BOOL isScrolling = NO;
@@ -56,8 +60,9 @@ static BOOL isScrolling = NO;
         [self handleGroupClick:point];
     } else {
         // CRITICAL FIX: Use the same rendering decision logic as drawRect
-        // Check what's ACTUALLY being rendered, not just the view mode flags
-        BOOL isGridActuallyRendered = isGridViewActive && 
+        // Check what's ACTUALLY being rendered using category-specific view modes
+        BOOL currentCategoryUsesGridView = [self isGridViewActiveForCategory:self.selectedCategoryIndex];
+        BOOL isGridActuallyRendered = currentCategoryUsesGridView && 
                                      ((self.selectedCategoryIndex == CATEGORY_MOVIES) ||
                                       (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]));
         
@@ -128,7 +133,8 @@ static BOOL isScrolling = NO;
         self.epgScrollPosition = 0;
         
         // Reset grid loading queue to force reloading for the new category
-        if (isGridViewActive) {
+        BOOL currentCategoryUsesGridView = [self isGridViewActiveForCategory:self.selectedCategoryIndex];
+        if (currentCategoryUsesGridView) {
             if (gridLoadingQueue) {
                 [gridLoadingQueue removeAllObjects];
             }
@@ -144,12 +150,14 @@ static BOOL isScrolling = NO;
     }
     
     CGFloat rowHeight = 40;
-    // Calculate group index accounting for scroll position
-    NSInteger index = (NSInteger)((self.bounds.size.height - point.y) / rowHeight + groupScrollPosition / rowHeight);
+    // Use the EXACT same logic as drawing to find which group contains the point
+    // Drawing uses: itemRect.y = self.bounds.size.height - ((i+1) * rowHeight) + groupScrollPosition
     
-    NSArray *groups;
+    NSInteger index = -1;
+    
+    // Get groups array to know how many groups we have
+    NSArray *groups = nil;
     NSString *categoryName = [self.categories objectAtIndex:self.selectedCategoryIndex];
-    
     if ([categoryName isEqualToString:@"FAVORITES"]) {
         groups = [self safeGroupsForCategory:@"FAVORITES"];
     } else if ([categoryName isEqualToString:@"TV"]) {
@@ -160,11 +168,27 @@ static BOOL isScrolling = NO;
         groups = [self safeValueForKey:@"SERIES" fromDictionary:self.groupsByCategory];
     } else if ([categoryName isEqualToString:@"SETTINGS"]) {
         groups = [self safeValueForKey:@"SETTINGS" fromDictionary:self.groupsByCategory];
-    } else {
-        return;
     }
     
+    if (groups) {
+        // Test each group using the exact same positioning as the drawing code
+        for (NSInteger i = 0; i < [groups count]; i++) {
+            CGFloat itemY = self.bounds.size.height - ((i+1) * rowHeight) + groupScrollPosition;
+            NSRect itemRect = NSMakeRect(200, itemY, 250, rowHeight);
+            
+            if (NSPointInRect(point, itemRect)) {
+                index = i;
+                break;
+            }
+        }
+    }
+    
+    //NSLog(@"🔍 GROUP CLICK: point.y=%.1f, groupScrollPosition=%.1f, foundIndex=%ld", 
+    //      point.y, groupScrollPosition, (long)index);
+    
     if (index >= 0 && index < [groups count]) {
+        NSString *selectedGroup = [groups objectAtIndex:index];
+        
         // Hide all controls before changing group
         [self hideControls];
         
@@ -173,6 +197,59 @@ static BOOL isScrolling = NO;
         
         // Make sure channels are prepared when a group is clicked
         [self prepareSimpleChannelLists];
+        
+        // DEBUG: Comprehensive group detection analysis
+        NSLog(@"🎯 ========== GROUP CLICK DEBUG (macOS) ==========");
+        NSLog(@"🎯 Selected group: '%@' (index: %ld)", selectedGroup, (long)index);
+        NSLog(@"🎯 Current category: '%@' (index: %ld)", categoryName, (long)self.selectedCategoryIndex);
+        
+        // Get channels for this group
+        NSArray *channelsInGroup = [self.channelsByGroup objectForKey:selectedGroup];
+        NSLog(@"🎯 Channels in group: %lu", (unsigned long)channelsInGroup.count);
+        
+        // Test currentGroupContainsMovieChannels method
+        BOOL containsMovies = [self currentGroupContainsMovieChannels];
+        NSLog(@"🎯 currentGroupContainsMovieChannels: %@", containsMovies ? @"YES" : @"NO");
+        
+        // Analyze each channel in the group
+        NSUInteger movieCount = 0;
+        NSUInteger tvCount = 0;
+        NSUInteger seriesCount = 0;
+        NSUInteger otherCount = 0;
+        
+        for (VLCChannel *channel in channelsInGroup) {
+            if ([channel.category isEqualToString:@"MOVIES"]) {
+                movieCount++;
+            } else if ([channel.category isEqualToString:@"TV"]) {
+                tvCount++;
+            } else if ([channel.category isEqualToString:@"SERIES"]) {
+                seriesCount++;
+            } else {
+                otherCount++;
+            }
+            
+            // Check if URL indicates movie
+            BOOL isMovieURL = [self isMovieChannel:channel];
+            NSLog(@"🎯 Channel '%@': category='%@', URL movie extension=%@, URL='%@'", 
+                  channel.name, channel.category, isMovieURL ? @"YES" : @"NO", 
+                  [channel.url substringToIndex:MIN(80, channel.url.length)]);
+        }
+        
+        NSLog(@"🎯 Category distribution - Movies: %lu, TV: %lu, Series: %lu, Other: %lu", 
+              (unsigned long)movieCount, (unsigned long)tvCount, (unsigned long)seriesCount, (unsigned long)otherCount);
+        
+        // Check view mode decisions
+        BOOL currentCategoryUsesStackedView = [self isStackedViewActiveForCategory:self.selectedCategoryIndex];
+        BOOL isMovieCategory = (self.selectedCategoryIndex == CATEGORY_MOVIES);
+        BOOL isFavoritesWithMovies = (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]);
+        
+        NSLog(@"🎯 View mode analysis:");
+        NSLog(@"🎯   currentCategoryUsesStackedView: %@", currentCategoryUsesStackedView ? @"YES" : @"NO");
+        NSLog(@"🎯   isMovieCategory: %@", isMovieCategory ? @"YES" : @"NO");
+        NSLog(@"🎯   isFavoritesWithMovies: %@", isFavoritesWithMovies ? @"YES" : @"NO");
+        NSLog(@"🎯   Will use %@ view", (currentCategoryUsesStackedView && (isMovieCategory || isFavoritesWithMovies)) ? @"STACKED MOVIE" : @"LIST");
+        
+        NSLog(@"🎯 ================================================");
         
         // NEW: When a movie group is selected, immediately scan and load cached info/covers
         if ([categoryName isEqualToString:@"MOVIES"] || 
@@ -183,26 +260,29 @@ static BOOL isScrolling = NO;
         // REMOVED: Don't bulk download entire group - only process visible movies on demand
         // [self checkAndRefreshMovieDataForCurrentGroup];
         
-        // Reset scroll positions
+        // Reset ALL scroll positions when changing groups
+        //NSLog(@"🔄 GROUP CHANGE: Resetting scroll positions - old channelScrollPosition was %.1f", channelScrollPosition);
         channelScrollPosition = 0;
+        self.searchChannelScrollPosition = 0;
+        self.searchMovieScrollPosition = 0;
+        self.epgScrollPosition = 0;
+        self.movieInfoScrollPosition = 0;
         
         // Reset grid loading queue to force reloading images for the new group
-        if (isGridViewActive) {
+        BOOL currentCategoryUsesGridView = [self isGridViewActiveForCategory:self.selectedCategoryIndex];
+        if (currentCategoryUsesGridView) {
             if (gridLoadingQueue) {
                 [gridLoadingQueue removeAllObjects];
             }
         }
-        
-        // Log that a group was selected for debugging
-        //NSLog(@"Group selected: %@, with %lu channels", 
-              //[groups objectAtIndex:index],
-              //(unsigned long)[[self.channelsByGroup objectForKey:[groups objectAtIndex:index]] count]);
         
         [self setNeedsDisplay:YES];
     }
 }
 
 - (BOOL)handleClickAtPoint:(NSPoint)point {
+    //NSLog(@"=== CLICK DEBUG: handleClickAtPoint called at (%.1f, %.1f) ===", point.x, point.y);
+    
     // Define exact boundaries for the channel list area
     CGFloat catWidth = 200;
     CGFloat groupWidth = 250;
@@ -213,7 +293,10 @@ static BOOL isScrolling = NO;
     CGFloat movieInfoX;
     
     // Check if we're displaying movies in grid or stacked view (which should take full width)
-    BOOL isMovieViewMode = (isGridViewActive || isStackedViewActive) && 
+    // Use category-specific view modes instead of global flags
+    BOOL currentCategoryUsesGridView = [self isGridViewActiveForCategory:self.selectedCategoryIndex];
+    BOOL currentCategoryUsesStackedView = [self isStackedViewActiveForCategory:self.selectedCategoryIndex];
+    BOOL isMovieViewMode = (currentCategoryUsesGridView || currentCategoryUsesStackedView) && 
                           ((self.selectedCategoryIndex == CATEGORY_MOVIES) ||
                            (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]));
     
@@ -232,8 +315,8 @@ static BOOL isScrolling = NO;
     CGFloat channelListEndX = channelListStartX + channelListWidth;
     
     // Log click coordinates for debugging
-    //NSLog(@"Click at point: (%.1f, %.1f) - Channel list bounds: X from %.1f to %.1f", 
-          //point.x, point.y, channelListStartX, channelListEndX);
+    //NSLog(@"CLICK DEBUG: Point (%.1f, %.1f) - ChannelListEndX: %.1f, HoveredChannelIndex: %ld", 
+    //      point.x, point.y, channelListEndX, (long)self.hoveredChannelIndex);
     
     // Check if we're in the settings panel FIRST (before movie info panel check)
     // because settings uses the same area as movie info panel
@@ -245,6 +328,15 @@ static BOOL isScrolling = NO;
     // Handle search results clicks when in search mode
     if (self.selectedCategoryIndex == CATEGORY_SEARCH) {
         return [self handleSearchResultsClickAtPoint:point];
+    }
+    
+    // Check for EPG catchup icon clicks in the program guide area
+    // Use the same logic as mouseMoved: program guide is visible when hovering over channel OR EPG panel is open
+    if (point.x >= channelListEndX && (self.hoveredChannelIndex >= 0 || self.showEpgPanel)) {
+        //NSLog(@"Click in EPG area detected (hoveredChannelIndex: %ld, showEpgPanel: %@), checking for catchup icon click at point (%.1f, %.1f)", (long)self.hoveredChannelIndex, self.showEpgPanel ? @"YES" : @"NO", point.x, point.y);
+        if ([self handleEpgCatchupClickAtPoint:point]) {
+            return YES;
+        }
     }
     
     // Don't process clicks in the movie info panel area (only if NOT in settings or search)
@@ -262,12 +354,12 @@ static BOOL isScrolling = NO;
     }
     
     // CRITICAL FIX: Match the exact same rendering decision logic used in drawRect
-    // Check what's ACTUALLY being rendered, not just the view mode flags
-    BOOL isGridActuallyRendered = isGridViewActive && 
+    // Check what's ACTUALLY being rendered using category-specific view modes
+    BOOL isGridActuallyRendered = currentCategoryUsesGridView && 
                                  ((self.selectedCategoryIndex == CATEGORY_MOVIES) ||
                                   (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]));
     
-    BOOL isStackedActuallyRendered = isStackedViewActive && 
+    BOOL isStackedActuallyRendered = currentCategoryUsesStackedView && 
                                     ((self.selectedCategoryIndex == CATEGORY_MOVIES) ||
                                      (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]));
     
@@ -387,6 +479,124 @@ static BOOL isScrolling = NO;
             if (self.themeAlpha != value) {
                 self.themeAlpha = value;
                 [self updateThemeColors];
+                [self saveThemeSettings];
+                [self setNeedsDisplay:YES];
+            }
+            return YES;
+        }
+        
+        // Handle glassmorphism toggle buttons
+        if (NSPointInRect(point, self.glassmorphismEnabledToggleRect)) {
+            [self setGlassmorphismEnabled:![self glassmorphismEnabled]];
+            [self saveThemeSettings];
+            [self setNeedsDisplay:YES];
+            return YES;
+        }
+        
+        if (NSPointInRect(point, self.glassmorphismHighQualityToggleRect)) {
+            [self setGlassmorphismHighQuality:![self glassmorphismHighQuality]];
+            [self saveThemeSettings];
+            [self setNeedsDisplay:YES];
+            return YES;
+        }
+        
+        if (NSPointInRect(point, self.glassmorphismIgnoreTransparencyToggleRect)) {
+            [self setGlassmorphismIgnoreTransparency:![self glassmorphismIgnoreTransparency]];
+            [self saveThemeSettings];
+            [self setNeedsDisplay:YES];
+            return YES;
+        }
+        
+        // Handle glassmorphism intensity slider (only when glassmorphism is enabled)
+        if ([self glassmorphismEnabled] && !NSIsEmptyRect(self.glassmorphismIntensitySliderRect) && 
+            [VLCSliderControl handleMouseDown:point sliderRect:self.glassmorphismIntensitySliderRect sliderHandle:@"glassmorphismIntensity"]) {
+            CGFloat value = [VLCSliderControl valueForPoint:point
+                                               sliderRect:self.glassmorphismIntensitySliderRect
+                                                minValue:0.0
+                                                maxValue:1.0];
+            
+            if ([self glassmorphismIntensity] != value) {
+                [self setGlassmorphismIntensity:value];
+                [self saveThemeSettings];
+                [self setNeedsDisplay:YES];
+            }
+            return YES;
+        }
+        
+        // Handle glassmorphism opacity slider
+        if ([self glassmorphismEnabled] && !NSIsEmptyRect(self.glassmorphismOpacitySliderRect) && 
+            [VLCSliderControl handleMouseDown:point sliderRect:self.glassmorphismOpacitySliderRect sliderHandle:@"glassmorphismOpacity"]) {
+            CGFloat value = [VLCSliderControl valueForPoint:point
+                                               sliderRect:self.glassmorphismOpacitySliderRect
+                                                minValue:0.0
+                                                maxValue:2.0];
+            
+            if ([self glassmorphismOpacity] != value) {
+                [self setGlassmorphismOpacity:value];
+                [self saveThemeSettings];
+                [self setNeedsDisplay:YES];
+            }
+            return YES;
+        }
+        
+        // Handle glassmorphism blur radius slider
+        if ([self glassmorphismEnabled] && !NSIsEmptyRect(self.glassmorphismBlurSliderRect) && 
+            [VLCSliderControl handleMouseDown:point sliderRect:self.glassmorphismBlurSliderRect sliderHandle:@"glassmorphismBlur"]) {
+            CGFloat value = [VLCSliderControl valueForPoint:point
+                                               sliderRect:self.glassmorphismBlurSliderRect
+                                                minValue:0.0
+                                                maxValue:50.0];
+            
+            if ([self glassmorphismBlurRadius] != value) {
+                [self setGlassmorphismBlurRadius:value];
+                [self saveThemeSettings];
+                [self setNeedsDisplay:YES];
+            }
+            return YES;
+        }
+        
+        // Handle glassmorphism border width slider
+        if ([self glassmorphismEnabled] && !NSIsEmptyRect(self.glassmorphismBorderSliderRect) && 
+            [VLCSliderControl handleMouseDown:point sliderRect:self.glassmorphismBorderSliderRect sliderHandle:@"glassmorphismBorder"]) {
+            CGFloat value = [VLCSliderControl valueForPoint:point
+                                               sliderRect:self.glassmorphismBorderSliderRect
+                                                minValue:0.0
+                                                maxValue:5.0];
+            
+            if ([self glassmorphismBorderWidth] != value) {
+                [self setGlassmorphismBorderWidth:value];
+                [self saveThemeSettings];
+                [self setNeedsDisplay:YES];
+            }
+            return YES;
+        }
+        
+        // Handle glassmorphism corner radius slider
+        if ([self glassmorphismEnabled] && !NSIsEmptyRect(self.glassmorphismCornerSliderRect) && 
+            [VLCSliderControl handleMouseDown:point sliderRect:self.glassmorphismCornerSliderRect sliderHandle:@"glassmorphismCorner"]) {
+            CGFloat value = [VLCSliderControl valueForPoint:point
+                                               sliderRect:self.glassmorphismCornerSliderRect
+                                                minValue:0.0
+                                                maxValue:20.0];
+            
+            if ([self glassmorphismCornerRadius] != value) {
+                [self setGlassmorphismCornerRadius:value];
+                [self saveThemeSettings];
+                [self setNeedsDisplay:YES];
+            }
+            return YES;
+        }
+        
+        // Handle glassmorphism sanded effect slider
+        if ([self glassmorphismEnabled] && !NSIsEmptyRect(self.glassmorphismSandedSliderRect) && 
+            [VLCSliderControl handleMouseDown:point sliderRect:self.glassmorphismSandedSliderRect sliderHandle:@"glassmorphismSanded"]) {
+            CGFloat value = [VLCSliderControl valueForPoint:point
+                                               sliderRect:self.glassmorphismSandedSliderRect
+                                                minValue:0.0
+                                                maxValue:3.0];
+            
+            if ([self glassmorphismSandedIntensity] != value) {
+                [self setGlassmorphismSandedIntensity:value];
                 [self saveThemeSettings];
                 [self setNeedsDisplay:YES];
             }
@@ -863,12 +1073,15 @@ static BOOL isScrolling = NO;
 
 - (void)updateEpgButtonClicked {
     //NSLog(@"updateEpgButtonClicked method called");
+    NSLog(@"🔴 [EPG-BUTTON] BEFORE: isLoading=%@ isLoadingEpg=%@", self.isLoading ? @"YES" : @"NO", self.isLoadingEpg ? @"YES" : @"NO");
     
     // Set loading state and start the progress timer immediately
     self.isLoading = YES;
     [self startProgressRedrawTimer];
-    [self setLoadingStatusText:@"Updating EPG data..."];
+    [self setLoadingStatusText:@"Starting EPG update..."];
     [self setNeedsDisplay:YES];
+    
+    NSLog(@"🟢 [EPG-BUTTON] AFTER setting isLoading=YES: isLoading=%@ isLoadingEpg=%@", self.isLoading ? @"YES" : @"NO", self.isLoadingEpg ? @"YES" : @"NO");
     
     // Check if there's a valid EPG URL
     NSString *epgUrlToLoad = nil;
@@ -923,13 +1136,15 @@ static BOOL isScrolling = NO;
         self.epgUrl = epgUrlToLoad;
         [self saveSettingsState];
         
-        // Force reload EPG data
-        if ([self respondsToSelector:@selector(forceReloadEpgData)]) {
-            [self forceReloadEpgData];
-        } else {
-            // Fallback to regular load if the force method isn't available
-            [self loadEpgData];
-        }
+        // Set EPG URL in DataManager before forcing reload
+        [VLCDataManager sharedManager].epgURL = epgUrlToLoad;
+        
+        // CRITICAL: Set EPG loading state properly for progress tracking
+        self.isLoadingEpg = YES;
+        [self setEpgLoadingStatusText:@"Starting EPG download..."];
+        
+        // Force reload EPG data via VLCDataManager
+        [[VLCDataManager sharedManager] forceReloadEPG];
         
         // Deactivate text fields but keep the values
         self.epgFieldActive = NO;
@@ -981,7 +1196,10 @@ static BOOL isScrolling = NO;
     
     // Calculate channelListWidth dynamically based on content type FIRST
     // This ensures all boundary checks use the same calculation
-    BOOL isMovieViewMode = (isGridViewActive || isStackedViewActive) && 
+    // Use category-specific view modes instead of global flags
+    BOOL currentCategoryUsesGridView = [self isGridViewActiveForCategory:self.selectedCategoryIndex];
+    BOOL currentCategoryUsesStackedView = [self isStackedViewActiveForCategory:self.selectedCategoryIndex];
+    BOOL isMovieViewMode = (currentCategoryUsesGridView || currentCategoryUsesStackedView) && 
                           ((self.selectedCategoryIndex == CATEGORY_MOVIES) ||
                            (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]));
     
@@ -1095,7 +1313,14 @@ static BOOL isScrolling = NO;
     BOOL isInMovieInfoArea = (self.selectedChannelIndex >= 0 && point.x >= movieInfoX);
     // EPG panel starts after the channel list
     CGFloat epgPanelStartX = catWidth + groupWidth + channelListWidth;
-    BOOL isInEpgPanelArea = self.showEpgPanel && (point.x >= epgPanelStartX);
+    // Program guide is shown when hovering over a channel OR when EPG panel is explicitly open
+    BOOL isInEpgPanelArea = (self.hoveredChannelIndex >= 0 || self.showEpgPanel) && (point.x >= epgPanelStartX);
+    
+    // Debug EPG area detection
+    if (point.x >= epgPanelStartX) {
+        //NSLog(@"MOUSE DEBUG: In EPG area - showEpgPanel: %@, hoveredChannelIndex: %ld, epgPanelStartX: %.1f", 
+        //      self.showEpgPanel ? @"YES" : @"NO", (long)self.hoveredChannelIndex, epgPanelStartX);
+    }
     
 
     
@@ -1120,6 +1345,19 @@ static BOOL isScrolling = NO;
     // If we just entered or left the movie info panel, redraw
     if (wasHoveringMovieInfo != self.isHoveringMovieInfoPanel) {
         [self setNeedsDisplay:YES];
+    }
+    
+    // Handle EPG catchup icon hover detection
+    if (isInEpgPanelArea) {
+        NSLog(@"EPG area detected (hoveredChannelIndex: %ld, showEpgPanel: %@, x: %.1f), calling hover detection", (long)self.hoveredChannelIndex, self.showEpgPanel ? @"YES" : @"NO", point.x);
+        [self updateEpgCatchupHoverAtPoint:point];
+    } else {
+        // Clear hover state when not in EPG area
+        extern NSInteger hoveredCatchupProgramIndex;
+        if (hoveredCatchupProgramIndex != -1) {
+            hoveredCatchupProgramIndex = -1;
+            [self setNeedsDisplay:YES];
+        }
     }
     
     // If hovering over movie info panel or EPG panel, don't process other hover states,
@@ -1186,13 +1424,13 @@ static BOOL isScrolling = NO;
     if (point.x >= catWidth && point.x < catWidth + groupWidth) {
         // Mouse is in the group list
         if (self.selectedCategoryIndex >= 0 && self.selectedCategoryIndex < [self.categories count]) {
-            // Calculate group index with precision to avoid fractional errors
-            CGFloat effectiveY = self.bounds.size.height - point.y;
-            NSInteger itemsScrolled = (NSInteger)floor(groupScrollPosition / 40);
-            NSInteger visibleIndex = (NSInteger)floor(effectiveY / 40);
-            NSInteger groupIndex = visibleIndex + itemsScrolled;
+            // Use the EXACT same logic as drawing to find which group contains the point
+            // Drawing uses: itemRect.y = self.bounds.size.height - ((i+1) * rowHeight) + groupScrollPosition
             
-            // Validate index against current group list
+            CGFloat rowHeight = 40;
+            NSInteger groupIndex = -1;
+            
+            // Get groups array first
             NSArray *groups = nil;
             NSString *categoryName = [self.categories objectAtIndex:self.selectedCategoryIndex];
             
@@ -1208,7 +1446,23 @@ static BOOL isScrolling = NO;
                 groups = [self safeValueForKey:@"SETTINGS" fromDictionary:self.groupsByCategory];
             }
             
-            if (groups && groupIndex >= 0 && groupIndex < [groups count]) {
+            // Test each group using the exact same positioning as the drawing code
+            if (groups) {
+                for (NSInteger i = 0; i < [groups count]; i++) {
+                    CGFloat itemY = self.bounds.size.height - ((i+1) * rowHeight) + groupScrollPosition;
+                    NSRect itemRect = NSMakeRect(200, itemY, 250, rowHeight);
+                    
+                    if (NSPointInRect(point, itemRect)) {
+                        groupIndex = i;
+                        break;
+                    }
+                }
+            }
+            
+            //NSLog(@"🔍 GROUP HOVER: point.y=%.1f, groupScrollPosition=%.1f, foundIndex=%ld", 
+            //      point.y, groupScrollPosition, (long)groupIndex);
+            
+            if (groupIndex >= 0 && groupIndex < [groups count]) {
                 self.hoveredGroupIndex = groupIndex;
             }
         }
@@ -1249,7 +1503,10 @@ static BOOL isScrolling = NO;
     }
     
     // If we're in grid view, handle channel hovering differently
-    if (isGridViewActive && isInChannelListArea) {
+    // Use category-specific view mode instead of global flag
+    //NSLog(@"🔍 GRID CHECK: currentCategoryUsesGridView=%@, isInChannelListArea=%@, category=%ld", 
+     //     currentCategoryUsesGridView ? @"YES" : @"NO", isInChannelListArea ? @"YES" : @"NO", (long)self.selectedCategoryIndex);
+    if (currentCategoryUsesGridView && isInChannelListArea) {
         // CRITICAL FIX: Only run grid logic if we're actually in a movie category
         // This prevents grid logic from interfering when we're in other categories
         BOOL isInMovieCategory = (self.selectedCategoryIndex == CATEGORY_MOVIES) || 
@@ -1296,12 +1553,17 @@ static BOOL isScrolling = NO;
     }
     
     // Regular list view logic (or fallback from grid view when not in movie category)  
+    //NSLog(@"🔍 LIST CHECK: Taking list view path - isInChannelListArea=%@, category=%ld", 
+    //      isInChannelListArea ? @"YES" : @"NO", (long)self.selectedCategoryIndex);
     if (isInChannelListArea) {
+        //NSLog(@"🔍 INSIDE LIST AREA: isPersistingHoverState=%@", isPersistingHoverState ? @"YES" : @"NO");
+        
         // In list view, use the regular channel hover logic - only when actually in the channel list area
         // FIXED: Clear persistence state when back in channel list to resume normal hover behavior
         if (isPersistingHoverState) {
             isPersistingHoverState = NO;
             lastValidHoveredChannelIndex = -1;
+            //NSLog(@"🔍 CLEARED persistence state");
         }
         
         // CRITICAL FIX: Only call simpleChannelIndexAtPoint if we're NOT in EPG preservation mode
@@ -1309,12 +1571,16 @@ static BOOL isScrolling = NO;
         // as it will return -1 and overwrite our preserved hover state
         NSInteger channelIndex = -1;
         if (!isPersistingHoverState) {
+            //NSLog(@"🔍 CALLING simpleChannelIndexAtPoint...");
             channelIndex = [self simpleChannelIndexAtPoint:point];
+            //NSLog(@"🔍 RESULT from simpleChannelIndexAtPoint: %ld", (long)channelIndex);
             // Safety check: if the returned index is garbage (too large or negative except -1), ignore it
             if (channelIndex != -1 && (channelIndex < 0 || channelIndex > 100000)) {
+                //NSLog(@"🔍 GARBAGE INDEX - setting to -1");
                 channelIndex = -1;
             }
         } else {
+            //NSLog(@"🔍 PRESERVING hover state: %ld", (long)self.hoveredChannelIndex);
             // When preserving state, keep the current hover index
             channelIndex = self.hoveredChannelIndex;
         }
@@ -1344,7 +1610,7 @@ static BOOL isScrolling = NO;
         
         // Add debug logging to check if channel hover is detected
         if (channelIndex >= 0) {
-            //NSLog(@"Hovering over channel index: %ld", (long)channelIndex);
+            //NSLog(@"🎯 HOVER DEBUG: Set hoveredChannelIndex to %ld (category: %ld)", (long)channelIndex, (long)self.selectedCategoryIndex);
             
             // Get the actual channel object to show more info
             VLCChannel *channel = [self getChannelAtHoveredIndex];
@@ -1375,7 +1641,7 @@ static BOOL isScrolling = NO;
                 }
             }
         } else {
-            //NSLog(@"No channel hovered");
+            //NSLog(@"🎯 HOVER DEBUG: Set hoveredChannelIndex to -1 (no hover)");
         }
         
         [self setNeedsDisplay:YES];
@@ -1924,7 +2190,10 @@ static BOOL isScrolling = NO;
     CGFloat movieInfoX;
     
     // Check if we're displaying movies in grid or stacked view (which should take full width)
-    BOOL isMovieViewMode = (isGridViewActive || isStackedViewActive) && 
+    // Use category-specific view modes instead of global flags
+    BOOL currentCategoryUsesGridView = [self isGridViewActiveForCategory:self.selectedCategoryIndex];
+    BOOL currentCategoryUsesStackedView = [self isStackedViewActiveForCategory:self.selectedCategoryIndex];
+    BOOL isMovieViewMode = (currentCategoryUsesGridView || currentCategoryUsesStackedView) && 
                           ((self.selectedCategoryIndex == CATEGORY_MOVIES) ||
                            (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]));
     
@@ -2024,10 +2293,40 @@ static BOOL isScrolling = NO;
         }
     }
     
+    // Check for settings panel scrolling
+    if (self.selectedCategoryIndex == CATEGORY_SETTINGS && point.x >= catWidth + groupWidth) {
+        // Reset auto-hide timer on scrolling interaction
+        [self scheduleInteractionCheck];
+        
+        // We're in the settings panel area - enable scrolling
+        CGFloat scrollAmount = -[event deltaY] * 20;
+        
+        // Update settings scroll position
+        self.settingsScrollPosition += scrollAmount;
+        
+        // Calculate reasonable bounds for scrolling
+        // Settings panel can have many controls, so allow for generous scrolling
+        CGFloat maxScroll = 5000; // Increased from 4000 to 6000 pixels for very long content
+        self.settingsScrollPosition = MAX(0, self.settingsScrollPosition);
+        self.settingsScrollPosition = MIN(800, self.settingsScrollPosition); // Increased from 500 to 800 for more upward scroll
+        
+        // Redraw
+        [self setNeedsDisplay:YES];
+        
+        // Return here to prevent other panels from scrolling
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            isScrolling = NO;
+        });
+        return;
+    }
+    
     // Check movie info area
     if (point.x >= movieInfoX) {
         // We're in the movie info panel area - only scroll this panel if it's active
         if (self.selectedChannelIndex >= 0) {
+            // Reset auto-hide timer on movie info scrolling interaction
+            [self scheduleInteractionCheck];
+            
             //NSLog(@"Scrolling movie info panel");
             // Calculate scroll amount (inverted for natural scroll direction)
             CGFloat scrollAmount = -[event deltaY] * 20; // Doubled scroll speed for better responsiveness
@@ -2077,6 +2376,9 @@ static BOOL isScrolling = NO;
     
     // Calculate scroll amount (inverted for natural scroll direction)
     CGFloat scrollAmount = -[event deltaY] * 10; // Negative sign inverts direction
+    
+    // Reset auto-hide timer on any scrolling interaction
+    [self scheduleInteractionCheck];
     
     if (point.x < catWidth) {
         // Scroll categories
@@ -2128,8 +2430,17 @@ static BOOL isScrolling = NO;
         
         // Only scroll if in the channel list section
         if (isInChannelListArea) {
+            // Check what view mode is ACTUALLY being rendered using category-specific logic
+            BOOL currentCategoryUsesGridView = [self isGridViewActiveForCategory:self.selectedCategoryIndex];
+            BOOL isGridActuallyActive = currentCategoryUsesGridView && 
+                                       ((self.selectedCategoryIndex == CATEGORY_MOVIES) ||
+                                        (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]));
+            
+            //NSLog(@"🔍 VIEW MODE CHECK: selectedCategory=%ld, categoryUsesGrid=%@, isGridActuallyActive=%@", 
+            //      (long)self.selectedCategoryIndex, currentCategoryUsesGridView ? @"YES" : @"NO", isGridActuallyActive ? @"YES" : @"NO");
+            
             // Scroll channels or grid
-            if (isGridViewActive) {
+            if (isGridActuallyActive) {
                 // For grid view, get the content dimensions
                 NSArray *channels = [self getChannelsForCurrentGroup];
                 if (channels && channels.count > 0) {
@@ -2149,11 +2460,15 @@ static BOOL isScrolling = NO;
                     // Add extra padding to ensure last row is fully visible 
                     totalGridHeight += itemHeight;
                     
-                    // Update scroll position
-                    channelScrollPosition += scrollAmount;
-                    channelScrollPosition = MAX(0, channelScrollPosition);
+                    // Update scroll position with debugging
+                    CGFloat oldGridScrollPos = channelScrollPosition;
                     CGFloat maxScroll = MAX(0, totalGridHeight - contentHeight);
-                    channelScrollPosition = MIN(maxScroll, channelScrollPosition);
+                    CGFloat newGridScrollPosition = channelScrollPosition + scrollAmount;
+                    channelScrollPosition = MAX(0, MIN(maxScroll, newGridScrollPosition));
+                    
+                    //NSLog(@"🔄 GRID SCROLL: oldPos=%.1f, scrollAmount=%.1f, newPos=%.1f, maxScroll=%.1f, finalPos=%.1f, totalGridHeight=%.1f, contentHeight=%.1f, channelCount=%ld", 
+                    //      oldGridScrollPos, scrollAmount, newGridScrollPosition, maxScroll, channelScrollPosition, 
+                    //      totalGridHeight, contentHeight, (long)channels.count);
                     
                     // Immediately validate movie info for newly visible items in grid mode
                     // This ensures cover images load as they become visible during scrolling
@@ -2165,25 +2480,39 @@ static BOOL isScrolling = NO;
             } else {
                 // Scroll channel list - need to calculate max scroll based on current view mode
                 if (self.selectedCategoryIndex == CATEGORY_SEARCH) {
-                    // Handle search mode scrolling
-                    self.searchChannelScrollPosition += scrollAmount;
-                    self.searchChannelScrollPosition = MAX(0, self.searchChannelScrollPosition);
+                    // Handle search mode scrolling - calculate max scroll FIRST
+                    CGFloat catWidth = 200;
+                    CGFloat groupWidth = 250;
+                    CGFloat channelListX = catWidth + groupWidth;
+                    CGFloat channelListWidth = self.bounds.size.width - channelListX;
+                    NSRect contentRect = NSMakeRect(channelListX, 0, channelListWidth, self.bounds.size.height);
                     
-                    // Calculate max scroll for search results
-                    CGFloat maxScroll = MAX(0, ([self.searchChannelResults count] * 40 + 40) - (self.bounds.size.height));
-                    self.searchChannelScrollPosition = MIN(maxScroll, self.searchChannelScrollPosition);
+                    CGFloat rowHeight = 40;
+                    CGFloat totalContentHeight = [self.searchChannelResults count] * rowHeight;
+                    totalContentHeight += rowHeight; // Add extra space at bottom
+                    
+                    CGFloat maxScroll = MAX(0, totalContentHeight - contentRect.size.height);
+                    CGFloat oldScrollPos = self.searchChannelScrollPosition;
+                    
+                    // Calculate new scroll position and clamp it BEFORE assignment
+                    CGFloat newScrollPosition = self.searchChannelScrollPosition + scrollAmount;
+                    self.searchChannelScrollPosition = MAX(0, MIN(maxScroll, newScrollPosition));
+                    
+                    NSLog(@"🔄 SEARCH SCROLL: oldPos=%.1f, scrollAmount=%.1f, newPos=%.1f, maxScroll=%.1f, finalPos=%.1f, contentHeight=%.1f, viewHeight=%.1f, channelCount=%ld", 
+                          oldScrollPos, scrollAmount, newScrollPosition, maxScroll, self.searchChannelScrollPosition, 
+                          totalContentHeight, contentRect.size.height, (long)[self.searchChannelResults count]);
                 } else {
-                    // Regular channel list scrolling
-                    channelScrollPosition += scrollAmount;
-                    
-                    // Limit scrolling
-                    channelScrollPosition = MAX(0, channelScrollPosition);
-                    
-                    // Calculate max scroll based on current view mode
+                    // Regular channel list scrolling - calculate max scroll FIRST
                     CGFloat maxScroll = 0;
                     NSArray *channelsInCurrentGroup = [self getChannelsForCurrentGroup];
                     
-                    if (isStackedViewActive && channelsInCurrentGroup && channelsInCurrentGroup.count > 0) {
+                    // Check if we're actually in a movie category where stacked view applies
+                    BOOL isMovieCategory = (self.selectedCategoryIndex == CATEGORY_MOVIES) || 
+                                          (self.selectedCategoryIndex == CATEGORY_FAVORITES && [self currentGroupContainsMovieChannels]);
+                    BOOL currentCategoryUsesStackedView = [self isStackedViewActiveForCategory:self.selectedCategoryIndex];
+                    BOOL shouldUseStackedView = currentCategoryUsesStackedView && isMovieCategory && channelsInCurrentGroup && channelsInCurrentGroup.count > 0;
+                    
+                    if (shouldUseStackedView) {
                         // For stacked view - use EXACT same calculation as drawStackedView
                         CGFloat stackedRowHeight = 400; // Match drawStackedView row height
                         
@@ -2208,11 +2537,50 @@ static BOOL isScrolling = NO;
                         
                         maxScroll = MAX(0, totalContentHeight - stackedRect.size.height);
                     } else {
-                        // For regular list view - use the original calculation
-                        maxScroll = MAX(0, ([self.simpleChannelNames count] * 40 + 40) - (self.bounds.size.height));
+                        // For regular list view - match EXACTLY the calculation from drawChannelList
+                        CGFloat catWidth = 200;
+                        CGFloat groupWidth = 250;
+                        CGFloat channelListX = catWidth + groupWidth;
+                        CGFloat channelListWidth = self.bounds.size.width - channelListX;
+                        NSRect contentRect = NSMakeRect(channelListX, 0, channelListWidth, self.bounds.size.height);
+                        
+                        CGFloat rowHeight = 40;
+                        NSArray *channelNames = self.simpleChannelNames;
+                        
+                        // Use the exact same calculation as in drawChannelList
+                        CGFloat totalContentHeight = [channelNames count] * rowHeight;
+                        totalContentHeight += rowHeight; // Add extra space at bottom
+                        
+                        maxScroll = MAX(0, totalContentHeight - contentRect.size.height);
                     }
                     
-                    channelScrollPosition = MIN(maxScroll, channelScrollPosition);
+                    // Debug logging for regular channel scrolling
+                    CGFloat oldScrollPos = channelScrollPosition;
+                    NSArray *channelNames = self.simpleChannelNames;
+                    
+                    // SAFETY CHECK: Reset scroll position if it's way beyond reasonable bounds
+                    if (channelScrollPosition > maxScroll * 2) {
+                        NSLog(@"⚠️ SCROLL RESET: channelScrollPosition was %.1f, maxScroll is %.1f, resetting to maxScroll", channelScrollPosition, maxScroll);
+                        channelScrollPosition = maxScroll;
+                    }
+                    
+                    // Calculate new scroll position and clamp it BEFORE assignment
+                    CGFloat newScrollPosition = channelScrollPosition + scrollAmount;
+                    channelScrollPosition = MAX(0, MIN(maxScroll, newScrollPosition));
+                    
+                    // Get content rect dimensions for debugging
+                    CGFloat catWidth = 200;
+                    CGFloat groupWidth = 250;
+                    CGFloat channelListX = catWidth + groupWidth;
+                    CGFloat channelListWidth = self.bounds.size.width - channelListX;
+                    NSRect contentRect = NSMakeRect(channelListX, 0, channelListWidth, self.bounds.size.height);
+                    CGFloat rowHeight = 40;
+                    CGFloat totalContentHeight = [channelNames count] * rowHeight + rowHeight;
+                    
+                    //NSLog(@"🔄 CHANNEL SCROLL: oldPos=%.1f, scrollAmount=%.1f, newPos=%.1f, maxScroll=%.1f, finalPos=%.1f, contentHeight=%.1f, viewHeight=%.1f, channelCount=%ld, categoryUsesStacked=%@, shouldUseStacked=%@, isMovieCategory=%@", 
+                    //      oldScrollPos, scrollAmount, newScrollPosition, maxScroll, channelScrollPosition, 
+                    //      totalContentHeight, contentRect.size.height, (long)[channelNames count], 
+                    //      currentCategoryUsesStackedView ? @"YES" : @"NO", shouldUseStackedView ? @"YES" : @"NO", isMovieCategory ? @"YES" : @"NO");
                 }
             }
         } else {
@@ -2394,4 +2762,269 @@ static BOOL isScrolling = NO;
     [self setNeedsDisplay:YES];
 }
 
+// Handle EPG catchup icon clicks
+- (BOOL)handleEpgCatchupClickAtPoint:(NSPoint)point {
+    NSLog(@"handleEpgCatchupClickAtPoint called at (%.1f, %.1f) with hoveredChannelIndex: %ld", point.x, point.y, (long)self.hoveredChannelIndex);
+    if (self.hoveredChannelIndex < 0) {
+        NSLog(@"No hovered channel, returning NO");
+        return NO;
+    }
+    
+    // Get the hovered channel
+    VLCChannel *hoveredChannel = [self getChannelAtIndex:self.hoveredChannelIndex];
+    if (!hoveredChannel) {
+        NSLog(@"ERROR: No hovered channel found for index %ld", (long)self.hoveredChannelIndex);
+        return NO;
+    }
+    NSLog(@"Found hovered channel: %@ (supports catchup: %@)", hoveredChannel.name, hoveredChannel.supportsCatchup ? @"YES" : @"NO");
+    
+    // Check if channel supports catchup
+    if (!hoveredChannel.supportsCatchup) {
+        NSLog(@"Channel does not support catchup, returning NO");
+        return NO;
+    }
+    
+    // Get programs for this channel (use same method as drawing code)
+    NSArray *programs = hoveredChannel.programs;
+    if (!programs || [programs count] == 0) {
+        NSLog(@"No programs found for channel %@ (programs array count: %ld)", hoveredChannel.name, (long)(hoveredChannel.programs ? [hoveredChannel.programs count] : 0));
+        return NO;
+    }
+    NSLog(@"Found %ld programs for channel %@", (long)[programs count], hoveredChannel.name);
+    
+    // Calculate EPG panel boundaries (same as in drawProgramGuideForHoveredChannel)
+    CGFloat catWidth = 200;
+    CGFloat groupWidth = 250;
+    CGFloat channelListWidth = self.bounds.size.width - catWidth - groupWidth - 400;
+    CGFloat guidePanelX = catWidth + groupWidth + channelListWidth;
+    CGFloat guidePanelWidth = 400;
+    CGFloat guidePanelHeight = self.bounds.size.height;
+    
+    NSLog(@"EPG panel bounds: x=%.1f, width=%.1f, height=%.1f (click at x=%.1f)", guidePanelX, guidePanelWidth, guidePanelHeight, point.x);
+    NSLog(@"EPG scroll position: %.1f", self.epgScrollPosition);
+    
+    // Check if click is within EPG panel bounds
+    if (point.x < guidePanelX || point.x > guidePanelX + guidePanelWidth) {
+        NSLog(@"Click outside EPG panel bounds (x=%.1f not between %.1f and %.1f)", point.x, guidePanelX, guidePanelX + guidePanelWidth);
+        return NO;
+    }
+    NSLog(@"Click is within EPG panel bounds");
+    
+    // Calculate which program was clicked
+    CGFloat entryHeight = 80;
+    CGFloat entrySpacing = 2;
+    CGFloat visibleContentHeight = guidePanelHeight - 20;
+    CGFloat adjustedY = guidePanelHeight - point.y + self.epgScrollPosition;
+    NSInteger programIndex = (NSInteger)(adjustedY / (entryHeight + entrySpacing));
+    
+    NSLog(@"Program calculation: adjustedY=%.1f, programIndex=%ld, total programs=%ld", adjustedY, (long)programIndex, (long)[programs count]);
+    
+    if (programIndex < 0 || programIndex >= [programs count]) {
+        NSLog(@"Program index %ld out of bounds (0-%ld)", (long)programIndex, (long)[programs count] - 1);
+        return NO;
+    }
+    
+    VLCProgram *clickedProgram = [programs objectAtIndex:programIndex];
+    if (!clickedProgram || !clickedProgram.hasArchive) {
+        NSLog(@"Program %@ does not have archive or is nil (hasArchive: %@)", clickedProgram.title, clickedProgram.hasArchive ? @"YES" : @"NO");
+        return NO;
+    }
+    NSLog(@"Found valid program with archive: %@", clickedProgram.title);
+    
+    // Calculate entry rect for this program
+    NSRect entryRect = NSMakeRect(
+        guidePanelX + 10,
+        guidePanelHeight - ((programIndex + 1) * (entryHeight + entrySpacing)) + self.epgScrollPosition,
+        guidePanelWidth - 20,
+        entryHeight
+    );
+    
+    // Calculate catchup icon rect (same as in drawing code)
+    NSRect catchupIndicatorRect = NSMakeRect(
+        entryRect.origin.x + entryRect.size.width - 30,
+        entryRect.origin.y + entryHeight - 20,
+        20,
+        16
+    );
+    
+    NSLog(@"Entry rect: {{%.1f, %.1f}, {%.1f, %.1f}}", entryRect.origin.x, entryRect.origin.y, entryRect.size.width, entryRect.size.height);
+    NSLog(@"Catchup icon rect: {{%.1f, %.1f}, {%.1f, %.1f}}", catchupIndicatorRect.origin.x, catchupIndicatorRect.origin.y, catchupIndicatorRect.size.width, catchupIndicatorRect.size.height);
+    NSLog(@"Click point: (%.1f, %.1f)", point.x, point.y);
+    
+    // Check if click is within the catchup icon
+    if (!NSPointInRect(point, catchupIndicatorRect)) {
+        NSLog(@"Click NOT within catchup icon rect");
+        return NO;
+    }
+    NSLog(@"SUCCESS: Click IS within catchup icon rect!");
+    
+    NSLog(@"EPG catchup icon clicked for program: %@", clickedProgram.title);
+    
+    // Generate timeshift URL for the program
+    NSString *timeshiftUrl = [self generateTimeshiftUrlForProgram:clickedProgram channel:hoveredChannel];
+    
+    if (!timeshiftUrl) {
+        //NSLog(@"Failed to generate timeshift URL for program: %@", clickedProgram.title);
+        return YES; // Return YES because we handled the click, even if we couldn't generate URL
+    }
+    
+    // Stop current playback
+    if (self.player) {
+        [self saveCurrentPlaybackPosition];
+        [self.player stop];
+    }
+    
+    // Brief pause to allow VLC to reset
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        // Create media object with timeshift URL
+        NSURL *url = [NSURL URLWithString:timeshiftUrl];
+        VLCMedia *media = [VLCMedia mediaWithURL:url];
+        
+        // Set the media to the player
+        [self.player setMedia:media];
+        
+        // Apply subtitle settings
+        if ([VLCSubtitleSettings respondsToSelector:@selector(applyCurrentSettingsToPlayer:)]) {
+            [VLCSubtitleSettings applyCurrentSettingsToPlayer:self.player];
+        }
+        
+        // Start playing
+        [self.player play];
+        
+        //NSLog(@"Started timeshift playback for program: %@", clickedProgram.title);
+        
+        // Force UI update
+        [self setNeedsDisplay:YES];
+    });
+    
+    // Save the timeshift URL as last played for resume functionality
+    [self saveLastPlayedChannelUrl:timeshiftUrl];
+    
+    // Create a temporary channel object for timeshift content
+    VLCChannel *timeshiftChannel = [[VLCChannel alloc] init];
+    timeshiftChannel.name = [NSString stringWithFormat:@"%@ (Timeshift: %@)", hoveredChannel.name, clickedProgram.title];
+    timeshiftChannel.url = timeshiftUrl;
+    timeshiftChannel.channelId = hoveredChannel.channelId;
+    timeshiftChannel.group = hoveredChannel.group;
+    timeshiftChannel.category = hoveredChannel.category;
+    timeshiftChannel.logo = hoveredChannel.logo;
+    
+    // Add program info to the timeshift channel
+    timeshiftChannel.programs = [NSMutableArray arrayWithObject:clickedProgram];
+    
+    [self saveLastPlayedContentInfo:timeshiftChannel];
+    [timeshiftChannel release];
+    
+    // Hide the channel list after starting playback
+    [self hideChannelListWithFade];
+    
+    return YES;
+}
+
+// Update EPG catchup icon hover state
+- (void)updateEpgCatchupHoverAtPoint:(NSPoint)point {
+    extern NSInteger hoveredCatchupProgramIndex;
+    NSInteger previousHoveredIndex = hoveredCatchupProgramIndex;
+    hoveredCatchupProgramIndex = -1; // Reset first
+    
+    if (self.hoveredChannelIndex < 0) {
+        if (previousHoveredIndex != -1) {
+            [self setNeedsDisplay:YES];
+        }
+        return;
+    }
+    
+    // Get the hovered channel
+    VLCChannel *hoveredChannel = [self getChannelAtIndex:self.hoveredChannelIndex];
+    if (!hoveredChannel || !hoveredChannel.supportsCatchup) {
+        if (previousHoveredIndex != -1) {
+            [self setNeedsDisplay:YES];
+        }
+        return;
+    }
+    
+    // Get programs for this channel (use same method as drawing code)
+    NSArray *programs = hoveredChannel.programs;
+    if (!programs || [programs count] == 0) {
+        if (previousHoveredIndex != -1) {
+            [self setNeedsDisplay:YES];
+        }
+        return;
+    }
+    
+    // Calculate EPG panel boundaries (same as in drawProgramGuideForHoveredChannel)
+    CGFloat catWidth = 200;
+    CGFloat groupWidth = 250;
+    CGFloat channelListWidth = self.bounds.size.width - catWidth - groupWidth - 400;
+    CGFloat guidePanelX = catWidth + groupWidth + channelListWidth;
+    CGFloat guidePanelWidth = 400;
+    CGFloat guidePanelHeight = self.bounds.size.height;
+    
+    // Check if mouse is within EPG panel bounds
+    if (point.x < guidePanelX || point.x > guidePanelX + guidePanelWidth) {
+        if (previousHoveredIndex != -1) {
+            [self setNeedsDisplay:YES];
+        }
+        return;
+    }
+    
+    // Calculate which program the mouse is over
+    CGFloat entryHeight = 80;
+    CGFloat entrySpacing = 2;
+    CGFloat adjustedY = guidePanelHeight - point.y + self.epgScrollPosition;
+    NSInteger programIndex = (NSInteger)(adjustedY / (entryHeight + entrySpacing));
+    
+    if (programIndex < 0 || programIndex >= [programs count]) {
+        if (previousHoveredIndex != -1) {
+            [self setNeedsDisplay:YES];
+        }
+        return;
+    }
+    
+    VLCProgram *program = [programs objectAtIndex:programIndex];
+    if (!program || !program.hasArchive) {
+        if (previousHoveredIndex != -1) {
+            [self setNeedsDisplay:YES];
+        }
+        return;
+    }
+    
+    // Calculate entry rect for this program
+    NSRect entryRect = NSMakeRect(
+        guidePanelX + 10,
+        guidePanelHeight - ((programIndex + 1) * (entryHeight + entrySpacing)) + self.epgScrollPosition,
+        guidePanelWidth - 20,
+        entryHeight
+    );
+    
+    // Calculate catchup icon rect (same as in drawing code)
+    NSRect catchupIndicatorRect = NSMakeRect(
+        entryRect.origin.x + entryRect.size.width - 30,
+        entryRect.origin.y + entryHeight - 20,
+        20,
+        16
+    );
+    
+    // Check if mouse is over the catchup icon
+    if (NSPointInRect(point, catchupIndicatorRect)) {
+        hoveredCatchupProgramIndex = programIndex;
+        
+        // Set cursor to pointer to indicate clickability
+        [[NSCursor pointingHandCursor] set];
+        
+        // Debug logging
+        //NSLog(@"EPG Catchup Hover: Program %ld (%@) - Icon hovered", (long)programIndex, program.title);
+    } else {
+        // Reset cursor to arrow
+        [[NSCursor arrowCursor] set];
+    }
+    
+    // Redraw if hover state changed
+    if (previousHoveredIndex != hoveredCatchupProgramIndex) {
+        [self setNeedsDisplay:YES];
+    }
+}
+
 @end 
+
+#endif // TARGET_OS_OSX 

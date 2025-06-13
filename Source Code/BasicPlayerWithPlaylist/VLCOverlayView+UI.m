@@ -1,4 +1,6 @@
 #import "VLCOverlayView+UI.h"
+
+#if TARGET_OS_OSX
 #import "VLCOverlayView+Drawing.h"
 #import "VLCOverlayView+MouseHandling.h"
 #import "VLCOverlayView+ContextMenu.h"
@@ -22,3 +24,5 @@
 // This implementation is now empty as it serves as a coordination point
 
 @end 
+
+#endif // TARGET_OS_OSX

@@ -1,4 +1,4 @@
-#import <Cocoa/Cocoa.h>
+#import "PlatformBridge.h"
 
 @protocol VLCReusableTextFieldDelegate <NSObject>
 @optional
@@ -7,13 +7,17 @@
 - (void)textFieldDidBeginEditing:(NSString *)identifier;
 @end
 
+#if TARGET_OS_OSX
 @interface VLCReusableTextField : NSTextField
+#else
+@interface VLCReusableTextField : UITextField
+#endif
 
 @property (nonatomic, assign) id<VLCReusableTextFieldDelegate> textFieldDelegate;
 @property (nonatomic, retain) NSString *identifier;
 @property (nonatomic, assign) BOOL isActive;
 
-- (instancetype)initWithFrame:(NSRect)frame identifier:(NSString *)identifier;
+- (instancetype)initWithFrame:(PlatformRect)frame identifier:(NSString *)identifier;
 - (void)setPlaceholderText:(NSString *)placeholder;
 - (void)setTextValue:(NSString *)text;
 - (void)activateField;

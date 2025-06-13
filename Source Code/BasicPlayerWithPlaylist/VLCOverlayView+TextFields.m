@@ -1,9 +1,12 @@
 #import "VLCOverlayView+TextFields.h"
+
+#if TARGET_OS_OSX
 #import "VLCOverlayView_Private.h"
 #import "VLCOverlayView+PlayerControls.h"
 #import "VLCSubtitleSettings.h"
 #import <objc/runtime.h>
 #import "VLCOverlayView+Utilities.h"
+#import "VLCOverlayView+Glassmorphism.h"
 #import <math.h>
 #import "VLCSliderControl.h"
 #import "VLCOverlayView+Globals.h"
@@ -64,32 +67,14 @@
     CGFloat programGuideWidth = 400; // Increased width for program guide
     CGFloat channelListWidth = self.bounds.size.width - channelListX - programGuideWidth;
     
-    // Draw background using theme colors with gradient
+    // Draw glassmorphism panels for channel list and program guide
     NSRect menuRect = NSMakeRect(channelListX, 0, channelListWidth, self.bounds.size.height);
-    NSGradient *backgroundGradient = [[NSGradient alloc] initWithStartingColor:self.themeChannelStartColor ? self.themeChannelStartColor : [NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.7]
-                                                                   endingColor:self.themeChannelEndColor ? self.themeChannelEndColor : [NSColor colorWithCalibratedRed:0.12 green:0.14 blue:0.18 alpha:0.7]];
-    [backgroundGradient drawInRect:menuRect angle:90];
-    [backgroundGradient release];
+    [self drawGlassmorphismPanel:menuRect opacity:0.6 cornerRadius:0];
     
-    // Draw program guide background using theme colors (darker version)
+    // Draw program guide panel with glassmorphism
     CGFloat programGuideX = channelListX + channelListWidth;
     NSRect programGuideRect = NSMakeRect(programGuideX, 0, programGuideWidth, self.bounds.size.height);
-    
-    // Create darker theme colors for program guide
-    NSColor *programGuideStartColor, *programGuideEndColor;
-    if (self.themeChannelStartColor && self.themeChannelEndColor) {
-        // Make the program guide slightly darker than channel list
-        CGFloat darkAlpha = self.themeAlpha * 0.9; // Slightly more transparent
-        programGuideStartColor = [self.themeChannelStartColor colorWithAlphaComponent:darkAlpha];
-        programGuideEndColor = [self.themeChannelEndColor colorWithAlphaComponent:darkAlpha];
-    } else {
-        programGuideStartColor = [NSColor colorWithCalibratedRed:0.08 green:0.10 blue:0.14 alpha:0.65];
-        programGuideEndColor = [NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.65];
-    }
-    
-    NSGradient *programGuideGradient = [[NSGradient alloc] initWithStartingColor:programGuideStartColor endingColor:programGuideEndColor];
-    [programGuideGradient drawInRect:programGuideRect angle:90];
-    [programGuideGradient release];
+    [self drawGlassmorphismPanel:programGuideRect opacity:0.5 cornerRadius:0];
     
     // Define the content rect for the channel list
     NSRect contentRect = NSMakeRect(channelListX, 0, channelListWidth, self.bounds.size.height);
@@ -141,52 +126,29 @@
     
     // Draw each channel - removed header bar completely
     for (NSInteger i = 0; i < [channelNames count]; i++) {
-        // Calculate visible position accounting for scroll
-        NSInteger visibleIndex = i - (NSInteger)floor(scrollPosition / rowHeight);
+        // Calculate the Y position for this item, accounting for scroll
+        CGFloat itemY = contentRect.origin.y + contentRect.size.height - ((i + 1) * rowHeight) + scrollPosition;
         
-        // Adjusted positioning to start from top with no header offset
-        NSRect itemRect = NSMakeRect(channelListX, 
-                                     self.bounds.size.height - ((visibleIndex+1) * rowHeight), 
-                                     channelListWidth, 
-                                     rowHeight);
+        NSRect itemRect = NSMakeRect(channelListX, itemY, channelListWidth, rowHeight);
         
         // Skip drawing if not visible
         if (!NSIntersectsRect(itemRect, rect)) {
             continue;
         }
         
-        // Highlight hovered or selected channel with rounded corners (matching categories/groups style)
+                // Highlight hovered or selected channel with glassmorphism effects
         if (i == self.hoveredChannelIndex || i == self.selectedChannelIndex) {
-            if (i == self.selectedChannelIndex) {
-                // Selected channel - use custom selection color with rounded corners
-                NSBezierPath *selectionPath = [NSBezierPath bezierPathWithRoundedRect:
-                                             NSInsetRect(itemRect, 4, 2)
-                                                                             xRadius:6
-                                                                             yRadius:6];
-                [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.3] set];
-                [selectionPath fill];
-                
-                // Add subtle highlight border
-                [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.2] set];
-                [selectionPath stroke];
-            } else {
-                // Hovered channel - use lighter version (auto-calculated hover color) with rounded corners
-                CGFloat blendFactor = 0.5; // Increased from 0.3 for better visibility
-                CGFloat hoverRed = self.customSelectionRed + (1.0 - self.customSelectionRed) * blendFactor;
-                CGFloat hoverGreen = self.customSelectionGreen + (1.0 - self.customSelectionGreen) * blendFactor;
-                CGFloat hoverBlue = self.customSelectionBlue + (1.0 - self.customSelectionBlue) * blendFactor;
-                
-                NSBezierPath *hoverPath = [NSBezierPath bezierPathWithRoundedRect:
-                                         NSInsetRect(itemRect, 4, 2)
-                                                                         xRadius:6
-                                                                         yRadius:6];
-                [[NSColor colorWithCalibratedRed:hoverRed green:hoverGreen blue:hoverBlue alpha:0.25] set]; // Increased alpha from 0.15
-                [hoverPath fill];
-                
-                // Add subtle highlight border
-                [[NSColor colorWithCalibratedRed:hoverRed green:hoverGreen blue:hoverBlue alpha:0.15] set]; // Increased stroke alpha from 0.1
-                [hoverPath stroke];
-            }
+            NSRect buttonRect = NSInsetRect(itemRect, 4, 2);
+            BOOL isHovered = (i == self.hoveredChannelIndex);
+            BOOL isSelected = (i == self.selectedChannelIndex);
+            
+            //NSLog(@"🎨 DRAW DEBUG: Drawing highlight for item %ld - hovered: %@, selected: %@, hoveredChannelIndex: %ld", 
+            //      (long)i, isHovered ? @"YES" : @"NO", isSelected ? @"YES" : @"NO", (long)self.hoveredChannelIndex);
+            
+            [self drawGlassmorphismButton:buttonRect 
+                                     text:nil 
+                                isHovered:isHovered 
+                               isSelected:isSelected];
         }
         
         // Draw channel name
@@ -245,7 +207,8 @@
         }
         
         // Draw timeshift indicator if channel supports catchup
-        if (tempChannel && tempChannel.supportsCatchup) {
+        // CRITICAL FIX: Match iOS logic - check both supportsCatchup AND catchupDays > 0
+        if (tempChannel && (tempChannel.supportsCatchup || tempChannel.catchupDays > 0)) {
             NSRect timeshiftIconRect = NSMakeRect(
                 itemRect.origin.x + itemRect.size.width - 30, // Position on the right side
                 itemRect.origin.y + (itemRect.size.height - 16) / 2 + 8, // Center vertically, slightly down
@@ -253,43 +216,30 @@
                 16
             );
             
-            // Draw timeshift icon (clock with arrow)
-            [[NSColor colorWithCalibratedRed:0.2 green:0.7 blue:1.0 alpha:0.9] set];
+            // Draw solid green background with full opacity (matching group style)
+            [[NSColor colorWithCalibratedRed:0.2 green:0.6 blue:0.3 alpha:1.0] set];
+            NSBezierPath *backgroundPath = [NSBezierPath bezierPathWithRoundedRect:timeshiftIconRect xRadius:3 yRadius:3];
+            [backgroundPath fill];
             
-            // Draw clock circle
-            NSBezierPath *clockCircle = [NSBezierPath bezierPathWithOvalInRect:timeshiftIconRect];
-            [clockCircle setLineWidth:1.5];
-            [clockCircle stroke];
+            // Draw opaque white border for better visibility (matching group style)
+            [[NSColor colorWithWhite:1.0 alpha:1.0] set];
+            NSBezierPath *borderPath = [NSBezierPath bezierPathWithRoundedRect:timeshiftIconRect xRadius:3 yRadius:3];
+            [borderPath setLineWidth:1.0];
+            [borderPath stroke];
             
-            // Draw clock hands pointing to 10:10 (classic clock position)
-            NSPoint center = NSMakePoint(timeshiftIconRect.origin.x + timeshiftIconRect.size.width/2, 
-                                        timeshiftIconRect.origin.y + timeshiftIconRect.size.height/2);
+            // Draw the rewind symbol inside
+            NSMutableParagraphStyle *iconStyle = [[NSMutableParagraphStyle alloc] init];
+            [iconStyle setAlignment:NSTextAlignmentCenter];
             
-            // Hour hand (pointing to 10)
-            NSBezierPath *hourHand = [NSBezierPath bezierPath];
-            [hourHand moveToPoint:center];
-            [hourHand lineToPoint:NSMakePoint(center.x - 3, center.y + 2)];
-            [hourHand setLineWidth:1.5];
-            [hourHand stroke];
+            NSDictionary *iconAttrs = @{
+                NSFontAttributeName: [NSFont systemFontOfSize:12], // Slightly smaller to fit in border
+                NSForegroundColorAttributeName: [NSColor whiteColor],
+                NSParagraphStyleAttributeName: iconStyle
+            };
             
-            // Minute hand (pointing to 2)
-            NSBezierPath *minuteHand = [NSBezierPath bezierPath];
-            [minuteHand moveToPoint:center];
-            [minuteHand lineToPoint:NSMakePoint(center.x + 4, center.y + 1)];
-            [minuteHand setLineWidth:1.0];
-            [minuteHand stroke];
-            
-            // Center dot
-            NSBezierPath *centerDot = [NSBezierPath bezierPathWithOvalInRect:NSMakeRect(center.x - 1, center.y - 1, 2, 2)];
-            [centerDot fill];
-            
-            // Draw small arrow to indicate rewind capability
-            NSBezierPath *rewindArrow = [NSBezierPath bezierPath];
-            [rewindArrow moveToPoint:NSMakePoint(center.x - 6, center.y - 6)];
-            [rewindArrow lineToPoint:NSMakePoint(center.x - 3, center.y - 4)];
-            [rewindArrow lineToPoint:NSMakePoint(center.x - 3, center.y - 8)];
-            [rewindArrow closePath];
-            [rewindArrow fill];
+            // Use simple clock symbol to indicate catchup capability
+            [@"⏱" drawInRect:timeshiftIconRect withAttributes:iconAttrs];
+            [iconStyle release];
         }
         
         // Get the actual channel object to access program info
@@ -438,9 +388,16 @@
 }
 
 - (void)drawLoadingIndicator:(NSRect)rect {
+    // Debug: Log loading state for troubleshooting
     if (!self.isLoading) {
         return; // Don't draw anything if we're not in loading state
     }
+    
+    //NSLog(@"🎨 [MAC-PROGRESS] Drawing loading indicator - isLoading:%@ isLoadingEpg:%@ loadingProgress:%.2f epgProgress:%.2f", 
+    //      self.isLoading ? @"YES" : @"NO", 
+    //      self.isLoadingEpg ? @"YES" : @"NO", 
+    //      self.loadingProgress, 
+    //      self.epgLoadingProgress);
     
     // Create a more visible overlay in the bottom right
     CGFloat overlayWidth = 350; // Width for detailed info
@@ -465,27 +422,27 @@
     [bgPath setLineWidth:1.0];
     [bgPath stroke];
     
-    // Draw title and loading text
+    // Draw title and loading text using new progress system
     NSString *titleText;
     
-    // Determine if we're downloading or processing
+    // Determine if we're downloading or processing from the new status texts
     NSString *currentStatus = @"";
-    if (gProgressMessageLock) {
-        [gProgressMessageLock lock];
-        if (gProgressMessage) {
-            currentStatus = [NSString stringWithString:gProgressMessage];
-        }
-        [gProgressMessageLock unlock];
+    if (self.isLoadingEpg && self.epgLoadingStatusText) {
+        currentStatus = self.epgLoadingStatusText;
+    } else if (self.loadingStatusText) {
+        currentStatus = self.loadingStatusText;
     }
     
-    if ([currentStatus rangeOfString:@"Downloading:"].location != NSNotFound) {
+    if ([currentStatus containsString:@"Downloading"]) {
         titleText = @"Downloading...";
-    } else if ([currentStatus rangeOfString:@"Processing:"].location != NSNotFound) {
+    } else if ([currentStatus containsString:@"Processing"]) {
         titleText = @"Processing...";
-    } else if ([currentStatus rangeOfString:@"Download complete"].location != NSNotFound) {
-        titleText = @"Download Complete";
+    } else if ([currentStatus containsString:@"Parsing"]) {
+        titleText = @"Parsing...";
+    } else if ([currentStatus containsString:@"completed"] || [currentStatus containsString:@"✅"]) {
+        titleText = @"Complete";
     } else {
-        titleText = @"Please Wait...";
+        titleText = @"Loading...";
     }
     
     // Draw title
@@ -509,17 +466,15 @@
     
     [titleText drawInRect:titleRect withAttributes:titleAttrs];
     
-    // Draw detail status text (if available)
+    // Draw detail status text using new progress system
     NSString *statusText = @"";
-    if (gProgressMessageLock) {
-        [gProgressMessageLock lock];
-        if (gProgressMessage) {
-            statusText = [NSString stringWithString:gProgressMessage];
-        }
-        [gProgressMessageLock unlock];
-    }
     
-    if (!statusText || [statusText length] == 0) {
+    // Use the new structured progress texts instead of global variables
+    if (self.isLoadingEpg && self.epgLoadingStatusText && [self.epgLoadingStatusText length] > 0) {
+        statusText = self.epgLoadingStatusText;
+    } else if (self.loadingStatusText && [self.loadingStatusText length] > 0) {
+        statusText = self.loadingStatusText;
+    } else {
         statusText = @"Please wait...";
     }
     
@@ -607,23 +562,21 @@
         [progressFilledPath fill];
     }
     
-    // Draw percentage text on progress bar
+    // Draw percentage text on progress bar using new progress system
     NSString *percentText;
     
-    // Get the current status text from global variable - use progressStatus to avoid redefining currentStatus
+    // Get the current status text from the new system
     NSString *progressStatus = @"";
-    if (gProgressMessageLock) {
-        [gProgressMessageLock lock];
-        if (gProgressMessage) {
-            progressStatus = [NSString stringWithString:gProgressMessage];
-        }
-        [gProgressMessageLock unlock];
+    if (self.isLoadingEpg && self.epgLoadingStatusText) {
+        progressStatus = self.epgLoadingStatusText;
+    } else if (self.loadingStatusText) {
+        progressStatus = self.loadingStatusText;
     }
     
     if (progressValue > 0.0) {
-        // Use the value from status text if it contains download information
-        if ([progressStatus rangeOfString:@"Downloading:"].location != NSNotFound) {
-            percentText = progressStatus;
+        // Show detailed MB information if available
+        if ([progressStatus containsString:@"MB"]) {
+            percentText = progressStatus;  // Show the full MB details
         } else {
             percentText = [NSString stringWithFormat:@"%.0f%%", progressValue * 100.0];
         }
@@ -664,24 +617,9 @@
     CGFloat epgPanelWidth = self.bounds.size.width - epgPanelX;
     CGFloat rowHeight = 40;
     
-    // Draw background using theme colors
+    // Draw glassmorphism panel for EPG
     NSRect epgRect = NSMakeRect(epgPanelX, 0, epgPanelWidth, self.bounds.size.height);
-    
-    // Use theme colors for EPG panel background
-    NSColor *epgStartColor, *epgEndColor;
-    if (self.themeChannelStartColor && self.themeChannelEndColor) {
-        // Make the EPG panel use a darker version of channel theme colors
-        CGFloat darkAlpha = self.themeAlpha * 0.8;
-        epgStartColor = [self.themeChannelStartColor colorWithAlphaComponent:darkAlpha];
-        epgEndColor = [self.themeChannelEndColor colorWithAlphaComponent:darkAlpha];
-    } else {
-        epgStartColor = [NSColor colorWithCalibratedRed:0.08 green:0.10 blue:0.14 alpha:0.7];
-        epgEndColor = [NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.7];
-    }
-    
-    NSGradient *epgGradient = [[NSGradient alloc] initWithStartingColor:epgStartColor endingColor:epgEndColor];
-    [epgGradient drawInRect:epgRect angle:90];
-    [epgGradient release];
+    [self drawGlassmorphismPanel:epgRect opacity:0.6 cornerRadius:0];
     
     // Remove the header bar completely
     
@@ -742,24 +680,9 @@
     CGFloat settingsPanelWidth = self.bounds.size.width - settingsPanelX;
     CGFloat rowHeight = 40;
     
-    // Draw background using theme colors
+    // Draw glassmorphism panel for settings
     NSRect settingsRect = NSMakeRect(settingsPanelX, 0, settingsPanelWidth, self.bounds.size.height);
-    
-    // Use theme colors for settings panel background
-    NSColor *settingsStartColor, *settingsEndColor;
-    if (self.themeChannelStartColor && self.themeChannelEndColor) {
-        // Make the settings panel use theme colors with slight alpha adjustment
-        CGFloat settingsAlpha = self.themeAlpha * 0.85;
-        settingsStartColor = [self.themeChannelStartColor colorWithAlphaComponent:settingsAlpha];
-        settingsEndColor = [self.themeChannelEndColor colorWithAlphaComponent:settingsAlpha];
-    } else {
-        settingsStartColor = [NSColor colorWithCalibratedRed:0.08 green:0.10 blue:0.14 alpha:0.7];
-        settingsEndColor = [NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.7];
-    }
-    
-    NSGradient *settingsGradient = [[NSGradient alloc] initWithStartingColor:settingsStartColor endingColor:settingsEndColor];
-    [settingsGradient drawInRect:settingsRect angle:90];
-    [settingsGradient release];
+    [self drawGlassmorphismPanel:settingsRect opacity:0.7 cornerRadius:0];
     
     // Only draw settings content if a settings group is selected
     NSArray *settingsGroups = [self safeValueForKey:@"SETTINGS" fromDictionary:self.groupsByCategory];
@@ -1168,3 +1091,5 @@
 }
 
 @end 
+
+#endif // TARGET_OS_OSX 

@@ -1,4 +1,6 @@
-#import <Cocoa/Cocoa.h>
+#import "PlatformBridge.h"
+
+#if TARGET_OS_OSX
 
 @class VLCDropdownManager;
 
@@ -87,3 +89,5 @@
 - (BOOL)isPointInAnyDropdown:(NSPoint)point;
 
 @end 
+
+#endif // TARGET_OS_OSX 

@@ -2,6 +2,8 @@
 #import "VLCChannel.h"
 #import "VLCProgram.h"
 
+#if TARGET_OS_OSX
+
 @interface VLCOverlayView (ContextMenu)
 
 // Context menu methods
@@ -20,4 +22,6 @@
 // Scroll bar methods
 - (void)fadeScrollBars:(NSTimer *)timer;
 
-@end 
+@end
+
+#endif // TARGET_OS_OSX 

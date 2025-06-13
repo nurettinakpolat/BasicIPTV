@@ -1,9 +1,12 @@
 #import "VLCOverlayView+Drawing.h"
+
+#if TARGET_OS_OSX
 #import "VLCOverlayView_Private.h"
 #import "VLCOverlayView+PlayerControls.h"
 #import "VLCSubtitleSettings.h"
 #import <objc/runtime.h>
 #import "VLCOverlayView+Utilities.h"
+#import "VLCOverlayView+Glassmorphism.h"
 #import <math.h>
 #import "VLCSliderControl.h"
 #import "VLCOverlayView+Globals.h"
@@ -313,12 +316,9 @@ extern BOOL isStackedViewActive;
 - (void)drawCategories:(NSRect)rect {
     CGFloat catWidth = 200;
     
-    // Draw background with modern gradient
+    // Draw glassmorphism panel for categories
     NSRect menuRect = NSMakeRect(0, 0, catWidth, self.bounds.size.height);
-    NSGradient *backgroundGradient = [[NSGradient alloc] initWithStartingColor:self.themeCategoryStartColor ? self.themeCategoryStartColor : [NSColor colorWithCalibratedRed:0.08 green:0.10 blue:0.14 alpha:0.75]
-                                                                   endingColor:self.themeCategoryEndColor ? self.themeCategoryEndColor : [NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.75]];
-    [backgroundGradient drawInRect:menuRect angle:90];
-    [backgroundGradient release];
+    [self drawGlassmorphismPanel:menuRect opacity:0.8 cornerRadius:0];
     
     // Calculate total height for scroll bar
     CGFloat rowHeight = 40;
@@ -336,30 +336,20 @@ extern BOOL isStackedViewActive;
             continue;
         }
         
-        // Draw selection/hover background with rounded corners
-        if (i == self.selectedCategoryIndex) {
-            NSBezierPath *selectionPath = [NSBezierPath bezierPathWithRoundedRect:
-                                         NSInsetRect(itemRect, 4, 2)
-                                                                         xRadius:6
-                                                                         yRadius:6];
-            [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.3] set];
-            [selectionPath fill];
-            
-            // Add subtle highlight
-            [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.2] set];
-            [selectionPath stroke];
-        } else if (i == self.hoveredCategoryIndex) {
-            // Hover state - lighter version of selection
-            NSBezierPath *hoverPath = [NSBezierPath bezierPathWithRoundedRect:
-                                     NSInsetRect(itemRect, 4, 2)
-                                                                     xRadius:6
-                                                                     yRadius:6];
-            [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.25] set]; // Increased alpha from 0.15
-            [hoverPath fill];
-            
-            // Add subtle highlight
-            [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.15] set]; // Increased stroke alpha from 0.1
-            [hoverPath stroke];
+        // Draw selection/hover background with glassmorphism effects
+        // FIXED: Adjust button insets based on blur radius to prevent gaps
+        CGFloat blurRadius = [self glassmorphismBlurRadius];
+        CGFloat dynamicInset = 4 - (blurRadius / 50.0) * 2; // Reduce inset as blur increases
+        dynamicInset = MAX(dynamicInset, 1); // Minimum inset of 1px
+        NSRect buttonRect = NSInsetRect(itemRect, dynamicInset, 2);
+        BOOL isHovered = (i == self.hoveredCategoryIndex);
+        BOOL isSelected = (i == self.selectedCategoryIndex);
+        
+        if (isSelected || isHovered) {
+            [self drawGlassmorphismButton:buttonRect 
+                                     text:nil 
+                                isHovered:isHovered 
+                               isSelected:isSelected];
         }
         
         // Get category name and icon
@@ -428,12 +418,9 @@ extern BOOL isStackedViewActive;
     CGFloat groupWidth = 250;
     CGFloat rowHeight = 40;
     
-    // Draw background with modern gradient
+    // Draw glassmorphism panel for groups
     NSRect menuRect = NSMakeRect(catWidth, 0, groupWidth, self.bounds.size.height);
-    NSGradient *backgroundGradient = [[NSGradient alloc] initWithStartingColor:self.themeGroupStartColor ? self.themeGroupStartColor : [NSColor colorWithCalibratedRed:0.08 green:0.10 blue:0.14 alpha:0.75]
-                                                                   endingColor:self.themeGroupEndColor ? self.themeGroupEndColor : [NSColor colorWithCalibratedRed:0.10 green:0.12 blue:0.16 alpha:0.75]];
-    [backgroundGradient drawInRect:menuRect angle:90];
-    [backgroundGradient release];
+    [self drawGlassmorphismPanel:menuRect opacity:0.7 cornerRadius:0];
 
     // Get appropriate groups based on selected category
     NSArray *groups = nil;
@@ -467,30 +454,20 @@ extern BOOL isStackedViewActive;
         
         NSString *group = [groups objectAtIndex:i];
         
-        // Draw selection/hover background
-        if (i == self.selectedGroupIndex) {
-            NSBezierPath *selectionPath = [NSBezierPath bezierPathWithRoundedRect:
-                                         NSInsetRect(itemRect, 4, 2)
-                                                                         xRadius:6
-                                                                         yRadius:6];
-            [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.3] set];
-            [selectionPath fill];
-            
-            // Add subtle highlight
-            [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.2] set];
-            [selectionPath stroke];
-        } else if (i == self.hoveredGroupIndex) {
-            // Hover state - lighter version of selection
-            NSBezierPath *hoverPath = [NSBezierPath bezierPathWithRoundedRect:
-                                     NSInsetRect(itemRect, 4, 2)
-                                                                     xRadius:6
-                                                                     yRadius:6];
-            [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.25] set]; // Increased alpha from 0.15
-            [hoverPath fill];
+        // Draw selection/hover background with glassmorphism effects
+        // FIXED: Adjust button insets based on blur radius to prevent gaps
+        CGFloat blurRadius = [self glassmorphismBlurRadius];
+        CGFloat dynamicInset = 4 - (blurRadius / 50.0) * 2; // Reduce inset as blur increases
+        dynamicInset = MAX(dynamicInset, 1); // Minimum inset of 1px
+        NSRect buttonRect = NSInsetRect(itemRect, dynamicInset, 2);
+        BOOL isHovered = (i == self.hoveredGroupIndex);
+        BOOL isSelected = (i == self.selectedGroupIndex);
         
-            // Add subtle highlight
-            [[NSColor colorWithCalibratedRed:self.customSelectionRed green:self.customSelectionGreen blue:self.customSelectionBlue alpha:0.15] set]; // Increased stroke alpha from 0.1
-            [hoverPath stroke];
+        if (isSelected || isHovered) {
+            [self drawGlassmorphismButton:buttonRect 
+                                     text:nil 
+                                isHovered:isHovered 
+                               isSelected:isSelected];
         }
         
         // Draw group name with shadow
@@ -536,48 +513,35 @@ extern BOOL isStackedViewActive;
         if (groupHasCatchupChannels) {
             NSRect catchupIconRect = NSMakeRect(
                 itemRect.origin.x + itemRect.size.width - 28, // Position on the right side  
-                itemRect.origin.y + (itemRect.size.height - 14) / 2, // Center vertically
-                14, 
-                14
+                itemRect.origin.y + (itemRect.size.height - 16) / 2, // Center vertically
+                16, 
+                16
             );
             
-            // Draw catchup icon (clock with arrow) - slightly smaller for groups
-            [[NSColor colorWithCalibratedRed:0.2 green:0.7 blue:1.0 alpha:0.9] set];
+            // Draw semi-transparent background with better visibility
+            [[NSColor colorWithCalibratedRed:0.2 green:0.6 blue:0.3 alpha:0.8] set];
+            NSBezierPath *backgroundPath = [NSBezierPath bezierPathWithRoundedRect:catchupIconRect xRadius:3 yRadius:3];
+            [backgroundPath fill];
             
-            // Draw clock circle
-            NSBezierPath *clockCircle = [NSBezierPath bezierPathWithOvalInRect:catchupIconRect];
-            [clockCircle setLineWidth:1.2];
-            [clockCircle stroke];
+            // Draw opaque white border for better visibility
+            [[NSColor colorWithWhite:1.0 alpha:0.9] set];
+            NSBezierPath *borderPath = [NSBezierPath bezierPathWithRoundedRect:catchupIconRect xRadius:3 yRadius:3];
+            [borderPath setLineWidth:1.0];
+            [borderPath stroke];
             
-            // Draw clock hands pointing to 10:10 (classic clock position)
-            NSPoint center = NSMakePoint(catchupIconRect.origin.x + catchupIconRect.size.width/2, 
-                                        catchupIconRect.origin.y + catchupIconRect.size.height/2);
+            // Draw the rewind symbol inside
+            NSMutableParagraphStyle *iconStyle = [[NSMutableParagraphStyle alloc] init];
+            [iconStyle setAlignment:NSTextAlignmentCenter];
             
-            // Hour hand (pointing to 10) - smaller for group icon
-            NSBezierPath *hourHand = [NSBezierPath bezierPath];
-            [hourHand moveToPoint:center];
-            [hourHand lineToPoint:NSMakePoint(center.x - 2.5, center.y + 1.5)];
-            [hourHand setLineWidth:1.2];
-            [hourHand stroke];
+            NSDictionary *iconAttrs = @{
+                NSFontAttributeName: [NSFont systemFontOfSize:12], // Slightly smaller to fit in border
+                NSForegroundColorAttributeName: [NSColor whiteColor],
+                NSParagraphStyleAttributeName: iconStyle
+            };
             
-            // Minute hand (pointing to 2) - smaller for group icon
-            NSBezierPath *minuteHand = [NSBezierPath bezierPath];
-            [minuteHand moveToPoint:center];
-            [minuteHand lineToPoint:NSMakePoint(center.x + 3, center.y + 1)];
-            [minuteHand setLineWidth:1.0];
-            [minuteHand stroke];
-            
-            // Center dot
-            NSBezierPath *centerDot = [NSBezierPath bezierPathWithOvalInRect:NSMakeRect(center.x - 0.5, center.y - 0.5, 1, 1)];
-            [centerDot fill];
-            
-            // Draw small arrow to indicate rewind capability - smaller for group
-            NSBezierPath *rewindArrow = [NSBezierPath bezierPath];
-            [rewindArrow moveToPoint:NSMakePoint(center.x - 5, center.y - 5)];
-            [rewindArrow lineToPoint:NSMakePoint(center.x - 2.5, center.y - 3.5)];
-            [rewindArrow lineToPoint:NSMakePoint(center.x - 2.5, center.y - 6.5)];
-            [rewindArrow closePath];
-            [rewindArrow fill];
+            // Use simple clock symbol to indicate catchup capability
+            [@"⏱" drawInRect:catchupIconRect withAttributes:iconAttrs];
+            [iconStyle release];
         }
         
         [style release];
@@ -826,11 +790,11 @@ extern BOOL isStackedViewActive;
 
 - (void)drawThemeSettings:(NSRect)rect x:(CGFloat)x width:(CGFloat)width {
     CGFloat padding = 30;
-    CGFloat startY = self.bounds.size.height - 80;
+    CGFloat startY = self.bounds.size.height + self.settingsScrollPosition; // Start from the very top of the view
     CGFloat controlWidth = width - (padding * 2);
     CGFloat yOffset = 0;
-    CGFloat controlHeight = 35;
-    CGFloat verticalSpacing = 25;
+    CGFloat controlHeight = 25; // Reduced for compact horizontal layout
+    CGFloat verticalSpacing = 20; // Reduced for more compact layout
     
     // Draw a section title
     NSMutableParagraphStyle *style = [[NSMutableParagraphStyle alloc] init];
@@ -865,15 +829,29 @@ extern BOOL isStackedViewActive;
     
     yOffset += controlHeight + verticalSpacing;
     
-    // Show RGB sliders only when Custom theme is selected
+    // Define section attributes for reuse across multiple sections
+    NSDictionary *sectionAttrs = @{
+        NSFontAttributeName: [NSFont boldSystemFontOfSize:16],
+        NSForegroundColorAttributeName: self.textColor,
+        NSParagraphStyleAttributeName: style
+    };
+    
+    // =================================================================
+    // SECTION 0: CUSTOM THEME COLORS (only shown when Custom theme selected)
+    // =================================================================
     if (self.currentTheme == VLC_THEME_CUSTOM) {
-        // Red slider
+        yOffset += 15;
+        NSRect customThemeSectionRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, 25);
+        [@"🎨 Custom Theme Colors" drawInRect:customThemeSectionRect withAttributes:sectionAttrs];
+        yOffset += 35;
+        
+        // Custom Theme Red slider
         NSRect redRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
         NSString *redDisplayText = [NSString stringWithFormat:@"%d", (int)(self.customThemeRed * 255)];
         
         NSRect redSliderInteractionRect;
         [VLCSliderControl drawSlider:redRect
-                              label:@"Red:"
+                              label:@"🔴 Theme Red:"
                            minValue:0.0
                            maxValue:1.0
                        currentValue:self.customThemeRed
@@ -884,13 +862,13 @@ extern BOOL isStackedViewActive;
         
         yOffset += controlHeight + verticalSpacing;
         
-        // Green slider
+        // Custom Theme Green slider
         NSRect greenRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
         NSString *greenDisplayText = [NSString stringWithFormat:@"%d", (int)(self.customThemeGreen * 255)];
         
         NSRect greenSliderInteractionRect;
         [VLCSliderControl drawSlider:greenRect
-                              label:@"Green:"
+                              label:@"🟢 Theme Green:"
                            minValue:0.0
                            maxValue:1.0
                        currentValue:self.customThemeGreen
@@ -901,13 +879,13 @@ extern BOOL isStackedViewActive;
         
         yOffset += controlHeight + verticalSpacing;
         
-        // Blue slider
+        // Custom Theme Blue slider
         NSRect blueRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
         NSString *blueDisplayText = [NSString stringWithFormat:@"%d", (int)(self.customThemeBlue * 255)];
         
         NSRect blueSliderInteractionRect;
         [VLCSliderControl drawSlider:blueRect
-                              label:@"Blue:"
+                              label:@"🔵 Theme Blue:"
                            minValue:0.0
                            maxValue:1.0
                        currentValue:self.customThemeBlue
@@ -917,26 +895,22 @@ extern BOOL isStackedViewActive;
         self.blueSliderRect = blueSliderInteractionRect;
         
         yOffset += controlHeight + verticalSpacing;
-    
-    // Add a section separator for Selection Colors
-    yOffset += 15;
+        
+        // =================================================================
+        // SECTION A: SELECTION COLORS (Button highlights and hover effects)
+        // =================================================================
+        yOffset += 12; // Reduced from 15px to 12px
     NSRect selectionSectionRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, 25);
-    NSDictionary *sectionAttrs = @{
-        NSFontAttributeName: [NSFont boldSystemFontOfSize:16],
-        NSForegroundColorAttributeName: self.textColor,
-        NSParagraphStyleAttributeName: style
-    };
-    [@"Selection Colors" drawInRect:selectionSectionRect withAttributes:sectionAttrs];
-    yOffset += 35;
-    
-        // Selection Color RGB sliders (only shown for custom theme)
+        [@"🎯 Selection Colors (Buttons & Highlights)" drawInRect:selectionSectionRect withAttributes:sectionAttrs];
+        yOffset += 30; // Reduced from 35px to 30px
+        
     // Selection Red slider
     NSRect selectionRedRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
     NSString *selectionRedDisplayText = [NSString stringWithFormat:@"%d", (int)(self.customSelectionRed * 255)];
     
     NSRect selectionRedSliderInteractionRect;
     [VLCSliderControl drawSlider:selectionRedRect
-                          label:@"Selection Red:"
+                              label:@"🔴 Selection Red:"
                        minValue:0.0
                        maxValue:1.0
                    currentValue:self.customSelectionRed
@@ -953,7 +927,7 @@ extern BOOL isStackedViewActive;
     
     NSRect selectionGreenSliderInteractionRect;
     [VLCSliderControl drawSlider:selectionGreenRect
-                          label:@"Selection Green:"
+                              label:@"🟢 Selection Green:"
                        minValue:0.0
                        maxValue:1.0
                    currentValue:self.customSelectionGreen
@@ -970,7 +944,7 @@ extern BOOL isStackedViewActive;
     
     NSRect selectionBlueSliderInteractionRect;
     [VLCSliderControl drawSlider:selectionBlueRect
-                          label:@"Selection Blue:"
+                              label:@"🔵 Selection Blue:"
                        minValue:0.0
                        maxValue:1.0
                    currentValue:self.customSelectionBlue
@@ -980,6 +954,8 @@ extern BOOL isStackedViewActive;
     self.selectionBlueSliderRect = selectionBlueSliderInteractionRect;
     
     yOffset += controlHeight + verticalSpacing;
+    
+        yOffset += 20; // Reduced from 35px to 20px after selection colors section
     } else {
         // Clear RGB slider rects when theme is not custom to make them non-interactive
         self.redSliderRect = NSZeroRect;
@@ -1003,7 +979,15 @@ extern BOOL isStackedViewActive;
         }
     }
     
-    // Draw Transparency Slider (always shown)
+    // =================================================================
+    // SECTION 3: GLOBAL TRANSPARENCY
+    // =================================================================
+    yOffset += 20; // Reduced from 30px to 20px
+    NSRect globalSectionRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, 25);
+    [@"🌐 Global Transparency" drawInRect:globalSectionRect withAttributes:sectionAttrs];
+    yOffset += 30; // Reduced from 35px to 30px
+    
+    // Global transparency slider (affects everything)
     NSRect transparencyRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
     
     // Convert transparency level to continuous slider value (0.5 to 0.95)
@@ -1013,7 +997,7 @@ extern BOOL isStackedViewActive;
     // Use a local variable to store the slider rect for interaction
     NSRect sliderInteractionRect;
     [VLCSliderControl drawSlider:transparencyRect
-                          label:@"Transparency:"
+                          label:@"Main Transparency:"
                        minValue:0.0
                        maxValue:1.0
                    currentValue:currentValue
@@ -1024,7 +1008,216 @@ extern BOOL isStackedViewActive;
     // Store the slider rect in the property for later use
     self.transparencySliderRect = sliderInteractionRect;
     
-    [style release];
+    yOffset += controlHeight + verticalSpacing + 20; // Reduced from 30px to 20px
+    
+    // =================================================================
+    // SECTION 4: GLASSMORPHISM CONTROLS
+    // =================================================================
+    NSRect glassSectionRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, 25);
+    [@"✨ Glassmorphism Effects" drawInRect:glassSectionRect withAttributes:sectionAttrs];
+    yOffset += 30; // Reduced from 35px to 30px
+    
+    // Glassmorphism enabled toggle
+    NSRect glassEnabledRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
+    NSString *enabledText = [self glassmorphismEnabled] ? @"Enabled" : @"Disabled";
+    
+    [self drawToggleButton:glassEnabledRect 
+                     label:@"Enable Glassmorphism:"
+                 isEnabled:[self glassmorphismEnabled]
+                identifier:@"glassmorphismEnabled"];
+    
+    yOffset += controlHeight + verticalSpacing;
+    
+    // Show glassmorphism controls only when enabled
+    if ([self glassmorphismEnabled]) {
+        // ─────────────────────────────────────────────────────────────
+        // SUB-SECTION: Basic Controls
+        // ─────────────────────────────────────────────────────────────
+        NSRect basicControlsRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, 18);
+        NSDictionary *subSectionAttrs = @{
+            NSFontAttributeName: [NSFont systemFontOfSize:13 weight:NSFontWeightMedium],
+            NSForegroundColorAttributeName: [NSColor colorWithWhite:0.8 alpha:1.0],
+        NSParagraphStyleAttributeName: style
+    };
+        [@"⚙️ Basic Controls" drawInRect:basicControlsRect withAttributes:subSectionAttrs];
+        yOffset += 30; // Increased spacing after sub-section header
+        
+        // Effect intensity slider
+        NSRect intensityRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
+        NSString *intensityDisplayText = [NSString stringWithFormat:@"%.0f%%", [self glassmorphismIntensity] * 100];
+        
+        NSRect intensitySliderInteractionRect;
+        [VLCSliderControl drawSlider:intensityRect
+                              label:@"Effect Intensity:"
+                           minValue:0.0
+                           maxValue:1.0
+                       currentValue:[self glassmorphismIntensity]
+                        labelColor:self.textColor
+                        sliderRect:&intensitySliderInteractionRect
+                       displayText:intensityDisplayText];
+        self.glassmorphismIntensitySliderRect = intensitySliderInteractionRect;
+        
+        yOffset += controlHeight + verticalSpacing;
+        
+        // Independent opacity slider
+        NSRect opacityRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
+        NSString *opacityDisplayText = [NSString stringWithFormat:@"%.0f%%", [self glassmorphismOpacity] * 100];
+        
+        NSRect opacitySliderInteractionRect;
+        [VLCSliderControl drawSlider:opacityRect
+                              label:@"Glass Opacity:"
+                           minValue:0.0
+                           maxValue:2.0
+                       currentValue:[self glassmorphismOpacity]
+                        labelColor:self.textColor
+                        sliderRect:&opacitySliderInteractionRect
+                       displayText:opacityDisplayText];
+        self.glassmorphismOpacitySliderRect = opacitySliderInteractionRect;
+        
+        yOffset += controlHeight + verticalSpacing;
+        
+        // High quality toggle
+        NSRect highQualityRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
+        
+        [self drawToggleButton:highQualityRect 
+                         label:@"High Quality Mode:"
+                     isEnabled:[self glassmorphismHighQuality]
+                    identifier:@"glassmorphismHighQuality"];
+        
+        yOffset += controlHeight + verticalSpacing;
+        
+        // Ignore transparency toggle
+        NSRect ignoreTransparencyRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
+        
+        [self drawToggleButton:ignoreTransparencyRect 
+                         label:@"Independent from Main Transparency:"
+                     isEnabled:[self glassmorphismIgnoreTransparency]
+                    identifier:@"glassmorphismIgnoreTransparency"];
+        self.glassmorphismIgnoreTransparencyToggleRect = ignoreTransparencyRect;
+        
+        yOffset += controlHeight + verticalSpacing + 20; // Space before next sub-section
+        
+        // ─────────────────────────────────────────────────────────────
+        // SUB-SECTION: Visual Effects
+        // ─────────────────────────────────────────────────────────────
+        NSRect visualEffectsRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, 18);
+        [@"🎨 Visual Effects" drawInRect:visualEffectsRect withAttributes:subSectionAttrs];
+        yOffset += 30; // Increased spacing after sub-section header
+        
+        // Blur radius slider
+        NSRect blurRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
+        NSString *blurDisplayText = [NSString stringWithFormat:@"%.0f", [self glassmorphismBlurRadius]];
+        
+        NSRect blurSliderInteractionRect;
+        [VLCSliderControl drawSlider:blurRect
+                              label:@"Blur Radius:"
+                           minValue:0.0
+                           maxValue:50.0
+                       currentValue:[self glassmorphismBlurRadius]
+                        labelColor:self.textColor
+                        sliderRect:&blurSliderInteractionRect
+                       displayText:blurDisplayText];
+        self.glassmorphismBlurSliderRect = blurSliderInteractionRect;
+        
+        yOffset += controlHeight + verticalSpacing;
+        
+        // Border width slider
+        NSRect borderRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
+        NSString *borderDisplayText = [NSString stringWithFormat:@"%.1f px", [self glassmorphismBorderWidth]];
+        
+        NSRect borderSliderInteractionRect;
+        [VLCSliderControl drawSlider:borderRect
+                              label:@"Border Width:"
+                           minValue:0.0
+                           maxValue:5.0
+                       currentValue:[self glassmorphismBorderWidth]
+                        labelColor:self.textColor
+                        sliderRect:&borderSliderInteractionRect
+                       displayText:borderDisplayText];
+        self.glassmorphismBorderSliderRect = borderSliderInteractionRect;
+        
+        yOffset += controlHeight + verticalSpacing;
+        
+        // Corner radius slider
+        NSRect cornerRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
+        NSString *cornerDisplayText = [NSString stringWithFormat:@"%.0f px", [self glassmorphismCornerRadius]];
+        
+        NSRect cornerSliderInteractionRect;
+        [VLCSliderControl drawSlider:cornerRect
+                              label:@"Corner Radius:"
+                           minValue:0.0
+                           maxValue:20.0
+                       currentValue:[self glassmorphismCornerRadius]
+                        labelColor:self.textColor
+                        sliderRect:&cornerSliderInteractionRect
+                       displayText:cornerDisplayText];
+        self.glassmorphismCornerSliderRect = cornerSliderInteractionRect;
+        
+        yOffset += controlHeight + verticalSpacing;
+        
+        // Sanded effect intensity slider
+        NSRect sandedRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, controlHeight);
+        NSString *sandedDisplayText = [NSString stringWithFormat:@"%.0f%%", [self glassmorphismSandedIntensity] * 100];
+        
+        NSRect sandedSliderInteractionRect;
+        [VLCSliderControl drawSlider:sandedRect
+                              label:@"Sanded Texture:"
+                           minValue:0.0
+                           maxValue:3.0
+                       currentValue:[self glassmorphismSandedIntensity]
+                        labelColor:self.textColor
+                        sliderRect:&sandedSliderInteractionRect
+                       displayText:sandedDisplayText];
+        self.glassmorphismSandedSliderRect = sandedSliderInteractionRect;
+        
+        yOffset += controlHeight + verticalSpacing + 10; // Reduced from 15px to 10px
+        
+        // Minimal info text to prevent overlap
+        NSRect perfInfoRect = NSMakeRect(x + padding, startY - yOffset, controlWidth, 40);
+        NSString *perfInfo = [self glassmorphismHighQuality] ? 
+            @"High Quality mode • Independent from main transparency • 💡 Scroll with mouse wheel" :
+            @"Low Quality mode • Independent from main transparency • 💡 Scroll with mouse wheel";
+        
+        NSDictionary *infoAttrs = @{
+            NSFontAttributeName: [NSFont systemFontOfSize:10], // Even smaller font
+            NSForegroundColorAttributeName: [NSColor colorWithWhite:0.6 alpha:1.0], // Dimmer
+            NSParagraphStyleAttributeName: style
+        };
+        [perfInfo drawInRect:perfInfoRect withAttributes:infoAttrs];
+        
+        // Minimal bottom padding
+        yOffset += 50; // Much less space to prevent overlap
+    } else {
+        // Clear glassmorphism SLIDERS when glassmorphism is disabled (but keep toggles clickable)
+        self.glassmorphismIntensitySliderRect = NSZeroRect;
+        self.glassmorphismOpacitySliderRect = NSZeroRect;
+        self.glassmorphismBlurSliderRect = NSZeroRect;
+        self.glassmorphismBorderSliderRect = NSZeroRect;
+        self.glassmorphismCornerSliderRect = NSZeroRect;
+        
+        // NOTE: Keep toggle rects active so user can still enable glassmorphism
+        // self.glassmorphismEnabledToggleRect = NSZeroRect; // REMOVED - toggle must stay clickable
+        self.glassmorphismHighQualityToggleRect = NSZeroRect;
+        self.glassmorphismIgnoreTransparencyToggleRect = NSZeroRect;
+        
+        // Clear legacy background slider rects (no longer used)
+        self.glassmorphismBackgroundRedSliderRect = NSZeroRect;
+        self.glassmorphismBackgroundGreenSliderRect = NSZeroRect;
+        self.glassmorphismBackgroundBlueSliderRect = NSZeroRect;
+        
+        // Reset any glassmorphism sliders if they were active
+        NSString *activeSlider = [VLCSliderControl activeSliderHandle];
+        if (activeSlider && ([activeSlider isEqualToString:@"glassmorphismIntensity"] ||
+                           [activeSlider isEqualToString:@"glassmorphismOpacity"] ||
+                           [activeSlider isEqualToString:@"glassmorphismBlur"] ||
+                           [activeSlider isEqualToString:@"glassmorphismBorder"] ||
+                           [activeSlider isEqualToString:@"glassmorphismCorner"] ||
+                           [activeSlider isEqualToString:@"glassmorphismBackgroundRed"] ||
+                           [activeSlider isEqualToString:@"glassmorphismBackgroundGreen"] ||
+                           [activeSlider isEqualToString:@"glassmorphismBackgroundBlue"])) {
+            [VLCSliderControl handleMouseUp];
+        }
+    }
 }
 
 - (void)drawDropdownButton:(NSRect)rect text:(NSString *)text identifier:(NSString *)identifier {
@@ -1032,31 +1225,11 @@ extern BOOL isStackedViewActive;
     VLCDropdown *dropdown = [self.dropdownManager dropdownWithIdentifier:identifier];
     BOOL isOpen = dropdown && dropdown.isOpen;
     
-    // Draw button background
-    NSColor *bgColor = isOpen ? self.hoverColor : self.backgroundColor;
-    [bgColor set];
-    NSBezierPath *bgPath = [NSBezierPath bezierPathWithRoundedRect:rect xRadius:3 yRadius:3];
-    [bgPath fill];
-    
-    // Draw border
-    [self.textColor set];
-    [bgPath stroke];
-    
-    // Draw text
-    NSMutableParagraphStyle *style = [[NSMutableParagraphStyle alloc] init];
-    [style setAlignment:NSTextAlignmentLeft];
-    
-    NSDictionary *attrs = @{
-        NSFontAttributeName: [NSFont systemFontOfSize:14],
-        NSForegroundColorAttributeName: self.textColor,
-        NSParagraphStyleAttributeName: style
-    };
-    
-    NSRect textRect = NSMakeRect(rect.origin.x + 8,
-                                rect.origin.y + (rect.size.height - 16) / 2,
-                                rect.size.width - 28,
-                                16);
-    [text drawInRect:textRect withAttributes:attrs];
+    // Draw glassmorphism dropdown button (handles text internally)
+    [self drawGlassmorphismButton:rect 
+                             text:text 
+                        isHovered:NO 
+                       isSelected:isOpen];
     
     // Draw dropdown arrow
     NSRect arrowRect = NSMakeRect(rect.origin.x + rect.size.width - 20,
@@ -1077,8 +1250,6 @@ extern BOOL isStackedViewActive;
     }
     [arrowPath closePath];
     [arrowPath fill];
-    
-    [style release];
 }
 
 - (NSString *)getCurrentThemeDisplayText {
@@ -1227,4 +1398,78 @@ extern BOOL isStackedViewActive;
     }
 }
 
+- (void)drawToggleButton:(NSRect)rect label:(NSString *)label isEnabled:(BOOL)isEnabled identifier:(NSString *)identifier {
+    // Calculate label text width to position toggle right after it
+    NSMutableParagraphStyle *style = [[NSMutableParagraphStyle alloc] init];
+    [style setAlignment:NSTextAlignmentLeft];
+    
+    NSDictionary *labelAttrs = @{
+        NSFontAttributeName: [NSFont systemFontOfSize:14],
+        NSForegroundColorAttributeName: self.textColor,
+        NSParagraphStyleAttributeName: style
+    };
+    
+    // Measure actual text width
+    NSSize textSize = [label sizeWithAttributes:labelAttrs];
+    CGFloat labelWidth = textSize.width;
+    
+    // Draw label
+    NSRect labelRect = NSMakeRect(rect.origin.x, rect.origin.y + (rect.size.height - 20) / 2, labelWidth, 20);
+    [label drawInRect:labelRect withAttributes:labelAttrs];
+    [style release];
+    
+    // Draw toggle button right after the label with small gap
+    CGFloat toggleWidth = 60;
+    CGFloat toggleHeight = 25;
+    CGFloat gap = 15; // Small gap after label
+    NSRect toggleRect = NSMakeRect(rect.origin.x + labelWidth + gap, 
+                                  rect.origin.y + (rect.size.height - toggleHeight) / 2, 
+                                  toggleWidth, toggleHeight);
+    
+    // Store toggle rect for interaction (you'll need to add these properties)
+    if ([identifier isEqualToString:@"glassmorphismEnabled"]) {
+        self.glassmorphismEnabledToggleRect = toggleRect;
+    } else if ([identifier isEqualToString:@"glassmorphismHighQuality"]) {
+        self.glassmorphismHighQualityToggleRect = toggleRect;
+    } else if ([identifier isEqualToString:@"glassmorphismIgnoreTransparency"]) {
+        self.glassmorphismIgnoreTransparencyToggleRect = toggleRect;
+    }
+    
+    // Draw toggle button background
+    NSColor *bgColor = isEnabled ? 
+        [NSColor colorWithRed:0.3 green:0.6 blue:1.0 alpha:0.8] : 
+        [NSColor colorWithWhite:0.3 alpha:0.8];
+    [bgColor set];
+    
+    NSBezierPath *togglePath = [NSBezierPath bezierPathWithRoundedRect:toggleRect xRadius:toggleHeight/2 yRadius:toggleHeight/2];
+    [togglePath fill];
+    
+    // Draw toggle knob
+    CGFloat knobSize = toggleHeight - 4;
+    CGFloat knobX = isEnabled ? 
+        (toggleRect.origin.x + toggleWidth - knobSize - 2) : 
+        (toggleRect.origin.x + 2);
+    NSRect knobRect = NSMakeRect(knobX, toggleRect.origin.y + 2, knobSize, knobSize);
+    
+    [[NSColor whiteColor] set];
+    NSBezierPath *knobPath = [NSBezierPath bezierPathWithOvalInRect:knobRect];
+    [knobPath fill];
+    
+    // Draw text status
+    NSString *statusText = isEnabled ? @"ON" : @"OFF";
+    CGFloat statusX = isEnabled ? toggleRect.origin.x + 8 : toggleRect.origin.x + toggleWidth - 30;
+    NSRect statusRect = NSMakeRect(statusX, toggleRect.origin.y + (toggleHeight - 12) / 2, 22, 12);
+    
+    NSDictionary *statusAttrs = @{
+        NSFontAttributeName: [NSFont boldSystemFontOfSize:10],
+        NSForegroundColorAttributeName: [NSColor whiteColor],
+        NSParagraphStyleAttributeName: [[NSParagraphStyle alloc] init]
+    };
+    
+    [statusText drawInRect:statusRect withAttributes:statusAttrs];
+    [[statusAttrs objectForKey:NSParagraphStyleAttributeName] release];
+}
+
 @end
+
+#endif // TARGET_OS_OSX
